@@ -7,8 +7,7 @@ const App = () => {
 
   return (
     <div style={{height: '650px', width: '800px'}}>
-      <WordAlignerComponent
-      />
+      <WordAlignerComponent/>
     </div>
   );
 };
