@@ -87,33 +87,66 @@ module.exports = {
   serverPort: 6003,
   exampleMode: 'expand',
   usageMode: 'expand',
-  // getComponentPathLine(componentPath) {
-  //   console.log('componentPath', componentPath);
-  //   const componentName = componentPath.match(/(\w+)\/index.(t|j)sx?/)[1];
-  //   console.log('componentName', componentName);
-  //   return `import { ${componentName} } from '${name}';`;
-  // },
   webpackConfig: {
-    //https://github.com/facebook/create-react-app/pull/8079#issuecomment-562373869
-    devServer: { port: 6003, transportMode: 'ws' },
-    devtool: 'source-map',
-    resolve: { extensions: ['.ts', '.tsx', '.js', '.jsx'] },
+    devServer: { 
+      port: 6003, 
+      transportMode: 'ws',
+      hot: true 
+    },
+    devtool: 'eval-source-map', // Better for development
+    resolve: { 
+      extensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
+      alias: {
+        '@': path.resolve(__dirname, 'src'),
+      }
+    },
     module: {
       rules: [
         {
-          enforce: 'pre', test: /\.js$/, loader: 'source-map-loader',
-        },
-        {
-          test: /\.(t|j)sx?$/, use: { loader: 'ts-loader' }, exclude: /node_modules/,
+          test: /\.(ts|tsx)$/,
+          use: [
+            {
+              loader: 'ts-loader',
+              options: {
+                transpileOnly: true, // Faster builds
+                compilerOptions: {
+                  module: 'esnext',
+                  moduleResolution: 'node'
+                }
+              }
+            }
+          ],
+          exclude: /node_modules/,
         },
         {
           test: /\.css$/,
+          use: ['style-loader', 'css-loader'],
+        },
+        {
+          test: /\.(png|jpg|gif|svg|woff|woff2|eot|ttf)$/,
           use: [
-            'style-loader',
-            { loader: 'css-loader' },
+            {
+              loader: 'file-loader',
+              options: {
+                name: '[name].[ext]',
+                outputPath: 'assets/',
+              },
+            },
           ],
         },
+        {
+          enforce: 'pre',
+          test: /\.js$/,
+          loader: 'source-map-loader',
+          exclude: /node_modules/,
+        },
       ],
+    },
+    optimization: {
+      moduleIds: 'named',
+    },
+    performance: {
+      hints: false,
     },
   },
 };
