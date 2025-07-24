@@ -70,7 +70,7 @@ const parserOptions = { savePropValueAsString: true };
 // ];
 
 module.exports = {
-  components: 'src/*.tsx',
+  components: 'src/**/*.tsx',
   propsParser: require('react-docgen-typescript').withCustomConfig(
     './tsconfig.json',
     [parserOptions],
