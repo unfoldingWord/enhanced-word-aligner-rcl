@@ -28,9 +28,101 @@ const {targetWords, verseAlignments} = AlignmentHelpers.parseUsfmToWordAlignerDa
 const alignmentComplete = AlignmentHelpers.areAlgnmentsComplete(targetWords, verseAlignments);
 console.log(`Alignments are ${alignmentComplete ? 'COMPLETE!' : 'incomplete'}`);
 
-const App = () => {
+const WordAlignerPanel = ({
+    verseAlignments,
+    targetWords,
+    translate,
+    contextId,
+    targetLanguageFont,
+    sourceLanguage,
+    showPopover,
+    lexicons,
+    loadLexiconEntry,
+    onChange,
+    getLexiconData,
+    translationMemory,
+    styles
+}) => {
   const [addTranslationMemory, setAddTranslationMemory] = useState(null);
+  const [doTraining, setDoTraining] = useState(false);
+  const [training, setTraining] = useState(false);
 
+  // Handler for the load translation memory button
+  const handleLoadTranslationMemory = () => {
+    console.log('Calling loadTranslationMemory')
+    setAddTranslationMemory(translationMemory);
+  };
+  
+  const handleToggleTraining = () => {
+    const newTrainingState = !_training;
+    console.log('Toggle training to: ' + newTrainingState);
+    setDoTraining(newTrainingState);
+  };
+  
+  const handleSetTrainingState = (_training) => {
+    console.log('Updating training state: ' + _training);
+    setTraining(_training);
+  };
+  
+  const trainingButtonStr = training ? "Stop Training" : "Start Training"
+
+  return (
+    <>
+      <div style={{ display: 'flex', gap: '10px' }}>
+        <button
+          onClick={handleLoadTranslationMemory}
+          className="load-translation-btn"
+          style={{
+            padding: '8px 16px',
+            backgroundColor: '#4285f4',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            marginBottom: '10px'
+          }}
+        >
+          Load Translation Memory
+        </button>
+        <button
+          onClick={handleToggleTraining}
+          className="toggle-training-btn"
+          style={{
+            padding: '8px 16px',
+            backgroundColor: '#4285f4',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            marginBottom: '10px'
+          }}
+        >
+          {trainingButtonStr}
+        </button>
+        {training && <span style={{ marginLeft: '8px', color: '#666' }}>Training...</span>}
+      </div>
+      <WordAlignerComponent
+        styles={{ maxHeight: '450px', overflowY: 'auto', ...styles }}
+        verseAlignments={verseAlignments}
+        targetWords={targetWords}
+        translate={translate}
+        contextId={contextId}
+        targetLanguageFont={targetLanguageFont}
+        sourceLanguage={sourceLanguage}
+        showPopover={showPopover}
+        lexicons={lexicons}
+        loadLexiconEntry={loadLexiconEntry}
+        onChange={onChange}
+        getLexiconData={getLexiconData}
+        addTranslationMemory={addTranslationMemory}
+        doTraining={doTraining}
+        handleSetTrainingState={handleSetTrainingState}
+      />
+    </>
+  );
+};
+
+const App = () => {
   const targetLanguageFont = '';
   const sourceLanguage = NT_ORIG_LANG;
   const lexicons = {};
@@ -66,31 +158,9 @@ const App = () => {
     console.log(`Alignments are ${alignmentComplete ? 'COMPLETE!' : 'incomplete'}`);
   }
   
-  // Handler for the load translation memory button
-  const handleLoadTranslationMemory = () => {
-    console.log('Calling loadTranslationMemory')
-    setAddTranslationMemory(translationMemory);
-  };
-
   return (
     <div style={{height: '650px', width: '800px'}}>
-      <button
-        onClick={handleLoadTranslationMemory}
-        className="load-translation-btn"
-        style={{
-          padding: '8px 16px',
-          backgroundColor: '#4285f4',
-          color: 'white',
-          border: 'none',
-          borderRadius: '4px',
-          cursor: 'pointer',
-          marginBottom: '10px'
-        }}
-      >
-        Load Translation Memory
-      </button>
-      <WordAlignerComponent
-        styles={{ maxHeight: '450px', overflowY: 'auto' }}
+      <WordAlignerPanel
         verseAlignments={verseAlignments}
         targetWords={targetWords}
         translate={translate}
@@ -102,7 +172,7 @@ const App = () => {
         loadLexiconEntry={loadLexiconEntry}
         onChange={onChange}
         getLexiconData={getLexiconData_}
-        addTranslationMemory={addTranslationMemory}
+        translationMemory={translationMemory}
       />
     </div>
   );

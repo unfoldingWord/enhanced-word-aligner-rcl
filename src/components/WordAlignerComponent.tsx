@@ -130,6 +130,7 @@ type translationMemoryType = {
     sourceUsfms: booksUsfmType;
     targetUsfms: booksUsfmType;
 };
+type THandleSetTrainingState = (running: boolean) => void;
 
 interface SuggestingWordAlignerProps {
     styles?: React.CSSProperties;
@@ -175,6 +176,8 @@ interface SuggestingWordAlignerProps {
         manuallyAligned?: Alignment[]
     ) => Promise<Suggestion[]>;
     addTranslationMemory?: translationMemoryType;
+    doTraining: boolean;
+    handleSetTrainingState?: THandleSetTrainingState;
 }
 
 function getSelectionFromContext(contextId: ContextId) {
@@ -227,7 +230,9 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
    hasRenderedSuggestions,
    suggester,
    asyncSuggester,
-   addTranslationMemory
+   addTranslationMemory,
+   doTraining, 
+   handleSetTrainingState,
 }) => {
     
     const dbStorageRef = useRef<IndexedDBStorage | null>(null);
@@ -300,6 +305,11 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
         return isProvidedResourcePartiallySelected( currentSelection, resourceKey );
     }
     
+    /**
+     * Loads translation memory data into the component state
+     * @param translationMemory Object containing source and target USFM translation data
+     * @throws Error if no resources are selected or if USFM content is missing
+     */
     const loadTranslationMemory = async ( translationMemory: translationMemoryType ) => {
         //ask the user to make a selection if no resources are selected.
         if( currentSelection.length == 0 ) {
@@ -371,6 +381,89 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
         }
     };
 
+    const trainingRunning = !!alignmentTrainingWorkerRef.current
+    
+    /**
+     * Starts the alignment training process using a web worker
+     * Only runs if there have been changes since last training and enough training data exists
+     * Updates training state and alignment predictor with trained model results
+     */
+    function startTraining(){
+
+        //Use the Refs such as trainingStateRef instead of trainingState
+        //because in the callback the objects are stale because they were
+        //captured from a previous invocation of the function and don't
+        //have later versions of the function in which things have been updated.
+        //startTraining itself gets called from within the callback so itself is
+        //a callback needs to use the Refs.
+        //https://stackoverflow.com/a/60643670
+
+        //make sure that lastUsedInstanceCount isn't still the same as groupCollection.instanceCount
+        if( trainingStateRef.current.lastTrainedInstanceCount !== stateRef.current.groupCollection.instanceCount ){
+            if( alignmentTrainingWorkerRef.current === null ){
+
+                //before creating the worker, check to see if there is any data to train on.
+                //get the information for the alignment to training.
+                const alignmentTrainingData = stateRef.current.groupCollection.getAlignmentDataAndCorpusForTrainingOrTesting( {forTesting: false, getCorpus:true} );
+
+                //check if there are enough entries in the alignment training data dictionary
+                if( Object.values(alignmentTrainingData.alignments).length > 4 ){
+                    handleSetTrainingState?.(true); 
+
+                    console.log(`start training for ${stateRef.current.groupCollection.instanceCount}`);
+                    setTrainingState( {...trainingStateRef.current, currentTrainingInstanceCount: stateRef.current.groupCollection.instanceCount } );
+
+                    //create a new worker.
+                    alignmentTrainingWorkerRef.current = new Worker( new URL("../workers/AlignmentTrainer.ts", import.meta.url ) );
+
+                    //Define the callback which will be called after the alignment trainer has finished
+                    alignmentTrainingWorkerRef.current.addEventListener('message', (event) => {
+                        console.log( `alignment training worker message: ${event.data}` );
+                        alignmentTrainingWorkerRef.current?.terminate();
+                        alignmentTrainingWorkerRef.current = null;
+
+
+                        //Load the trained model and put it somewhere it can be used.
+                        if( "trainedModel" in event.data ){
+                            alignmentPredictor.current = AbstractWordMapWrapper.load( event.data.trainedModel );
+                        }
+                        if( "error" in event.data ){
+                            console.log( "Error running alignment worker: " + event.data.error );
+                        }
+
+                        setTrainingState( {...trainingStateRef.current, lastTrainedInstanceCount: trainingStateRef.current.currentTrainingInstanceCount } );
+                        handleSetTrainingState?.(false); 
+                        //start the training again.  It won't run again if the instanceCount hasn't changed
+                        startTraining();
+                    });
+
+
+                    alignmentTrainingWorkerRef.current.postMessage( alignmentTrainingData );
+
+                }else{
+                    console.log( "Not enough training data" );
+                }
+
+            }else{
+                console.log("Alignment training already running" );
+            }
+        }else{
+            console.log( "information not changed" );
+        }
+    }
+
+    /**
+     * Stops any active alignment training by terminating the worker
+     */
+    function stopTraining() {
+        if( alignmentTrainingWorkerRef.current !== null ){
+            handleSetTrainingState?.(false);
+            alignmentTrainingWorkerRef.current.terminate();
+            alignmentTrainingWorkerRef.current = null;
+            console.log( "Alignment training stopped" );
+        }
+    }
+
     // Effect to load translation memory when it changes
     useEffect(() => {
         if (addTranslationMemory && Object.keys(addTranslationMemory).length > 0) {
@@ -378,10 +471,19 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
         }
     }, [addTranslationMemory]);
     
-    
     useEffect(() => {
         setCurrentSelection( getSelectionFromContext(contextId) );
     }, [contextId]);
+
+    useEffect(() => {
+        if (doTraining !== trainingRunning) { // check if training change
+            if (doTraining) {
+                startTraining();
+            } else {
+                stopTraining();
+            }
+        }
+    }, [doTraining]);
 
     return (
         <SuggestingWordAligner
