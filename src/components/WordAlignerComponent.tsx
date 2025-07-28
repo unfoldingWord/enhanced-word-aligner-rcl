@@ -1,4 +1,4 @@
-import {useRef, useState} from 'react'
+import {useRef, useState, useEffect} from 'react'
 import '../App.css'
 import React from 'react'
 import { SuggestingWordAligner, TAlignerData, TReference, TSourceTargetAlignment, TWord } from 'suggesting-word-aligner-rcl'
@@ -6,6 +6,9 @@ import GroupCollection from "@/shared/GroupCollection";
 import {TWordAlignmentTestResults} from "@/workers/WorkerComTypes";
 import IndexedDBStorage from "@/shared/IndexedDBStorage";
 import { AbstractWordMapWrapper } from 'wordmapbooster/dist/boostwordmap_tools';
+import usfm from 'usfm-js';
+import {isProvidedResourcePartiallySelected, isProvidedResourceSelected} from "@/utils/misc";
+import {parseUsfmHeaders} from "@/utils/usfm_misc";
 
 export interface TWordAlignerAlignmentResult{
     targetWords: TWord[];
@@ -65,6 +68,7 @@ interface ContextId {
     };
     tool: string;
     groupId: string;
+    bibleId: string;
 }
 
 interface SourceWord {
@@ -93,8 +97,39 @@ interface Alignment {
     targetNgram: TargetWord[];
 }
 
+interface TReference{
+    chapter: number;
+    verse: number;
+}
+
+interface TContextId{
+    reference: TReference;
+}
+
+interface TUsfmVerse{
+    verseObjects: TWord[];
+}
+
+type TUsfmChapter = {[key:string]:TUsfmVerse};
+
+interface TUsfmHeader{
+    tag: string;
+    content: string;
+}
+
+interface TUsfmBook{
+    headers: TUsfmHeader[];
+    chapters: {[key:string]:TUsfmChapter};
+}
+
 type Token = any; // You should import the actual Token type from wordMAP-lexer
 type Suggestion = any; // You should import the actual Suggestion type from wordMAP
+type usfmType = string; // Type definition for USFM content
+type booksUsfmType = { [bibleId: string]: usfmType };
+type translationMemoryType = {
+    sourceUsfms: booksUsfmType;
+    targetUsfms: booksUsfmType;
+};
 
 interface SuggestingWordAlignerProps {
     styles?: React.CSSProperties;
@@ -139,13 +174,22 @@ interface SuggestingWordAlignerProps {
         maxSuggestions?: number,
         manuallyAligned?: Alignment[]
     ) => Promise<Suggestion[]>;
+    addTranslationMemory?: translationMemoryType;
 }
 
-function defaultAppState(): AppState{
+function getSelectionFromContext(contextId: ContextId) {
+    const currentSelection = [
+        [contextId?.bibleId || '', contextId?.reference?.bookId || '']
+    ]
+    return currentSelection;
+}
+
+function defaultAppState(contextId: ContextId): AppState{
+    const currentSelection = getSelectionFromContext(contextId);
     return {
         groupCollection: new GroupCollection({}, 0),
         scope: "Book",
-        currentSelection: [],
+        currentSelection,
         doubleClickedVerse: null,
         alignerStatus: null,
     }
@@ -182,12 +226,13 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
    targetWords,
    hasRenderedSuggestions,
    suggester,
-   asyncSuggester
+   asyncSuggester,
+   addTranslationMemory
 }) => {
     
     const dbStorageRef = useRef<IndexedDBStorage | null>(null);
 
-    const [state, _setState] = useState<AppState>(defaultAppState());
+    const [state, _setState] = useState<AppState>(defaultAppState(contextId));
     //also hold the state in a ref so that callbacks can get the up-to-date information.
     //https://stackoverflow.com/a/60643670
     const stateRef = useRef<AppState>(state);
@@ -202,14 +247,141 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
         trainingStateRef.current = newState;
         _setTrainingState( newState );
     }
-
-
+    
     const alignmentTrainingWorkerRef = useRef<Worker | null>(null);
     const alignmentTestingWorkerRef  = useRef<Worker | null>(null);
 
     const {groupCollection, scope, currentSelection, doubleClickedVerse, alignerStatus } = state;
 
     const alignmentPredictor = useRef< AbstractWordMapWrapper | null >( null );
+
+    const setGroupCollection = (newGroupCollection: GroupCollection ) => {
+        setState( { ...stateRef.current, groupCollection: newGroupCollection } );
+    }
+
+    const onScopeChange = (newScope: string) =>{
+        setState( { ...stateRef.current, scope: newScope } );
+    }
+
+    const setCurrentSelection = (newCurrentSelection: string[][] ) => {
+        setState( { ...stateRef.current, currentSelection: newCurrentSelection } );
+    }
+
+    const setDoubleClickedVerse = (newDoubleClickedVerse: string[] | null ) => {
+        setState( {...stateRef.current, doubleClickedVerse: newDoubleClickedVerse } );
+    }
+
+    const setAlignerStatus = (newAlignerStatus: TAlignerStatus | null ) => {
+        setState( {...stateRef.current, alignerStatus: newAlignerStatus } );
+    }
+    const setIsTrainingEnabled = (newIsTrainingEnabled: boolean) => {
+        setTrainingState( {...trainingStateRef.current, isTrainingEnabled: newIsTrainingEnabled } );
+    }
+
+    /**
+     * Checks to see if a specific string array references a given resource.
+     * The locations in the string are [group][book name][chapter num][verse num]
+     * The array only needs to be as long as the granularity.
+     * @param resourceKey A string array identifying resource at some granularity
+     * @returns true if the referenced resource is selected.
+     */
+    const isResourceSelected = ( resourceKey: string[] ):boolean => {
+        return isProvidedResourceSelected( currentSelection, resourceKey );
+    }
+
+    /**
+     * Checks to see if a specific string array intercepts a given resource.
+     * The locations in the string are [group][book name][chapter num][verse num]
+     * The array only needs to be as long as the granularity.
+     * @param resourceKey A string array identifying resource at some granularity
+     * @returns true if the referenced resource is selected.
+     */
+    const isResourcePartiallySelected = ( resourceKey: string[] ):boolean => {
+        return isProvidedResourcePartiallySelected( currentSelection, resourceKey );
+    }
+    
+    const loadTranslationMemory = async ( translationMemory: translationMemoryType ) => {
+        //ask the user to make a selection if no resources are selected.
+        if( currentSelection.length == 0 ) {
+            throw new Error("No resources selected to add to.");
+        }
+
+        if( ! translationMemory?.targetUsfms ) {
+            throw new Error("No USFM source content to add");
+        }
+
+        let newGroupCollection_: GroupCollection;
+        
+        // #######################################################
+        // load the target usfms.
+        try{
+            //load the usfm.
+            const usfm_json : { [key: string]: TUsfmBook } = Object.fromEntries( Object.entries(translationMemory?.targetUsfms).map(([key,value]) => [key, usfm.toJSON(value,  { convertToInt: ['occurrence', 'occurrences'] })]));
+            const group_name = contextId?.bibleId || '';
+    
+            let need_confirmation = false;
+            let confirmation_message = "";
+    
+            //now make sure that for each of the chapters being loaded that that chapter hasn't already been loaded.
+            Object.values(usfm_json).forEach((usfm_book) => {
+                if( groupCollection.hasBookInGroup( {group_name, usfm_book}) ){
+                    const parsed_headers = parseUsfmHeaders(usfm_book.headers);
+                    need_confirmation = true;
+                    confirmation_message += `Do you want to reload ${parsed_headers.h} in ${group_name}?`
+                }
+            })
+    
+            //now do the confirmation if needed.
+            //this will throw an exception if it doesn't pass confirmation.
+            // if( need_confirmation ) await getUserConfirmation(confirmation_message  );
+    
+            //poke all the newly loaded items in.
+            newGroupCollection_ = groupCollection.addTargetUsfm({group_name, usfm_json })
+            setGroupCollection( newGroupCollection_ );
+            
+        } catch( error ){
+            //user declined
+            console.error( `error importing ${error}` );
+            // await showMessage( `Error ${error}`)
+        }
+        
+        // #######################################################
+        // load the source usfms.
+        try{
+            if( ! translationMemory?.sourceUsfms ) {
+                throw new Error("No USFM source content to add");
+            }
+            
+            const usfm_json = Object.fromEntries( Object.entries(translationMemory?.sourceUsfms).map(([key,value]) => [key, usfm.toJSON(value, { convertToInt: ['occurrence','occurrences'] })]));
+
+            //it would be good to come back to this and add confirmation
+            //if the pairing is changing an existing pairing.
+
+            const {newGroupCollection, addedVerseCount, droppedVerseCount } = newGroupCollection_.addSourceUsfm( {usfm_json, isResourceSelected} );
+            setGroupCollection( newGroupCollection );
+            
+            //await showMessage( `Attached ${addedVerseCount} verses\nDropped ${droppedVerseCount} verses.`);
+            // await showMessage( `${addedVerseCount} connections added.`);
+            console.log( `${addedVerseCount} connections added.`);
+
+        } catch( error ){
+            //user declined
+            console.error( `error importing ${error}` );
+            // await showMessage( `Error ${error}`)
+        }
+    };
+
+    // Effect to load translation memory when it changes
+    useEffect(() => {
+        if (addTranslationMemory && Object.keys(addTranslationMemory).length > 0) {
+            loadTranslationMemory(addTranslationMemory);
+        }
+    }, [addTranslationMemory]);
+    
+    
+    useEffect(() => {
+        setCurrentSelection( getSelectionFromContext(contextId) );
+    }, [contextId]);
 
     return (
         <SuggestingWordAligner

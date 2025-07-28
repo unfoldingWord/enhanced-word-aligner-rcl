@@ -1,21 +1,21 @@
 Suggesting Word Aligner Example:
 
 ```js
+import React, {useState} from 'react';
 import {
   AlignmentHelpers,
   UsfmFileConversionHelpers,
-  usfmHelpers,
-  WordAligner,
-  SuggestingWordAligner
+  usfmHelpers
 } from "suggesting-word-aligner-rcl";
+import { WordAlignerComponent } from './WordAlignerComponent'
 
 import {NT_ORIG_LANG} from "../common/constants";
 
-// var alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1.json');
-var alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1_partial.json');
-var originalVerseJson = require('../__tests__/fixtures/alignments/grk_tit_1_1.json');
+// const alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1.json');
+const alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1_partial.json');
+const originalVerseJson = require('../__tests__/fixtures/alignments/grk_tit_1_1.json');
 const LexiconData = require("../__tests__/fixtures/lexicon/lexicons.json");
-
+const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory.json");
 const translate = (key) => {
   console.log(`translate(${key})`)
 };
@@ -29,6 +29,8 @@ const alignmentComplete = AlignmentHelpers.areAlgnmentsComplete(targetWords, ver
 console.log(`Alignments are ${alignmentComplete ? 'COMPLETE!' : 'incomplete'}`);
 
 const App = () => {
+  const [addTranslationMemory, setAddTranslationMemory] = useState(null);
+
   const targetLanguageFont = '';
   const sourceLanguage = NT_ORIG_LANG;
   const lexicons = {};
@@ -39,7 +41,8 @@ const App = () => {
       "verse": 1
     },
     "tool": "wordAlignment",
-    "groupId": "chapter_1"
+    "groupId": "chapter_1",
+    "bibleId": "unfoldingWord/en_ult"
   };
   const showPopover = (PopoverTitle, wordDetails, positionCoord, rawData) => {
     console.log(`showPopover()`, rawData)
@@ -62,9 +65,30 @@ const App = () => {
     const alignmentComplete = AlignmentHelpers.areAlgnmentsComplete(targetWords, verseAlignments);
     console.log(`Alignments are ${alignmentComplete ? 'COMPLETE!' : 'incomplete'}`);
   }
+  
+  // Handler for the load translation memory button
+  const handleLoadTranslationMemory = () => {
+    console.log('Calling loadTranslationMemory')
+    setAddTranslationMemory(translationMemory);
+  };
 
   return (
     <div style={{height: '650px', width: '800px'}}>
+      <button
+        onClick={handleLoadTranslationMemory}
+        className="load-translation-btn"
+        style={{
+          padding: '8px 16px',
+          backgroundColor: '#4285f4',
+          color: 'white',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: 'pointer',
+          marginBottom: '10px'
+        }}
+      >
+        Load Translation Memory
+      </button>
       <WordAlignerComponent
         styles={{ maxHeight: '450px', overflowY: 'auto' }}
         verseAlignments={verseAlignments}
@@ -78,6 +102,7 @@ const App = () => {
         loadLexiconEntry={loadLexiconEntry}
         onChange={onChange}
         getLexiconData={getLexiconData_}
+        addTranslationMemory={addTranslationMemory}
       />
     </div>
   );
