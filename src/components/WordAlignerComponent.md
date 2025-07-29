@@ -8,6 +8,7 @@ import {
   usfmHelpers
 } from "suggesting-word-aligner-rcl";
 import { WordAlignerComponent } from './WordAlignerComponent'
+import delay from "../utils/delay";
 
 import {NT_ORIG_LANG} from "../common/constants";
 
@@ -44,6 +45,7 @@ const WordAlignerPanel = ({
     styles
 }) => {
   const [addTranslationMemory, setAddTranslationMemory] = useState(null);
+  const [translationMemoryLoaded, setTranslationMemoryLoaded] = useState(false);
   const [doTraining, setDoTraining] = useState(false);
   const [training, setTraining] = useState(false);
 
@@ -51,55 +53,70 @@ const WordAlignerPanel = ({
   const handleLoadTranslationMemory = () => {
     console.log('Calling loadTranslationMemory')
     setAddTranslationMemory(translationMemory);
+    setTranslationMemoryLoaded(true)
   };
-  
+
   const handleToggleTraining = () => {
-    const newTrainingState = !_training;
+    const newTrainingState = !training;
     console.log('Toggle training to: ' + newTrainingState);
     setDoTraining(newTrainingState);
   };
-  
+
   const handleSetTrainingState = (_training) => {
     console.log('Updating training state: ' + _training);
-    setTraining(_training);
+    delay(500).then(() => { // update async
+      setTraining(_training);
+      if (!_training) {
+        setDoTraining(false);
+      }
+    })
   };
-  
+
   const trainingButtonStr = training ? "Stop Training" : "Start Training"
+
+  const enableLoadTranslation = !doTraining && !translationMemoryLoaded;
+  const enableTrainingToggle = translationMemoryLoaded && !doTraining;
 
   return (
     <>
-      <div style={{ display: 'flex', gap: '10px' }}>
+      <div style={{display: 'flex', gap: '10px'}}>
         <button
           onClick={handleLoadTranslationMemory}
           className="load-translation-btn"
+          disabled={!enableLoadTranslation}
           style={{
             padding: '8px 16px',
-            backgroundColor: '#4285f4',
+            backgroundColor: enableLoadTranslation ? '#4285f4' : '#cccccc',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: 'pointer',
+            cursor: enableLoadTranslation ? 'pointer' : 'not-allowed',
             marginBottom: '10px'
           }}
         >
           Load Translation Memory
         </button>
+
         <button
           onClick={handleToggleTraining}
           className="toggle-training-btn"
+          disabled={!enableTrainingToggle}
           style={{
             padding: '8px 16px',
-            backgroundColor: '#4285f4',
+            backgroundColor: translationMemoryLoaded ? '#4285f4' : '#cccccc',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: 'pointer',
+            cursor: translationMemoryLoaded ? 'pointer' : 'not-allowed',
             marginBottom: '10px'
           }}
         >
           {trainingButtonStr}
         </button>
-        {training && <span style={{ marginLeft: '8px', color: '#666' }}>Training...</span>}
+
+        {training &&
+          <span style={{marginLeft: '8px', color: '#666'}}>Training...</span>
+        }
       </div>
       <WordAlignerComponent
         styles={{ maxHeight: '450px', overflowY: 'auto', ...styles }}
@@ -157,7 +174,7 @@ const App = () => {
     const alignmentComplete = AlignmentHelpers.areAlgnmentsComplete(targetWords, verseAlignments);
     console.log(`Alignments are ${alignmentComplete ? 'COMPLETE!' : 'incomplete'}`);
   }
-  
+
   return (
     <div style={{height: '650px', width: '800px'}}>
       <WordAlignerPanel

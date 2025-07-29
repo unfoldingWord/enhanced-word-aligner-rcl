@@ -15,3 +15,16 @@ npm add enhanced-word-aligner-rcl
 ```bash
 yarn add enhanced-word-aligner-rcl
 ```
+
+## Testing in styleguidist
+
+### yarn
+
+Start styleguidist
+
+```bash
+yarn && yarn start
+```
+
+Then open browser to `http://localhost:6003/
+`

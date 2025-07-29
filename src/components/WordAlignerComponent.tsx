@@ -9,6 +9,7 @@ import { AbstractWordMapWrapper } from 'wordmapbooster/dist/boostwordmap_tools';
 import usfm from 'usfm-js';
 import {isProvidedResourcePartiallySelected, isProvidedResourceSelected} from "@/utils/misc";
 import {parseUsfmHeaders} from "@/utils/usfm_misc";
+import delay from "@/utils/delay";
 
 export interface TWordAlignerAlignmentResult{
     targetWords: TWord[];
@@ -442,13 +443,16 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
 
                 }else{
                     console.log( "Not enough training data" );
+                    handleSetTrainingState?.(false);
                 }
 
             }else{
                 console.log("Alignment training already running" );
+                handleSetTrainingState?.(false);
             }
         }else{
             console.log( "information not changed" );
+            handleSetTrainingState?.(false);
         }
     }
 
@@ -477,11 +481,13 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
 
     useEffect(() => {
         if (doTraining !== trainingRunning) { // check if training change
-            if (doTraining) {
-                startTraining();
-            } else {
-                stopTraining();
-            }
+            delay(500).then(() => { // run async
+                if (doTraining) {
+                    startTraining();
+                } else {
+                    stopTraining();
+                }
+            })
         }
     }, [doTraining]);
 
