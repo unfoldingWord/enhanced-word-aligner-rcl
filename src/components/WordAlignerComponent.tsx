@@ -364,7 +364,7 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
             //if the pairing is changing an existing pairing.
 
             const {newGroupCollection, addedVerseCount, droppedVerseCount } = newGroupCollection_.addSourceUsfm( {usfm_json, isResourceSelected: isResourceSelected_} );
-            setGroupCollection( newGroupCollection );
+            newGroupCollection_ = newGroupCollection;
 
             //await showMessage( `Attached ${addedVerseCount} verses\nDropped ${droppedVerseCount} verses.`);
             // await showMessage( `${addedVerseCount} connections added.`);
@@ -401,6 +401,7 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
     
             //poke all the newly loaded items in.
             const newGroupCollection = newGroupCollection_.addTargetUsfm({group_name, usfm_json })
+            newGroupCollection_ = newGroupCollection;
             setGroupCollection( newGroupCollection_ );
             
         } catch( error ){
