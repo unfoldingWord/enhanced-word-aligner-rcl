@@ -63,7 +63,7 @@ export default class GroupCollection {
     /**
      * This adds source usfm content like greek to all possible matching books, chapters and verses
      * across the different groups as long as the supplied function isResourceSelected returns true.
-     * The results is returned without modifying the original object.
+     * The result is returned without modifying the original object.
      * @param param0 
      */
     addSourceUsfm( {usfm_json, isResourceSelected}:{usfm_json:{[key:string]:TUsfmBook}, isResourceSelected:( resourceKey: string[] )=>boolean} ):{newGroupCollection:GroupCollection, addedVerseCount:number, droppedVerseCount:number }{

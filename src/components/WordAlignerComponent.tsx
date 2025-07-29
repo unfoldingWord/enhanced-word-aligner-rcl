@@ -10,6 +10,8 @@ import usfm from 'usfm-js';
 import {isProvidedResourcePartiallySelected, isProvidedResourceSelected} from "@/utils/misc";
 import {parseUsfmHeaders} from "@/utils/usfm_misc";
 import delay from "@/utils/delay";
+import Group from "@/shared/Group";
+import Book from "@/shared/Book";
 
 export interface TWordAlignerAlignmentResult{
     targetWords: TWord[];
@@ -190,8 +192,10 @@ function getSelectionFromContext(contextId: ContextId) {
 
 function defaultAppState(contextId: ContextId): AppState{
     const currentSelection = getSelectionFromContext(contextId);
+    const newGroups : {[key:string]: Group} = {};
+    const groupCollection = new GroupCollection(newGroups, 0);
     return {
-        groupCollection: new GroupCollection({}, 0),
+        groupCollection,
         scope: "Book",
         currentSelection,
         doubleClickedVerse: null,
@@ -321,8 +325,57 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
             throw new Error("No USFM source content to add");
         }
 
-        let newGroupCollection_: GroupCollection;
-        
+        let newGroupCollection_ = groupCollection;
+        const group_name = contextId?.bibleId || ''
+
+        // if group doesn't exist, then add
+        if ( ! newGroupCollection_.groups?.[group_name]) {
+            const newBooks: {[key:string]:Book} = {};
+            // need to get the books
+            Object.entries(translationMemory?.targetUsfms).forEach(([filename,usfm_book])=>{
+                const usfm_json = usfm.toJSON(usfm_book, { convertToInt: ['occurrence','occurrences']});
+                
+                const usfmHeaders = parseUsfmHeaders(usfm_json.headers);
+                const newBook = new Book( {chapters:{},filename,toc3Name:usfmHeaders.toc3,targetUsfmBook:null,sourceUsfmBook:null} );
+                newBooks[usfmHeaders.h] = newBook.addTargetUsfm({filename,usfm_book: usfm_json,toc3Name:usfmHeaders.toc3});
+            });
+            
+            const newGroup: Group = newGroupCollection_.groups[group_name] || new Group(newBooks);
+            const newGroups = {...newGroupCollection_.groups, [group_name]: newGroup};
+            const newGroupCollection = new GroupCollection(newGroups, newGroupCollection_.instanceCount + 1);
+            newGroupCollection_ = newGroupCollection;
+        }
+
+        // #######################################################
+        // load the source usfms.
+        try{
+            if( ! translationMemory?.sourceUsfms ) {
+                throw new Error("No USFM source content to add");
+            }
+
+            const usfm_json = Object.fromEntries( Object.entries(translationMemory?.sourceUsfms).map(([key,value]) => [key, usfm.toJSON(value, { convertToInt: ['occurrence','occurrences'] })]));
+
+            // always selected
+            const isResourceSelected_ = ( resourceKey: string[] ):boolean => {
+                return true;
+            }
+
+            //it would be good to come back to this and add confirmation
+            //if the pairing is changing an existing pairing.
+
+            const {newGroupCollection, addedVerseCount, droppedVerseCount } = newGroupCollection_.addSourceUsfm( {usfm_json, isResourceSelected: isResourceSelected_} );
+            setGroupCollection( newGroupCollection );
+
+            //await showMessage( `Attached ${addedVerseCount} verses\nDropped ${droppedVerseCount} verses.`);
+            // await showMessage( `${addedVerseCount} connections added.`);
+            console.log( `${addedVerseCount} connections added.`);
+
+        } catch( error ){
+            //user declined
+            console.error( `error importing ${error}` );
+            // await showMessage( `Error ${error}`)
+        }
+
         // #######################################################
         // load the target usfms.
         try{
@@ -347,34 +400,9 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
             // if( need_confirmation ) await getUserConfirmation(confirmation_message  );
     
             //poke all the newly loaded items in.
-            newGroupCollection_ = groupCollection.addTargetUsfm({group_name, usfm_json })
+            const newGroupCollection = newGroupCollection_.addTargetUsfm({group_name, usfm_json })
             setGroupCollection( newGroupCollection_ );
             
-        } catch( error ){
-            //user declined
-            console.error( `error importing ${error}` );
-            // await showMessage( `Error ${error}`)
-        }
-        
-        // #######################################################
-        // load the source usfms.
-        try{
-            if( ! translationMemory?.sourceUsfms ) {
-                throw new Error("No USFM source content to add");
-            }
-            
-            const usfm_json = Object.fromEntries( Object.entries(translationMemory?.sourceUsfms).map(([key,value]) => [key, usfm.toJSON(value, { convertToInt: ['occurrence','occurrences'] })]));
-
-            //it would be good to come back to this and add confirmation
-            //if the pairing is changing an existing pairing.
-
-            const {newGroupCollection, addedVerseCount, droppedVerseCount } = newGroupCollection_.addSourceUsfm( {usfm_json, isResourceSelected} );
-            setGroupCollection( newGroupCollection );
-            
-            //await showMessage( `Attached ${addedVerseCount} verses\nDropped ${droppedVerseCount} verses.`);
-            // await showMessage( `${addedVerseCount} connections added.`);
-            console.log( `${addedVerseCount} connections added.`);
-
         } catch( error ){
             //user declined
             console.error( `error importing ${error}` );
