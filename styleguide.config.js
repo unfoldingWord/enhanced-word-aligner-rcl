@@ -100,6 +100,11 @@ module.exports = {
         '@': path.resolve(__dirname, 'src'),
       }
     },
+    output: {
+      // Add proper public path and global object for workers
+      publicPath: '/',
+      globalObject: 'self'
+    },
     module: {
       rules: [
         {
@@ -144,6 +149,16 @@ module.exports = {
     },
     optimization: {
       moduleIds: 'named',
+      splitChunks: {
+        chunks: 'all',
+        cacheGroups: {
+          worker: {
+            test: /[\\/]workers[\\/]/,
+            name: 'worker',
+            chunks: 'all',
+          },
+        },
+      },
     },
     performance: {
       hints: false,
