@@ -62,6 +62,7 @@ const WordAlignerPanel = ({
   const [translationMemoryLoaded, setTranslationMemoryLoaded] = useState(false);
   const [doTraining, setDoTraining] = useState(false);
   const [training, setTraining] = useState(false);
+  const [message, setMessage] = useState('');
 
   // Handler for the load translation memory button
   const handleLoadTranslationMemory = () => {
