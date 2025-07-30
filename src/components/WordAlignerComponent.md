@@ -18,7 +18,21 @@ const originalVerseJson = require('../__tests__/fixtures/alignments/grk_tit_1_1.
 const LexiconData = require("../__tests__/fixtures/lexicon/lexicons.json");
 const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory.json");
 const translate = (key) => {
-  console.log(`translate(${key})`)
+  const lookup = {
+    "suggestions.refresh_suggestions": "Refresh suggestions.",
+    "suggestions.refresh"            : "Refresh",
+    "suggestions.accept_suggestions" : "Accept all suggestions.",
+    "suggestions.accept"             : "Accept",
+    "suggestions.reject_suggestions" : "Reject all suggestions.",
+    "suggestions.reject"             : "Reject",
+    "alignments.clear_alignments"    : "Clear all alignments.",
+    "alignments.clear"              : "Clear",
+  };
+  if( !(key in lookup) ){
+    console.log(`translate(${key})`)
+  }else{
+    return lookup[key];
+  }
 };
 
 const targetVerseUSFM = alignedVerseJson.usfm;
