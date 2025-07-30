@@ -84,5 +84,8 @@ async function processTrainingData(data: TTrainingAndTestingData) {
 }
 
 self.addEventListener('message', (event: { data: TTrainingAndTestingData }) => {
-  processTrainingData(event.data);
+  // @ts-ignore
+  if (event?.data?.data) {
+    processTrainingData(event.data);
+  }
 });

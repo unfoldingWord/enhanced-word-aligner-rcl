@@ -234,7 +234,6 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
    verseAlignments,
    targetWords,
    hasRenderedSuggestions,
-   suggester,
    asyncSuggester,
    addTranslationMemory,
    doTraining, 
@@ -550,6 +549,8 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
         }
     }, [doTraining]);
 
+    const suggester= alignmentPredictor.current?.predict.bind(alignmentPredictor.current) || null
+    
     return (
         <SuggestingWordAligner
             styles={styles}
