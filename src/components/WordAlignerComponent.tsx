@@ -134,7 +134,7 @@ type translationMemoryType = {
     sourceUsfms: booksUsfmType;
     targetUsfms: booksUsfmType;
 };
-type THandleSetTrainingState = (running: boolean) => void;
+type THandleSetTrainingState = (running: boolean, trainingComplete: boolean) => void;
 
 interface SuggestingWordAlignerProps {
     styles?: React.CSSProperties;
@@ -412,14 +412,14 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
     };
 
     const trainingRunning = !!alignmentTrainingWorkerRef.current
-    
+    const trained = !!alignmentPredictor.current
+
     /**
      * Starts the alignment training process using a web worker
      * Only runs if there have been changes since last training and enough training data exists
      * Updates training state and alignment predictor with trained model results
      */
     function startTraining(){
-
         //Use the Refs such as trainingStateRef instead of trainingState
         //because in the callback the objects are stale because they were
         //captured from a previous invocation of the function and don't
@@ -438,7 +438,7 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
 
                 //check if there are enough entries in the alignment training data dictionary
                 if( Object.values(alignmentTrainingData.alignments).length > 4 ){
-                    handleSetTrainingState?.(true);
+                    handleSetTrainingState?.(true, trained);
 
                     delay(500).then(async () => { // run after UI updates
                         try {
@@ -450,14 +450,15 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
 
                             //Load the trained model and put it somewhere it can be used.
                             // if( "trainedModel" in event.data ){
-                                alignmentPredictor.current = AbstractWordMapWrapper.load( wordAlignerModel.save );
+                                const modelData = wordAlignerModel.save();
+                                alignmentPredictor.current = AbstractWordMapWrapper.load( modelData );
                             // }
                             // if( "error" in event.data ){
                             //     console.log( "Error running alignment worker: " + event.data.error );
                             // }
 
                             setTrainingState( {...trainingStateRef.current, lastTrainedInstanceCount: trainingStateRef.current.currentTrainingInstanceCount } );
-                            handleSetTrainingState?.(false); 
+                            handleSetTrainingState?.(false, true); 
                         } catch (error) {
                             console.log(`error training`, error);
                             //TODO, need to communicate error back to the other side.
@@ -465,7 +466,7 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
                             //     message: 'There was an error while training the word map.',
                             //     error: error
                             // });
-                            handleSetTrainingState?.(false);
+                            handleSetTrainingState?.(false, trained);
                         }
                     })
 
@@ -501,16 +502,16 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
 
                 }else{
                     console.log( "Not enough training data" );
-                    handleSetTrainingState?.(false);
+                    handleSetTrainingState?.(false, trained);
                 }
 
             }else{
                 console.log("Alignment training already running" );
-                handleSetTrainingState?.(false);
+                handleSetTrainingState?.(false, trained);
             }
         }else{
             console.log( "information not changed" );
-            handleSetTrainingState?.(false);
+            handleSetTrainingState?.(false, trained);
         }
     }
 
@@ -519,7 +520,7 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
      */
     function stopTraining() {
         if( alignmentTrainingWorkerRef.current !== null ){
-            handleSetTrainingState?.(false);
+            handleSetTrainingState?.(false, trained);
             alignmentTrainingWorkerRef.current.terminate();
             alignmentTrainingWorkerRef.current = null;
             console.log( "Alignment training stopped" );
@@ -569,7 +570,6 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
             targetFontSizePercent={targetFontSizePercent}
             hasRenderedSuggestions={hasRenderedSuggestions}
             suggester={suggester}
-            asyncSuggester={asyncSuggester}
         />
   )
 }

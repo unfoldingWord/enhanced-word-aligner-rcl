@@ -28,9 +28,9 @@ const translate = (key) => {
     "alignments.clear_alignments"    : "Clear all alignments.",
     "alignments.clear"              : "Clear",
   };
-  if( !(key in lookup) ){
+  if (!(key in lookup)) {
     console.log(`translate(${key})`)
-  }else{
+  } else {
     return lookup[key];
   }
 };
@@ -76,12 +76,15 @@ const WordAlignerPanel = ({
     setDoTraining(newTrainingState);
   };
 
-  const handleSetTrainingState = (_training) => {
+  const handleSetTrainingState = (_training, trained) => {
     console.log('Updating training state: ' + _training);
     delay(500).then(() => { // update async
       setTraining(_training);
       if (!_training) {
         setDoTraining(false);
+        setMessage( trained ? "Training Complete" : "")
+      } else {
+        setMessage("Training ...")
       }
     })
   };
@@ -127,10 +130,9 @@ const WordAlignerPanel = ({
         >
           {trainingButtonStr}
         </button>
-
-        {training &&
-          <span style={{marginLeft: '8px', color: '#666'}}>Training...</span>
-        }
+        
+      <span style={{marginLeft: '8px', color: '#666'}}> {message} </span>
+ 
       </div>
       <WordAlignerComponent
         styles={{ maxHeight: '450px', overflowY: 'auto', ...styles }}
