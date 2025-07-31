@@ -132,7 +132,7 @@ const WordAlignerPanel = ({
           {trainingButtonStr}
         </button>
         
-      <span style={{marginLeft: '8px', color: '#666'}}> {message} </span>
+      <span style={{marginLeft: '8px', color: '#000'}}> {message} </span>
  
       </div>
       <WordAlignerComponent
