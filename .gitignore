@@ -124,3 +124,4 @@ yalc.lock
 *.njsproj
 *.sln
 *.sw?
+/suggesting-word-aligner-rcl.iml
