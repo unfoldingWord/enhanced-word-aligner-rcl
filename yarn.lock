@@ -10712,14 +10712,21 @@ wordmap@^0.6.0:
     "@types/yargs" "^11.0.0"
     yargs "^11.0.0"
 
-wordmapbooster@1.0.1:
-  version "1.0.1"
-  resolved "https://registry.yarnpkg.com/wordmapbooster/-/wordmapbooster-1.0.1.tgz#a5622bc9e25daef9d10d4b76eabcbf3451a7ccb7"
-  integrity sha512-pz51n/T2bRserAURCVuuIlb73Cga5jaTFFpMS2zQ5WutwUIZdEe2eaPJEnnX9+ItGCkOW2Wk3FwZp8ih6QpjFw==
+"wordmapbooster@file:../../Electron/wordmapbooster/wordmapbooster-1.0.1-beta.2.tgz":
+  version "1.0.1-beta.2"
+  resolved "file:../../Electron/wordmapbooster/wordmapbooster-1.0.1-beta.2.tgz#1cc7c020778b6cc017c6bef9bca7624768dae8fe"
   dependencies:
     usfm-js "^3.4.2"
     wordmap "^0.6.0"
     wordmap-lexer "^0.3.6"
+
+worker-loader@3.0.8:
+  version "3.0.8"
+  resolved "https://registry.yarnpkg.com/worker-loader/-/worker-loader-3.0.8.tgz#5fc5cda4a3d3163d9c274a4e3a811ce8b60dbb37"
+  integrity sha512-XQyQkIFeRVC7f7uRhFdNMe/iJOdO6zxAaR3EWbDp45v3mDhrTi+++oswKNxShUNjPC/1xUp5DB29YKLhFo129g==
+  dependencies:
+    loader-utils "^2.0.0"
+    schema-utils "^3.0.0"
 
 wrap-ansi@^2.0.0:
   version "2.1.0"

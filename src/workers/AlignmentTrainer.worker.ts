@@ -1,8 +1,8 @@
-import { MorphJLBoostWordMap } from "wordmapbooster/dist/boostwordmap_tools";
+
+import { MorphJLBoostWordMap, updateTokenLocations } from "wordmapbooster";
 import wordmapLexer, { Token } from "wordmap-lexer";
 import { Alignment, Ngram } from "wordmap";
 import { TTrainingAndTestingData } from "./WorkerComTypes";
-import { updateTokenLocations } from "wordmapbooster/dist/wordmap_tools";
 
 /**
  * Creates and trains a word alignment model
@@ -83,9 +83,16 @@ async function processTrainingData(data: TTrainingAndTestingData) {
   }
 }
 
-self.addEventListener('message', (event: { data: TTrainingAndTestingData }) => {
-  // @ts-ignore
-  if (event?.data?.data) {
-    processTrainingData(event.data);
+// This is the main worker context - add the event listener here
+const ctx: Worker = self as any;
+
+ctx.addEventListener('message', (event: { data: { type: string, data: TTrainingAndTestingData }}) => {
+  const messageData = event?.data;
+  console.log("AlignmentTrainer called with:", event);
+  if (messageData?.data && messageData.type === "startTraining") {
+    processTrainingData(messageData.data);
   }
 });
+
+// Export empty default for worker-loader
+export default {} as typeof Worker & (new () => Worker);

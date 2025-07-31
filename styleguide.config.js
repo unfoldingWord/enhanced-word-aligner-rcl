@@ -101,12 +101,21 @@ module.exports = {
       }
     },
     output: {
-      // Add proper public path and global object for workers
       publicPath: '/',
-      globalObject: 'self'
+      globalObject: 'self',
     },
     module: {
       rules: [
+        // Add this rule for workers
+        {
+          test: /\.worker\.(ts|js)$/,
+          use: {
+            loader: 'worker-loader',
+            options: {
+              publicPath: '/build/',
+            },
+          },
+        },
         {
           test: /\.(ts|tsx)$/,
           use: [

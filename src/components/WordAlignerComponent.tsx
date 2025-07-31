@@ -5,14 +5,14 @@ import { SuggestingWordAligner, TAlignerData, TReference, TSourceTargetAlignment
 import GroupCollection from "@/shared/GroupCollection";
 import {TWordAlignmentTestResults} from "@/workers/WorkerComTypes";
 import IndexedDBStorage from "@/shared/IndexedDBStorage";
-import { AbstractWordMapWrapper } from 'wordmapbooster/dist/boostwordmap_tools';
+import { AbstractWordMapWrapper } from 'wordmapbooster';
 import usfm from 'usfm-js';
 import {isProvidedResourcePartiallySelected, isProvidedResourceSelected} from "@/utils/misc";
 import {parseUsfmHeaders} from "@/utils/usfm_misc";
 import delay from "@/utils/delay";
 import Group from "@/shared/Group";
 import Book from "@/shared/Book";
-import {createTrainedWordAlignerModel} from "@/workers/AlignmentTrainer";
+import AlignmentWorker from '../workers/AlignmentTrainer.worker';
 
 export interface TWordAlignerAlignmentResult{
     targetWords: TWord[];
@@ -440,76 +440,86 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
                 if( Object.values(alignmentTrainingData.alignments).length > 4 ){
                     handleSetTrainingState?.(true, trained);
 
-                    delay(500).then(async () => { // run after UI updates
-                        try {
-                            console.log( `starting alignment training` );
-                            
-                            const wordAlignerModel = await createTrainedWordAlignerModel(alignmentTrainingData);
+                    // blocking operation
+                    // delay(500).then(async () => { // run after UI updates
+                    //     try {
+                    //         console.log( `starting alignment training` );
+                    //        
+                    //         const wordAlignerModel = await createTrainedWordAlignerModel(alignmentTrainingData);
+                    //
+                    //         console.log( `alignment training worker results:`, wordAlignerModel );
+                    //
+                    //         //Load the trained model and put it somewhere it can be used.
+                    //         // if( "trainedModel" in event.data ){
+                    //             const modelData = wordAlignerModel.save();
+                    //             alignmentPredictor.current = AbstractWordMapWrapper.load( modelData );
+                    //         // }
+                    //         // if( "error" in event.data ){
+                    //         //     console.log( "Error running alignment worker: " + event.data.error );
+                    //         // }
+                    //
+                    //         setTrainingState( {...trainingStateRef.current, lastTrainedInstanceCount: trainingStateRef.current.currentTrainingInstanceCount } );
+                    //         handleSetTrainingState?.(false, true); 
+                    //     } catch (error) {
+                    //         console.log(`error training`, error);
+                    //         //TODO, need to communicate error back to the other side.
+                    //         // self.postMessage({
+                    //         //     message: 'There was an error while training the word map.',
+                    //         //     error: error
+                    //         // });
+                    //         handleSetTrainingState?.(false, trained);
+                    //     }
+                    // })
 
-                            console.log( `alignment training worker results:`, wordAlignerModel );
+                    try { // background processing
+                        console.log(`start training for ${stateRef.current.groupCollection.instanceCount}`);
+                        setTrainingState( {...trainingStateRef.current, currentTrainingInstanceCount: stateRef.current.groupCollection.instanceCount } );
+                    
+                        //create a new worker.
+                        // alignmentTrainingWorkerRef.current = new Worker( new URL("../workers/AlignmentTrainer.ts", import.meta.url ) );
+                        alignmentTrainingWorkerRef.current = new AlignmentWorker();
 
+                        //Define the callback which will be called after the alignment trainer has finished
+                        alignmentTrainingWorkerRef.current.addEventListener('message', (event) => {
+                            console.log( `alignment training worker message: ${event.data}` );
+                            alignmentTrainingWorkerRef.current?.terminate();
+                            alignmentTrainingWorkerRef.current = null;
+                    
                             //Load the trained model and put it somewhere it can be used.
-                            // if( "trainedModel" in event.data ){
-                                const modelData = wordAlignerModel.save();
-                                alignmentPredictor.current = AbstractWordMapWrapper.load( modelData );
-                            // }
-                            // if( "error" in event.data ){
-                            //     console.log( "Error running alignment worker: " + event.data.error );
-                            // }
-
+                            if( "trainedModel" in event.data ){
+                                alignmentPredictor.current = AbstractWordMapWrapper.load( event.data.trainedModel );
+                            }
+                            if( "error" in event.data ){
+                                console.log( "Error running alignment worker: " + event.data.error );
+                            }
+                    
                             setTrainingState( {...trainingStateRef.current, lastTrainedInstanceCount: trainingStateRef.current.currentTrainingInstanceCount } );
-                            handleSetTrainingState?.(false, true); 
-                        } catch (error) {
-                            console.log(`error training`, error);
-                            //TODO, need to communicate error back to the other side.
-                            // self.postMessage({
-                            //     message: 'There was an error while training the word map.',
-                            //     error: error
-                            // });
-                            handleSetTrainingState?.(false, trained);
-                        }
-                    })
+                            handleSetTrainingState?.(false, trained); 
+                            //start the training again.  It won't run again if the instanceCount hasn't changed
+                            startTraining();
+                        });
+                    
+                        alignmentTrainingWorkerRef.current.postMessage( {
+                            type: "startTraining",
+                            data: alignmentTrainingData
+                        } );
+                    } catch (error) {
+                        console.error("Error during alignment training setup:", error);
+                        alignmentTrainingWorkerRef.current?.terminate();
+                        alignmentTrainingWorkerRef.current = null;
+                        handleSetTrainingState?.(false, trained);
+                    }
 
-                    // console.log(`start training for ${stateRef.current.groupCollection.instanceCount}`);
-                    // setTrainingState( {...trainingStateRef.current, currentTrainingInstanceCount: stateRef.current.groupCollection.instanceCount } );
-                    //
-                    // //create a new worker.
-                    // alignmentTrainingWorkerRef.current = new Worker( new URL("../workers/AlignmentTrainer.ts", import.meta.url ) );
-                    //
-                    // //Define the callback which will be called after the alignment trainer has finished
-                    // alignmentTrainingWorkerRef.current.addEventListener('message', (event) => {
-                    //     console.log( `alignment training worker message: ${event.data}` );
-                    //     alignmentTrainingWorkerRef.current?.terminate();
-                    //     alignmentTrainingWorkerRef.current = null;
-                    //
-                    //
-                    //     //Load the trained model and put it somewhere it can be used.
-                    //     if( "trainedModel" in event.data ){
-                    //         alignmentPredictor.current = AbstractWordMapWrapper.load( event.data.trainedModel );
-                    //     }
-                    //     if( "error" in event.data ){
-                    //         console.log( "Error running alignment worker: " + event.data.error );
-                    //     }
-                    //
-                    //     setTrainingState( {...trainingStateRef.current, lastTrainedInstanceCount: trainingStateRef.current.currentTrainingInstanceCount } );
-                    //     handleSetTrainingState?.(false); 
-                    //     //start the training again.  It won't run again if the instanceCount hasn't changed
-                    //     startTraining();
-                    // });
-                    //
-                    //
-                    // alignmentTrainingWorkerRef.current.postMessage( alignmentTrainingData );
-
-                }else{
+                } else {
                     console.log( "Not enough training data" );
                     handleSetTrainingState?.(false, trained);
                 }
 
-            }else{
+            } else {
                 console.log("Alignment training already running" );
                 handleSetTrainingState?.(false, trained);
             }
-        }else{
+        } else {
             console.log( "information not changed" );
             handleSetTrainingState?.(false, trained);
         }

@@ -1,10 +1,11 @@
-import { AbstractWordMapWrapper } from "wordmapbooster/dist/boostwordmap_tools";
-import { is_correct_prediction, updateTokenLocations } from "wordmapbooster/dist/wordmap_tools";
+import {
+  AbstractWordMapWrapper,
+  is_correct_prediction,
+  updateTokenLocations,
+} from "wordmapbooster";
 import { Token } from "wordmap-lexer";
 import { Alignment, Ngram, Suggestion } from "wordmap";
 import { TTestingWorkerData } from "./WorkerComTypes";
-
-
 
 
 
