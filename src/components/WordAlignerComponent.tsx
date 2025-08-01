@@ -504,6 +504,8 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
                             //Load the trained model and put it somewhere it can be used.
                             if( "trainedModel" in event.data ){
                                 alignmentPredictor.current = AbstractWordMapWrapper.load( event.data.trainedModel );
+                                // @ts-ignore
+                                console.log(`Number of alignments: ${alignmentPredictor.current.alignmentStash?.length}`)
                             }
                             if( "error" in event.data ){
                                 console.log( "Error running alignment worker: " + event.data.error );
