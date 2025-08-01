@@ -1,11 +1,16 @@
-import {useRef, useState, useEffect} from 'react'
+import React, {useEffect, useRef, useState} from 'react'
 import '../App.css'
-import React from 'react'
-import { SuggestingWordAligner, TAlignerData, TReference, TSourceTargetAlignment, TWord } from 'suggesting-word-aligner-rcl'
+import {
+    SuggestingWordAligner,
+    TAlignerData,
+    TReference,
+    TSourceTargetAlignment,
+    TWord
+} from 'suggesting-word-aligner-rcl'
 import GroupCollection from "@/shared/GroupCollection";
 import {TWordAlignmentTestResults} from "@/workers/WorkerComTypes";
 import IndexedDBStorage from "@/shared/IndexedDBStorage";
-import { AbstractWordMapWrapper } from 'wordmapbooster';
+import {AbstractWordMapWrapper} from 'wordmapbooster';
 import usfm from 'usfm-js';
 import {isProvidedResourcePartiallySelected, isProvidedResourceSelected} from "@/utils/misc";
 import {parseUsfmHeaders} from "@/utils/usfm_misc";
@@ -215,6 +220,10 @@ function defaultTrainingState(): TrainingState{
         currentTestingInstanceCount: -1,
         testResults: null,
     }
+}
+
+function getElapsedMinutes(trainingStartTime: number) {
+    return (Date.now() - trainingStartTime) / (1000 * 60);
 }
 
 export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
@@ -471,17 +480,24 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
                     //     }
                     // })
 
+                    const trainingStartTime = Date.now();
+                    
                     try { // background processing
                         console.log(`start training for ${stateRef.current.groupCollection.instanceCount}`);
+
                         setTrainingState( {...trainingStateRef.current, currentTrainingInstanceCount: stateRef.current.groupCollection.instanceCount } );
-                    
+                        // Capture start time
+
                         //create a new worker.
                         // alignmentTrainingWorkerRef.current = new Worker( new URL("../workers/AlignmentTrainer.ts", import.meta.url ) );
                         alignmentTrainingWorkerRef.current = new AlignmentWorker();
 
                         //Define the callback which will be called after the alignment trainer has finished
                         alignmentTrainingWorkerRef.current.addEventListener('message', (event) => {
-                            console.log( `alignment training worker message: ${event.data}` );
+                            // Calculate elapsed time in minutes
+                            console.log(`alignment training worker message: ${event.data}`);
+                            console.log(`Training completed in ${getElapsedMinutes(trainingStartTime)} minutes`);
+                            
                             alignmentTrainingWorkerRef.current?.terminate();
                             alignmentTrainingWorkerRef.current = null;
                     
@@ -505,6 +521,7 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
                         } );
                     } catch (error) {
                         console.error("Error during alignment training setup:", error);
+                        console.log(`Training failed after ${getElapsedMinutes(trainingStartTime)} minutes`);
                         alignmentTrainingWorkerRef.current?.terminate();
                         alignmentTrainingWorkerRef.current = null;
                         handleSetTrainingState?.(false, trained);

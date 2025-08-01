@@ -17,6 +17,7 @@ const alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_
 const originalVerseJson = require('../__tests__/fixtures/alignments/grk_tit_1_1.json');
 const LexiconData = require("../__tests__/fixtures/lexicon/lexicons.json");
 const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory.json");
+// const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryMat.json");
 const translate = (key) => {
   const lookup = {
     "suggestions.refresh_suggestions": "Refresh suggestions.",
