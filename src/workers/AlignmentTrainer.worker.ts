@@ -14,13 +14,16 @@ export async function createTrainedWordAlignerModel(data: TTrainingAndTestingDat
   const sourceVersesTokenized: { [reference: string]: Token[] } = {};
   const targetVersesTokenized: { [reference: string]: Token[] } = {};
   const alignments: { [reference: string]: Alignment[] } = {};
-  
-  Object.entries(data.alignments).forEach(([reference, training_data]) => {
+  let alignmentCount = 0;
+
+ Object.entries(data.alignments).forEach(([reference, training_data]) => {
     sourceVersesTokenized[reference] = training_data.sourceVerse.map(n => new Token(n));
     targetVersesTokenized[reference] = training_data.targetVerse.map(n => new Token(n));
     updateTokenLocations(sourceVersesTokenized[reference]);
     updateTokenLocations(targetVersesTokenized[reference]);
 
+    alignmentCount += training_data.alignments.length
+    
     alignments[reference] = training_data.alignments.map(alignment => 
       new Alignment(
         new Ngram(alignment.sourceNgram.map(n => new Token(n))), 
@@ -28,6 +31,8 @@ export async function createTrainedWordAlignerModel(data: TTrainingAndTestingDat
       )
     );
   });
+
+  console.log(`createTrainedWordAlignerModel: alignments: ${alignmentCount}`);
 
   const sourceCorpusTokenized: { [reference: string]: Token[] } = {};
   const targetCorpusTokenized: { [reference: string]: Token[] } = {};
