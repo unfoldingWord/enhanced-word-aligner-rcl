@@ -10704,10 +10704,10 @@ wordmap-lexer@^0.3.6:
   dependencies:
     string-punctuation-tokenizer "2.0.0"
 
-wordmap@0.6.1-beta.8:
-  version "0.6.1-beta.8"
-  resolved "https://registry.yarnpkg.com/wordmap/-/wordmap-0.6.1-beta.8.tgz#4d8a5d8058f69b21265c9972e2a5063cb4b08b96"
-  integrity sha512-EaOxUuM2ZPdl0R7edY8SlFuQvWmigo68nMdhirUPlbf/Mp2yKa3ngtvSG5Cnp+KVqo7brjmFuxU+ciK6GvrO7Q==
+wordmap@0.6.1-beta.10:
+  version "0.6.1-beta.10"
+  resolved "https://registry.yarnpkg.com/wordmap/-/wordmap-0.6.1-beta.10.tgz#9127fee1c9c9669c636d7663e67ca151f005e2c4"
+  integrity sha512-w2ChPkByKXyXmfouxs7JUISw1XeEQznBRIm7S18RI0G+B3nUoYtq2gXHX5NXIPWx7RwgZgkAUWS8FQiyGCPFuQ==
   dependencies:
     "@types/yargs" "^11.0.0"
     yargs "^11.0.0"
@@ -10720,12 +10720,12 @@ wordmap@^0.6.0:
     "@types/yargs" "^11.0.0"
     yargs "^11.0.0"
 
-wordmapbooster@./wordmapbooster-1.0.3-beta.7.tgz:
-  version "1.0.3-beta.7"
-  resolved "./wordmapbooster-1.0.3-beta.7.tgz#5db395406ae3afe994a9ae39df636f8d6a825d4e"
+"wordmapbooster@file:../../Electron/wordmapbooster/wordmapbooster-1.0.3-beta.10.tgz":
+  version "1.0.3-beta.10"
+  resolved "file:../../Electron/wordmapbooster/wordmapbooster-1.0.3-beta.10.tgz#c7eea55e3f33db912970d41753adb0be734389df"
   dependencies:
     usfm-js "^3.4.2"
-    wordmap "0.6.1-beta.8"
+    wordmap "0.6.1-beta.10"
     wordmap-lexer "^0.3.6"
 
 worker-loader@3.0.8:

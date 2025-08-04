@@ -260,6 +260,7 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
         _setState( newState );
     }
 
+    const [currentBookName, setCurrentBookName]  = useState<string>(contextId?.reference?.bookId || '');
     const [trainingState, _setTrainingState] = useState<TrainingState>(defaultTrainingState())
     const trainingStateRef = useRef<TrainingState>(trainingState);
     function setTrainingState( newState: TrainingState ) {
@@ -336,6 +337,7 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
 
         let newGroupCollection_ = groupCollection;
         const group_name = contextId?.bibleId || ''
+        let currentBookName_ = contextId?.reference?.bookId || '';
 
         // if group doesn't exist, then add
         if ( ! newGroupCollection_.groups?.[group_name]) {
@@ -345,14 +347,19 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
                 const usfm_json = usfm.toJSON(usfm_book, { convertToInt: ['occurrence','occurrences']});
                 
                 const usfmHeaders = parseUsfmHeaders(usfm_json.headers);
-                const newBook = new Book( {chapters:{},filename,toc3Name:usfmHeaders.toc3,targetUsfmBook:null,sourceUsfmBook:null} );
-                newBooks[usfmHeaders.h] = newBook.addTargetUsfm({filename,usfm_book: usfm_json,toc3Name:usfmHeaders.toc3});
+                const toc3Name = usfmHeaders.toc3; //label to use
+                if (filename === contextId?.reference?.bookId) {
+                    currentBookName_ = toc3Name;
+                }
+                const newBook = new Book( {chapters:{},filename,toc3Name,targetUsfmBook:null,sourceUsfmBook:null} );
+                newBooks[usfmHeaders.h] = newBook.addTargetUsfm({filename,usfm_book: usfm_json,toc3Name});
             });
             
             const newGroup: Group = newGroupCollection_.groups[group_name] || new Group(newBooks);
             const newGroups = {...newGroupCollection_.groups, [group_name]: newGroup};
             const newGroupCollection = new GroupCollection(newGroups, newGroupCollection_.instanceCount + 1);
             newGroupCollection_ = newGroupCollection;
+            setCurrentBookName(currentBookName_);
         }
 
         // #######################################################
@@ -445,6 +452,11 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
                 //get the information for the alignment to training.
                 const alignmentTrainingData = stateRef.current.groupCollection.getAlignmentDataAndCorpusForTrainingOrTesting( {forTesting: false, getCorpus:true} );
 
+                // @ts-ignore
+                alignmentTrainingData.currentBookName = currentBookName;
+                // @ts-ignore
+                alignmentTrainingData.contextId = contextId;
+                
                 //check if there are enough entries in the alignment training data dictionary
                 if( Object.values(alignmentTrainingData.alignments).length > 4 ){
                     handleSetTrainingState?.(true, trained);

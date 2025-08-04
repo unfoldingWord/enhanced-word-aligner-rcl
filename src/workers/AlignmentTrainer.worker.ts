@@ -5,45 +5,75 @@ import { Alignment, Ngram } from "wordmap";
 import { TTrainingAndTestingData } from "./WorkerComTypes";
 
 /**
+ * Calculates the complexity of a verse based on the lengths of the source and target text.
+ *
+ * @param {number} sourceLength - The length of the source text.
+ * @param {number} targetLength - The length of the target text.
+ * @return {number} The calculated complexity as a numeric value.
+ */
+function getComplexityOfVerse(sourceLength: number, targetLength: number): number {
+    const totalLength = sourceLength + targetLength + sourceLength * targetLength;
+    return totalLength;
+}
+
+/**
  * Creates and trains a word alignment model
  * @param data - The training and testing data
  * @returns Promise that resolves to the trained MorphJLBoostWordMap model
  */
 export async function createTrainedWordAlignerModel(data: TTrainingAndTestingData): Promise<MorphJLBoostWordMap> {
-  // Convert the data into the structure which the training model expects.
+  const maxComplexity = 300000;
+    // Convert the data into the structure which the training model expects.
   const sourceVersesTokenized: { [reference: string]: Token[] } = {};
   const targetVersesTokenized: { [reference: string]: Token[] } = {};
   const alignments: { [reference: string]: Alignment[] } = {};
-  let alignmentCount = 0;
+  let alignedCount = 0;
+  let alignedVerseCount = 0;
+  let unalignedVerseCount = 0;
+  let alignedComplexityCount = 0;
+  let unalignedComplexityCount = 0;
 
  Object.entries(data.alignments).forEach(([reference, training_data]) => {
-    sourceVersesTokenized[reference] = training_data.sourceVerse.map(n => new Token(n));
-    targetVersesTokenized[reference] = training_data.targetVerse.map(n => new Token(n));
-    updateTokenLocations(sourceVersesTokenized[reference]);
-    updateTokenLocations(targetVersesTokenized[reference]);
+   const tokenizedSourceVerse = training_data.sourceVerse.map(n => new Token(n));
+   sourceVersesTokenized[reference] = tokenizedSourceVerse;
+   const tokenizedTargetVerse = training_data.targetVerse.map(n => new Token(n));
+   targetVersesTokenized[reference] = tokenizedTargetVerse;
+   updateTokenLocations(sourceVersesTokenized[reference]);
+   updateTokenLocations(targetVersesTokenized[reference]);
 
-    alignmentCount += training_data.alignments.length
+   alignedVerseCount++;
+   alignedCount += training_data.alignments.length
+   alignedComplexityCount += getComplexityOfVerse(tokenizedSourceVerse.length, tokenizedTargetVerse.length);
     
-    alignments[reference] = training_data.alignments.map(alignment => 
-      new Alignment(
-        new Ngram(alignment.sourceNgram.map(n => new Token(n))), 
-        new Ngram(alignment.targetNgram.map(n => new Token(n)))
-      )
-    );
+   alignments[reference] = training_data.alignments.map(alignment => 
+     new Alignment(
+       new Ngram(alignment.sourceNgram.map(n => new Token(n))), 
+       new Ngram(alignment.targetNgram.map(n => new Token(n)))
+     )
+   );
   });
-
-  console.log(`createTrainedWordAlignerModel: alignments: ${alignmentCount}`);
 
   const sourceCorpusTokenized: { [reference: string]: Token[] } = {};
   const targetCorpusTokenized: { [reference: string]: Token[] } = {};
   
   Object.entries(data.corpus).forEach(([reference, training_data]) => {
-    sourceCorpusTokenized[reference] = training_data.sourceTokens.map(n => new Token(n));
-    targetCorpusTokenized[reference] = training_data.targetTokens.map(n => new Token(n));
+    const tokenizedSourceVerse = training_data.sourceTokens.map(n => new Token(n));
+    sourceCorpusTokenized[reference] = tokenizedSourceVerse;
+    const tokenizedTargetVerse = training_data.targetTokens.map(n => new Token(n));
+    targetCorpusTokenized[reference] = tokenizedTargetVerse;
     updateTokenLocations(sourceCorpusTokenized[reference]);
     updateTokenLocations(targetCorpusTokenized[reference]);
+
+    unalignedVerseCount++;
+    unalignedComplexityCount += getComplexityOfVerse(tokenizedSourceVerse.length, tokenizedTargetVerse.length);
   });
 
+  console.log(`createTrainedWordAlignerModel: total alignments: ${alignedCount}`);
+  console.log(`createTrainedWordAlignerModel: aligned verses: ${alignedVerseCount}`);
+  console.log(`createTrainedWordAlignerModel: unaligned verses: ${unalignedVerseCount}`);
+  console.log(`createTrainedWordAlignerModel: aligned verses complexity: ${alignedComplexityCount}`);
+  console.log(`createTrainedWordAlignerModel: unaligned verses complexity: ${unalignedComplexityCount}`);
+    
   // Create the training object.
   // There are several different word map classes,
   // and there are different hyper parameters which can be passed into it as well.
@@ -54,8 +84,15 @@ export async function createTrainedWordAlignerModel(data: TTrainingAndTestingDat
     train_steps: 1000 
   });
   
-  wordAlignerModel.appendKeyedCorpusTokens(sourceCorpusTokenized, targetCorpusTokenized);
-  // Do a test to see if adding the alignment stuff as corpus as well helps.
+  if (alignedComplexityCount + unalignedComplexityCount < maxComplexity) {
+      wordAlignerModel.appendKeyedCorpusTokens(sourceCorpusTokenized, targetCorpusTokenized);
+
+      // Do a test to see if adding the alignment stuff as corpus as well helps.
+      wordAlignerModel.appendKeyedCorpusTokens(sourceVersesTokenized, targetVersesTokenized);      
+  } else if (alignedComplexityCount > maxComplexity) {
+      console.warn("The corpus is too complex to train the word map.  The corpus complexity is:", alignedComplexityCount);
+  }
+
   wordAlignerModel.appendKeyedCorpusTokens(sourceVersesTokenized, targetVersesTokenized);
 
   // Train the model and return it

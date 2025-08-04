@@ -19,9 +19,9 @@ const LexiconData = require("../__tests__/fixtures/lexicon/lexicons.json");
 // const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory.json");
 // delete translationMemory.sourceUsfms.jas
 // delete translationMemory.targetUsfms.jas
-const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryMat.json");
+// const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryMat.json");
 // const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory2Cor.json");
-// const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryMark.json");
+const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryMark.json");
 // const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryActs.json");
 const translate = (key) => {
   const lookup = {

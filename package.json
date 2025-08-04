@@ -83,6 +83,6 @@
     "styled-components": "^5.2.1",
     "suggesting-word-aligner-rcl": "1.1.2",
     "ts-loader": "9",
-    "wordmapbooster": "./wordmapbooster-1.0.3-beta.7.tgz"
+    "wordmapbooster": "/Users/blm0/Development/Electron/wordmapbooster/wordmapbooster-1.0.3-beta.10.tgz"
   }
 }
