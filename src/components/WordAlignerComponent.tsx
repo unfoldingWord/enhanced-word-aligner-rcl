@@ -456,6 +456,8 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
                 alignmentTrainingData.currentBookName = currentBookName;
                 // @ts-ignore
                 alignmentTrainingData.contextId = contextId;
+                // @ts-ignore
+                alignmentTrainingData.maxComplexity = 300000;
                 
                 //check if there are enough entries in the alignment training data dictionary
                 if( Object.values(alignmentTrainingData.alignments).length > 4 ){

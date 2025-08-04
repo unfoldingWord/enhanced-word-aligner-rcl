@@ -17,12 +17,65 @@ function getComplexityOfVerse(sourceLength: number, targetLength: number): numbe
 }
 
 /**
+ * Adds alignment corpus by appending tokenized data to the word aligner model. Also limits complexity
+ *  to prevent memory overflow in worker.
+ *
+ * @param {number} alignedComplexityCount - The total complexity count of aligned verses in the corpus.
+ * @param {number} unalignedComplexityCount - The total complexity count of unaligned verses in the corpus.
+ * @param {number} maxComplexity - The maximum allowable complexity for the alignment corpus.
+ * @param {MorphJLBoostWordMap} wordAlignerModel - The word alignment model used for aligning tokens.
+ * @param {{[p: string]: Token[]}} sourceCorpusTokenized - The tokenized source corpus.
+ * @param {{[p: string]: Token[]}} targetCorpusTokenized - The tokenized target corpus.
+ * @param {{[p: string]: Token[]}} sourceVersesTokenized - The tokenized source verses.
+ * @param {{[p: string]: Token[]}} targetVersesTokenized - The tokenized target verses.
+ * @param {{[p: string]: Alignment[]}} alignments - The alignments associated with the verses.
+ * @return {number} - The updated aligned complexity count after the adjustments.
+ */
+function addAlignmentCorpus(alignedComplexityCount: number, unalignedComplexityCount: number, maxComplexity, wordAlignerModel: MorphJLBoostWordMap, sourceCorpusTokenized: {
+    [p: string]: Token[]
+}, targetCorpusTokenized: { [p: string]: Token[] }, sourceVersesTokenized: {
+    [p: string]: Token[]
+}, targetVersesTokenized: { [p: string]: Token[] }, alignments: { [p: string]: Alignment[] }) {
+    if (alignedComplexityCount + unalignedComplexityCount < maxComplexity) {
+        wordAlignerModel.appendKeyedCorpusTokens(sourceCorpusTokenized, targetCorpusTokenized);
+
+        // Do a test to see if adding the alignment stuff as corpus as well helps.
+        wordAlignerModel.appendKeyedCorpusTokens(sourceVersesTokenized, targetVersesTokenized);
+    } else if (alignedComplexityCount > maxComplexity) {
+        console.warn("The corpus is too complex to train the word map.  Trimming.  The corpus complexity is:", alignedComplexityCount);
+        const keys = Object.keys(targetVersesTokenized)
+        let keyCount = keys.length;
+        let trimmedVerses = 0;
+
+        while (alignedComplexityCount > maxComplexity) {
+            const randomIndex = Math.floor(Math.random() * keyCount);
+            const key = keys[randomIndex];
+            keyCount--;
+            const complexityCount = getComplexityOfVerse(sourceVersesTokenized[key].length, targetVersesTokenized[key].length);
+
+            alignedComplexityCount -= complexityCount;
+
+            keys.splice(randomIndex, 1);
+            delete sourceVersesTokenized[key]
+            delete targetVersesTokenized[key]
+            delete alignments[key]
+
+            trimmedVerses++;
+        }
+
+        console.log(`Trimmed ${trimmedVerses} verses, complexity now ${alignedComplexityCount}`);
+    }
+    return alignedComplexityCount;
+}
+
+/**
  * Creates and trains a word alignment model
  * @param data - The training and testing data
  * @returns Promise that resolves to the trained MorphJLBoostWordMap model
  */
 export async function createTrainedWordAlignerModel(data: TTrainingAndTestingData): Promise<MorphJLBoostWordMap> {
-  const maxComplexity = 300000;
+  // @ts-ignore
+    const maxComplexity = data.maxComplexity || 300000;
     // Convert the data into the structure which the training model expects.
   const sourceVersesTokenized: { [reference: string]: Token[] } = {};
   const targetVersesTokenized: { [reference: string]: Token[] } = {};
@@ -84,14 +137,7 @@ export async function createTrainedWordAlignerModel(data: TTrainingAndTestingDat
     train_steps: 1000 
   });
   
-  if (alignedComplexityCount + unalignedComplexityCount < maxComplexity) {
-      wordAlignerModel.appendKeyedCorpusTokens(sourceCorpusTokenized, targetCorpusTokenized);
-
-      // Do a test to see if adding the alignment stuff as corpus as well helps.
-      wordAlignerModel.appendKeyedCorpusTokens(sourceVersesTokenized, targetVersesTokenized);      
-  } else if (alignedComplexityCount > maxComplexity) {
-      console.warn("The corpus is too complex to train the word map.  The corpus complexity is:", alignedComplexityCount);
-  }
+  addAlignmentCorpus(alignedComplexityCount, unalignedComplexityCount, maxComplexity, wordAlignerModel, sourceCorpusTokenized, targetCorpusTokenized, sourceVersesTokenized, targetVersesTokenized, alignments);
 
   wordAlignerModel.appendKeyedCorpusTokens(sourceVersesTokenized, targetVersesTokenized);
 
