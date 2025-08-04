@@ -10704,9 +10704,13 @@ wordmap-lexer@^0.3.6:
   dependencies:
     string-punctuation-tokenizer "2.0.0"
 
-wordmap@./wordmap-0.6.1-beta.4.tgz:
-  version "0.0.0"
-  resolved "./wordmap-0.6.1-beta.4.tgz#da39a3ee5e6b4b0d3255bfef95601890afd80709"
+wordmap@0.6.1-beta.8:
+  version "0.6.1-beta.8"
+  resolved "https://registry.yarnpkg.com/wordmap/-/wordmap-0.6.1-beta.8.tgz#4d8a5d8058f69b21265c9972e2a5063cb4b08b96"
+  integrity sha512-EaOxUuM2ZPdl0R7edY8SlFuQvWmigo68nMdhirUPlbf/Mp2yKa3ngtvSG5Cnp+KVqo7brjmFuxU+ciK6GvrO7Q==
+  dependencies:
+    "@types/yargs" "^11.0.0"
+    yargs "^11.0.0"
 
 wordmap@^0.6.0:
   version "0.6.0"
@@ -10716,12 +10720,12 @@ wordmap@^0.6.0:
     "@types/yargs" "^11.0.0"
     yargs "^11.0.0"
 
-wordmapbooster@./wordmapbooster-1.0.3-beta.4.tgz:
-  version "1.0.3-beta.4"
-  resolved "./wordmapbooster-1.0.3-beta.4.tgz#48087d0bc6a8517f9b5e972a02be206badf97647"
+wordmapbooster@./wordmapbooster-1.0.3-beta.7.tgz:
+  version "1.0.3-beta.7"
+  resolved "./wordmapbooster-1.0.3-beta.7.tgz#5db395406ae3afe994a9ae39df636f8d6a825d4e"
   dependencies:
     usfm-js "^3.4.2"
-    wordmap "./wordmap-0.6.1-beta.4.tgz"
+    wordmap "0.6.1-beta.8"
     wordmap-lexer "^0.3.6"
 
 worker-loader@3.0.8:
