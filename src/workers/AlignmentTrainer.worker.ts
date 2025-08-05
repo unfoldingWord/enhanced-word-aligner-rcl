@@ -54,10 +54,20 @@ function removeComplexity(alignedComplexityCount: number, maxComplexity, keyCoun
     } else if (reduceType === ReduceType.otherChapter) {
         toKeep = `[${contextId?.bibleId}] ${bookId} ${contextId?.reference?.chapter}`;
     }
+    let currentIndex = -1;
 
     while (alignedComplexityCount > maxComplexity) {
-        const randomIndex = Math.floor(Math.random() * keyCount);
-        const key = keys[randomIndex];
+        if (reduceType === ReduceType.anything) {
+            const randomIndex = Math.floor(Math.random() * keyCount);
+            currentIndex = randomIndex
+        } else { // in other cases do in order
+            currentIndex++;
+            if (currentIndex >= keyCount) {
+                break;
+            }       
+        }
+
+        const key = keys[currentIndex];
         
         if (toKeep) {
             if (key.includes(toKeep)) { // skip over what we want to keep
@@ -70,7 +80,7 @@ function removeComplexity(alignedComplexityCount: number, maxComplexity, keyCoun
 
         alignedComplexityCount -= complexityCount;
 
-        keys.splice(randomIndex, 1);
+        keys.splice(currentIndex, 1);
         delete sourceVersesTokenized[key]
         delete targetVersesTokenized[key]
         delete alignments[key]
