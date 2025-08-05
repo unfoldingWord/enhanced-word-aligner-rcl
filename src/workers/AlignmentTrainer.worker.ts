@@ -3,6 +3,13 @@ import { MorphJLBoostWordMap, updateTokenLocations } from "wordmapbooster";
 import wordmapLexer, { Token } from "wordmap-lexer";
 import { Alignment, Ngram } from "wordmap";
 import { TTrainingAndTestingData } from "./WorkerComTypes";
+import {ContextId} from "@/common/classes";
+
+enum ReduceType {
+    anything,
+    otherBook,
+    otherChapter,
+}
 
 /**
  * Calculates the complexity of a verse based on the lengths of the source and target text.
@@ -14,6 +21,63 @@ import { TTrainingAndTestingData } from "./WorkerComTypes";
 function getComplexityOfVerse(sourceLength: number, targetLength: number): number {
     const totalLength = sourceLength + targetLength + sourceLength * targetLength;
     return totalLength;
+}
+
+/**
+ * Reduces the complexity of alignment data by selectively removing entries
+ * until the aligned complexity count is below or equal to the maximum allowed complexity.
+ *
+ * @param {number} alignedComplexityCount - The current total complexity count of aligned data.
+ * @param {number} maxComplexity - The maximum allowable aligned complexity count.
+ * @param {number} keyCount - The total number of keys in the alignment data.
+ * @param {string[]} keys - An array of keys representing verses or alignment entries.
+ * @param {{ [key: string]: Token[] }} sourceVersesTokenized - A mapping of source verses to their tokenized content.
+ * @param {{ [key: string]: Token[] }} targetVersesTokenized - A mapping of target verses to their tokenized content.
+ * @param {{ [key: string]: Alignment[] }} alignments - A mapping of keys to their respective alignment data.
+ * @param {number} trimmedVerses - Count of verses that have been trimmed or removed.
+ * @param {ContextId} contextId - The context identifier associated with the alignment operations.
+ * @param {ReduceType} reduceType - A parameter to define the type or strategy for reducing complexity.
+ * @return {{alignedComplexityCount: number, trimmedVerses: number}} Updated aligned complexity count and number of trimmed verses.
+ */
+function removeComplexity(alignedComplexityCount: number, maxComplexity, keyCount: number, keys: string[],
+  sourceVersesTokenized: { [p: string]: Token[] }, 
+  targetVersesTokenized: { [p: string]: Token[] },
+  alignments: { [p: string]: Alignment[] },
+  trimmedVerses: number,
+  contextId: ContextId,
+  reduceType: ReduceType,
+) {
+    let toKeep:string = '';
+    const bookId = contextId?.reference?.bookId;
+    if (reduceType === ReduceType.otherBook) {
+        toKeep = `[${contextId?.bibleId}] ${bookId}`;
+    } else if (reduceType === ReduceType.otherChapter) {
+        toKeep = `[${contextId?.bibleId}] ${bookId} ${contextId?.reference?.chapter}`;
+    }
+
+    while (alignedComplexityCount > maxComplexity) {
+        const randomIndex = Math.floor(Math.random() * keyCount);
+        const key = keys[randomIndex];
+        
+        if (toKeep) {
+            if (key.includes(toKeep)) { // skip over what we want to keep
+                continue;
+            }
+        }
+        
+        keyCount--;
+        const complexityCount = getComplexityOfVerse(sourceVersesTokenized[key].length, targetVersesTokenized[key].length);
+
+        alignedComplexityCount -= complexityCount;
+
+        keys.splice(randomIndex, 1);
+        delete sourceVersesTokenized[key]
+        delete targetVersesTokenized[key]
+        delete alignments[key]
+
+        trimmedVerses++;
+    }
+    return {alignedComplexityCount, trimmedVerses};
 }
 
 /**
@@ -33,9 +97,10 @@ function getComplexityOfVerse(sourceLength: number, targetLength: number): numbe
  */
 function addAlignmentCorpus(alignedComplexityCount: number, unalignedComplexityCount: number, maxComplexity, wordAlignerModel: MorphJLBoostWordMap, sourceCorpusTokenized: {
     [p: string]: Token[]
-}, targetCorpusTokenized: { [p: string]: Token[] }, sourceVersesTokenized: {
+ }, targetCorpusTokenized: { [p: string]: Token[] }, sourceVersesTokenized: {
     [p: string]: Token[]
-}, targetVersesTokenized: { [p: string]: Token[] }, alignments: { [p: string]: Alignment[] }) {
+ }, targetVersesTokenized: { [p: string]: Token[] }, alignments: { [p: string]: Alignment[] }
+ , contextId: ContextId) {
     if (alignedComplexityCount + unalignedComplexityCount < maxComplexity) {
         wordAlignerModel.appendKeyedCorpusTokens(sourceCorpusTokenized, targetCorpusTokenized);
 
@@ -47,21 +112,23 @@ function addAlignmentCorpus(alignedComplexityCount: number, unalignedComplexityC
         let keyCount = keys.length;
         let trimmedVerses = 0;
 
-        while (alignedComplexityCount > maxComplexity) {
-            const randomIndex = Math.floor(Math.random() * keyCount);
-            const key = keys[randomIndex];
-            keyCount--;
-            const complexityCount = getComplexityOfVerse(sourceVersesTokenized[key].length, targetVersesTokenized[key].length);
+        // first remove from other books
+        let __ret = removeComplexity(alignedComplexityCount, maxComplexity, keyCount, keys, sourceVersesTokenized, targetVersesTokenized,
+            alignments, trimmedVerses, contextId, ReduceType.otherBook);
+        alignedComplexityCount = __ret.alignedComplexityCount;
+        trimmedVerses = __ret.trimmedVerses;
 
-            alignedComplexityCount -= complexityCount;
+        // second remove from other chapters
+        __ret = removeComplexity(alignedComplexityCount, maxComplexity, keyCount, keys, sourceVersesTokenized, targetVersesTokenized,
+            alignments, trimmedVerses, contextId, ReduceType.otherChapter);
+        alignedComplexityCount = __ret.alignedComplexityCount;
+        trimmedVerses = __ret.trimmedVerses;
 
-            keys.splice(randomIndex, 1);
-            delete sourceVersesTokenized[key]
-            delete targetVersesTokenized[key]
-            delete alignments[key]
-
-            trimmedVerses++;
-        }
+        // finally just remove random
+        __ret = removeComplexity(alignedComplexityCount, maxComplexity, keyCount, keys, sourceVersesTokenized, targetVersesTokenized,
+            alignments, trimmedVerses, contextId, ReduceType.anything);
+        alignedComplexityCount = __ret.alignedComplexityCount;
+        trimmedVerses = __ret.trimmedVerses;
 
         console.log(`Trimmed ${trimmedVerses} verses, complexity now ${alignedComplexityCount}`);
     }
@@ -74,9 +141,8 @@ function addAlignmentCorpus(alignedComplexityCount: number, unalignedComplexityC
  * @returns Promise that resolves to the trained MorphJLBoostWordMap model
  */
 export async function createTrainedWordAlignerModel(data: TTrainingAndTestingData): Promise<MorphJLBoostWordMap> {
-  // @ts-ignore
-    const maxComplexity = data.maxComplexity || 300000;
-    // Convert the data into the structure which the training model expects.
+  const maxComplexity = data.maxComplexity || 300000;
+  // Convert the data into the structure which the training model expects.
   const sourceVersesTokenized: { [reference: string]: Token[] } = {};
   const targetVersesTokenized: { [reference: string]: Token[] } = {};
   const alignments: { [reference: string]: Alignment[] } = {};
@@ -137,7 +203,9 @@ export async function createTrainedWordAlignerModel(data: TTrainingAndTestingDat
     train_steps: 1000 
   });
   
-  addAlignmentCorpus(alignedComplexityCount, unalignedComplexityCount, maxComplexity, wordAlignerModel, sourceCorpusTokenized, targetCorpusTokenized, sourceVersesTokenized, targetVersesTokenized, alignments);
+  addAlignmentCorpus(alignedComplexityCount, unalignedComplexityCount, maxComplexity,
+      wordAlignerModel, sourceCorpusTokenized, targetCorpusTokenized, sourceVersesTokenized,
+      targetVersesTokenized, alignments, data.contextId);
 
   wordAlignerModel.appendKeyedCorpusTokens(sourceVersesTokenized, targetVersesTokenized);
 
