@@ -1,11 +1,7 @@
 import React, {useEffect, useRef, useState} from 'react'
 import '../App.css'
-import {
-    SuggestingWordAligner,
-    TUsfmBook,
-} from 'suggesting-word-aligner-rcl'
+import {SuggestingWordAligner,} from 'suggesting-word-aligner-rcl'
 import GroupCollection from "@/shared/GroupCollection";
-import {TWordAlignmentTestResults} from "@/workers/WorkerComTypes";
 import IndexedDBStorage from "@/shared/IndexedDBStorage";
 import {AbstractWordMapWrapper} from 'wordmapbooster';
 import usfm from 'usfm-js';
@@ -21,11 +17,17 @@ import {
     SourceWord,
     TAlignerStatus,
     TargetWordBank,
-    THandleSetTrainingState, TrainingState,
+    THandleSetTrainingState,
+    TrainingState,
     translationMemoryType
 } from "@/common/classes";
 import {Alignment, Suggestion} from "wordmap";
 import {Token} from 'wordmap-lexer'
+import {
+    MAX_COMPLEXITY,
+    THRESHOLD_TRAINING_MINUTES,
+    WORKER_TIMEOUT
+} from "@/common/constants";
 
 interface SuggestingWordAlignerProps {
     styles?: React.CSSProperties;
@@ -145,7 +147,8 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
         stateRef.current = newState;
         _setState( newState );
     }
-
+    
+    const [maxComplexity, setMaxComplexity]  = useState<number>(MAX_COMPLEXITY);
     const [currentBookName, setCurrentBookName]  = useState<string>(contextId?.reference?.bookId || '');
     const [trainingState, _setTrainingState] = useState<TrainingState>(defaultTrainingState())
     const trainingStateRef = useRef<TrainingState>(trainingState);
@@ -156,6 +159,7 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
     
     const alignmentTrainingWorkerRef = useRef<Worker | null>(null);
     const alignmentTestingWorkerRef  = useRef<Worker | null>(null);
+    const workerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const {groupCollection, scope, currentSelection, doubleClickedVerse, alignerStatus } = state;
 
@@ -285,9 +289,30 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
     const trained = !!alignmentPredictor.current
 
     /**
+     * Cleans up worker resources by terminating the worker and clearing the timeout
+     */
+    const cleanupWorker = () => {
+        if (workerTimeoutRef.current) {
+            clearTimeout(workerTimeoutRef.current);
+            workerTimeoutRef.current = null;
+        }
+        if (alignmentTrainingWorkerRef.current) {
+            alignmentTrainingWorkerRef.current.terminate();
+            alignmentTrainingWorkerRef.current = null;
+        }
+    };
+
+    function adjustMaxComplexity(reductionFactor: number) {
+        const newMaxComplexity = Math.ceil(maxComplexity * reductionFactor);
+        console.log(`Reducing maxComplexity from ${maxComplexity} to ${newMaxComplexity}`);
+        setMaxComplexity(newMaxComplexity);
+    }
+
+    /**
      * Starts the alignment training process using a web worker
      * Only runs if there have been changes since last training and enough training data exists
      * Updates training state and alignment predictor with trained model results
+     * Includes a timeout that is cleared if worker completes sooner
      */
     function startTraining(){
         //Use the Refs such as trainingStateRef instead of trainingState
@@ -308,7 +333,7 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
                 
                 alignmentTrainingData.contextId = contextId;
                 alignmentTrainingData.contextId.bookName = currentBookName || alignmentTrainingData.contextId?.reference?.bookId;
-                alignmentTrainingData.maxComplexity = 300000;
+                alignmentTrainingData.maxComplexity = maxComplexity;
                 
                 //check if there are enough entries in the alignment training data dictionary
                 if( Object.values(alignmentTrainingData.alignments).length > 4 ){
@@ -326,14 +351,36 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
                         // alignmentTrainingWorkerRef.current = new Worker( new URL("../workers/AlignmentTrainer.ts", import.meta.url ) );
                         alignmentTrainingWorkerRef.current = new AlignmentWorker();
 
+                        // Set up a worker timeout
+                        workerTimeoutRef.current = setTimeout(() => {
+                            console.log(`Training timeout after ${getElapsedMinutes(trainingStartTime)} minutes`);
+                            console.log("Worker timed out after 20 minutes");
+
+                            adjustMaxComplexity(0.75);
+
+                            cleanupWorker();
+                            
+                            setTrainingState( {...trainingStateRef.current, lastTrainedInstanceCount: trainingStateRef.current.currentTrainingInstanceCount } );
+                            handleSetTrainingState?.(false, trained);
+                            
+                            // Restart training if needed
+                            startTraining();
+                        }, WORKER_TIMEOUT);
+
                         //Define the callback which will be called after the alignment trainer has finished
                         alignmentTrainingWorkerRef.current.addEventListener('message', (event) => {
                             // Calculate elapsed time in minutes
                             console.log(`alignment training worker message: ${event.data}`);
-                            console.log(`Training completed in ${getElapsedMinutes(trainingStartTime)} minutes`);
                             
-                            alignmentTrainingWorkerRef.current?.terminate();
-                            alignmentTrainingWorkerRef.current = null;
+                            const elapsedMinutes = getElapsedMinutes(trainingStartTime);
+                            console.log(`Training completed in ${elapsedMinutes} minutes`);
+                            if (elapsedMinutes > THRESHOLD_TRAINING_MINUTES) {
+                                console.log("Worker took over 15 minutes");
+                                adjustMaxComplexity(THRESHOLD_TRAINING_MINUTES/elapsedMinutes);
+                            }
+                            
+                            // Clear timeout since worker completed successfully
+                            cleanupWorker();
                     
                             //Load the trained model and put it somewhere it can be used.
                             if( "trainedModel" in event.data ){
@@ -358,8 +405,7 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
                     } catch (error) {
                         console.error("Error during alignment training setup:", error);
                         console.log(`Training failed after ${getElapsedMinutes(trainingStartTime)} minutes`);
-                        alignmentTrainingWorkerRef.current?.terminate();
-                        alignmentTrainingWorkerRef.current = null;
+                        cleanupWorker();
                         handleSetTrainingState?.(false, trained);
                     }
 
@@ -385,8 +431,7 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
         console.log( "stopTraining() clicked" );
         if( alignmentTrainingWorkerRef.current !== null ){
             handleSetTrainingState?.(false, trained);
-            alignmentTrainingWorkerRef.current.terminate();
-            alignmentTrainingWorkerRef.current = null;
+            cleanupWorker();
             console.log( "Alignment training stopped" );
         }
     }
@@ -414,6 +459,13 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
             })
         }
     }, [doTraining]);
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            cleanupWorker();
+        };
+    }, []);
 
     const suggester= alignmentPredictor.current?.predict.bind(alignmentPredictor.current) || null
     
