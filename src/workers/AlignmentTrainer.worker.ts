@@ -3,6 +3,7 @@ import wordmapLexer, { Token } from "wordmap-lexer";
 import { Alignment, Ngram } from "wordmap";
 import { TTrainingAndTestingData } from "./WorkerComTypes";
 import {ContextId} from "@/common/classes";
+import {MAX_COMPLEXITY} from "@/common/constants";
 
 enum ReduceType {
     anything,
@@ -157,7 +158,7 @@ function addAlignmentCorpus(alignedComplexityCount: number, unalignedComplexityC
  * @returns Promise that resolves to the trained MorphJLBoostWordMap model
  */
 export async function createTrainedWordAlignerModel(data: TTrainingAndTestingData): Promise<MorphJLBoostWordMap> {
-  const maxComplexity = data.maxComplexity || 300000;
+  const maxComplexity = data.maxComplexity || MAX_COMPLEXITY;
   // Convert the data into the structure which the training model expects.
   const sourceVersesTokenized: { [reference: string]: Token[] } = {};
   const targetVersesTokenized: { [reference: string]: Token[] } = {};
