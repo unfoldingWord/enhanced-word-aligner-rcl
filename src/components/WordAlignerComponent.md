@@ -6,7 +6,7 @@ import {
   AlignmentHelpers,
   UsfmFileConversionHelpers,
   usfmHelpers
-} from "suggesting-word-aligner-rcl";
+} from "word-aligner-rcl";
 import { WordAlignerComponent } from './WordAlignerComponent'
 import delay from "../utils/delay";
 

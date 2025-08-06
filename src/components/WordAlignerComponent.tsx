@@ -1,6 +1,6 @@
 import React, {useEffect, useRef, useState} from 'react'
 import '../App.css'
-import {SuggestingWordAligner,} from 'suggesting-word-aligner-rcl'
+import {SuggestingWordAligner,} from 'word-aligner-rcl'
 import GroupCollection from "@/shared/GroupCollection";
 import IndexedDBStorage from "@/shared/IndexedDBStorage";
 import {AbstractWordMapWrapper} from 'wordmapbooster';
