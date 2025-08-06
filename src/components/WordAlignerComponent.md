@@ -17,6 +17,15 @@ const alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_
 const originalVerseJson = require('../__tests__/fixtures/alignments/grk_tit_1_1.json');
 const LexiconData = require("../__tests__/fixtures/lexicon/lexicons.json");
 const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory.json");
+// delete translationMemory.sourceUsfms.jas
+// delete translationMemory.targetUsfms.jas
+const translationMemory2 = require("../__tests__/fixtures/alignments/full_books/translationMemoryMat.json");
+// merge together translationMemory and translationMemory2
+translationMemory.targetUsfms = {...translationMemory.targetUsfms, ...translationMemory2.targetUsfms};
+translationMemory.sourceUsfms = {...translationMemory.sourceUsfms, ...translationMemory2.sourceUsfms};
+// const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory2Cor.json");
+// const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryMark.json");
+// const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryActs.json");
 const translate = (key) => {
   const lookup = {
     "suggestions.refresh_suggestions": "Refresh suggestions.",
@@ -83,10 +92,10 @@ const WordAlignerPanel = ({
       setTraining(_training);
       if (!_training) {
         setDoTraining(false);
-        setMessage( trained ? "Training Complete" : "")
-      } else {
+       } else {
         setMessage("Training ...")
       }
+      setMessage( trained ? "Training Complete" : "")
     })
   };
 

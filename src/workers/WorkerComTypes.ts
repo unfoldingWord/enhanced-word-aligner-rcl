@@ -1,4 +1,5 @@
 import { TSourceTargetAlignment, TWord } from "suggesting-word-aligner-rcl";
+import {ContextId} from "@/common/classes";
 
 
 export interface TTrainingAndTestingData {
@@ -15,6 +16,8 @@ export interface TTrainingAndTestingData {
             targetTokens: TWord[];
         }
     };
+    contextId?: ContextId;
+    maxComplexity?: number;
 }
 
 export interface TTestingWorkerData{

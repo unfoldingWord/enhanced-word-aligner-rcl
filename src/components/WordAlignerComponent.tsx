@@ -1,11 +1,9 @@
-import {useRef, useState, useEffect} from 'react'
+import React, {useEffect, useRef, useState} from 'react'
 import '../App.css'
-import React from 'react'
-import { SuggestingWordAligner, TAlignerData, TReference, TSourceTargetAlignment, TWord } from 'suggesting-word-aligner-rcl'
+import {SuggestingWordAligner,} from 'suggesting-word-aligner-rcl'
 import GroupCollection from "@/shared/GroupCollection";
-import {TWordAlignmentTestResults} from "@/workers/WorkerComTypes";
 import IndexedDBStorage from "@/shared/IndexedDBStorage";
-import { AbstractWordMapWrapper } from 'wordmapbooster';
+import {AbstractWordMapWrapper} from 'wordmapbooster';
 import usfm from 'usfm-js';
 import {isProvidedResourcePartiallySelected, isProvidedResourceSelected} from "@/utils/misc";
 import {parseUsfmHeaders} from "@/utils/usfm_misc";
@@ -13,128 +11,23 @@ import delay from "@/utils/delay";
 import Group from "@/shared/Group";
 import Book from "@/shared/Book";
 import AlignmentWorker from '../workers/AlignmentTrainer.worker';
-
-export interface TWordAlignerAlignmentResult{
-    targetWords: TWord[];
-    verseAlignments: TSourceTargetAlignment[];
-}
-
-export interface TState{
-    aligned: boolean
-    sourceLanguage: string
-    targetLanguage: string
-    reference: TReference;
-    alignerData: TAlignerData;
-}
-
-interface TActions{
-    saveAlignment: ( results: TWordAlignerAlignmentResult | null ) => void;
-    cancelAlignment: () => void;
-    onAlignmentsChange: ( results: TWordAlignerAlignmentResult) => boolean;
-}
-
-export interface TAlignerStatus{
-    actions: TActions;
-    state: TState;
-}
-
-interface WordAlignerDialogProps{
-    alignerStatus: TAlignerStatus | null,
-    height: number,
-    translate: (key:string)=>string,
-    suggester: ((sourceSentence: string | Token[], targetSentence: string | Token[], maxSuggestions?: number, manuallyAligned?: Alignment[] ) => Suggestion[])|null
-}
-
-interface AppState {
-    groupCollection: GroupCollection; //This contains all the verse data loaded in a hierarchical structure of Groups->Books->Chapter->Verses
-    scope: string;  //This is Book, Group, Chapter or Verse.  It changes how the list is shown.
-    currentSelection: string[][]; //This contains a collection of the references to all the things selected in the list.
-    doubleClickedVerse: string[] | null; //This gets set when a verse is double clicked.
-    alignerStatus: TAlignerStatus | null; //This gets set to pop up the word aligner dialog.
-}
-
-interface TrainingState{
-    isTrainingEnabled: boolean; //This is true when the training checkbox is checked
-    isTestingEnabled: boolean; //This is true when the testing is enabled
-    trainingStatusOutput: string; //Setting this shows up on the toolbar and lets the training have a place to give live output status.
-    lastTrainedInstanceCount: number; //This lets us know if something has changed since last training by comparing it to groupCollection.instanceCount
-    currentTrainingInstanceCount: number; //This keeps track of what is currently training so that when it finishes lastTrainedInstanceCount can be set.
-    lastTestAlignedCount: number; //This count keeps track of which alignment model count was last used to update test alignments.
-    currentTestingInstanceCount: number; //This keeps track of what is currently testing so that when it finishes lastTestAlignedCount can be set.
-    testResults: TWordAlignmentTestResults | null; //This holds the last results which were returned from the testing thread.
-}
-
-interface ContextId {
-    reference: {
-        bookId: string;
-        chapter: number;
-        verse: number;
-    };
-    tool: string;
-    groupId: string;
-    bibleId: string;
-}
-
-interface SourceWord {
-    index: number;
-    occurrence: number;
-    occurrences: number;
-    text: string;
-    lemma: string;
-    morph: string;
-    strong: string;  // Could be multipart separated by colons such as 'c:H4191'
-}
-
-interface TargetWord {
-    index: number;
-    occurrence: number;
-    occurrences: number;
-    text: string;
-}
-
-interface TargetWordBank extends TargetWord {
-    disabled: boolean;  // if true then word is already used in alignment
-}
-
-interface Alignment {
-    sourceNgram: SourceWord[];
-    targetNgram: TargetWord[];
-}
-
-interface TReference{
-    chapter: number;
-    verse: number;
-}
-
-interface TContextId{
-    reference: TReference;
-}
-
-interface TUsfmVerse{
-    verseObjects: TWord[];
-}
-
-type TUsfmChapter = {[key:string]:TUsfmVerse};
-
-interface TUsfmHeader{
-    tag: string;
-    content: string;
-}
-
-interface TUsfmBook{
-    headers: TUsfmHeader[];
-    chapters: {[key:string]:TUsfmChapter};
-}
-
-type Token = any; // You should import the actual Token type from wordMAP-lexer
-type Suggestion = any; // You should import the actual Suggestion type from wordMAP
-type usfmType = string; // Type definition for USFM content
-type booksUsfmType = { [bibleId: string]: usfmType };
-type translationMemoryType = {
-    sourceUsfms: booksUsfmType;
-    targetUsfms: booksUsfmType;
-};
-type THandleSetTrainingState = (running: boolean, trainingComplete: boolean) => void;
+import {
+    AppState,
+    ContextId,
+    SourceWord,
+    TAlignerStatus,
+    TargetWordBank,
+    THandleSetTrainingState,
+    TrainingState,
+    translationMemoryType
+} from "@/common/classes";
+import {Alignment, Suggestion} from "wordmap";
+import {Token} from 'wordmap-lexer'
+import {
+    MAX_COMPLEXITY,
+    THRESHOLD_TRAINING_MINUTES,
+    WORKER_TIMEOUT
+} from "@/common/constants";
 
 interface SuggestingWordAlignerProps {
     styles?: React.CSSProperties;
@@ -217,6 +110,10 @@ function defaultTrainingState(): TrainingState{
     }
 }
 
+function getElapsedMinutes(trainingStartTime: number) {
+    return (Date.now() - trainingStartTime) / (1000 * 60);
+}
+
 export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
 {
    styles,
@@ -250,7 +147,9 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
         stateRef.current = newState;
         _setState( newState );
     }
-
+    
+    const [maxComplexity, setMaxComplexity]  = useState<number>(MAX_COMPLEXITY);
+    const [currentBookName, setCurrentBookName]  = useState<string>(contextId?.reference?.bookId || '');
     const [trainingState, _setTrainingState] = useState<TrainingState>(defaultTrainingState())
     const trainingStateRef = useRef<TrainingState>(trainingState);
     function setTrainingState( newState: TrainingState ) {
@@ -260,6 +159,7 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
     
     const alignmentTrainingWorkerRef = useRef<Worker | null>(null);
     const alignmentTestingWorkerRef  = useRef<Worker | null>(null);
+    const workerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const {groupCollection, scope, currentSelection, doubleClickedVerse, alignerStatus } = state;
 
@@ -327,23 +227,30 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
 
         let newGroupCollection_ = groupCollection;
         const group_name = contextId?.bibleId || ''
+        let currentBookName_ = contextId?.reference?.bookId || '';
 
         // if group doesn't exist, then add
         if ( ! newGroupCollection_.groups?.[group_name]) {
             const newBooks: {[key:string]:Book} = {};
             // need to get the books
-            Object.entries(translationMemory?.targetUsfms).forEach(([filename,usfm_book])=>{
+            Object.entries(translationMemory?.targetUsfms).forEach(([bookId,usfm_book])=>{
                 const usfm_json = usfm.toJSON(usfm_book, { convertToInt: ['occurrence','occurrences']});
                 
                 const usfmHeaders = parseUsfmHeaders(usfm_json.headers);
-                const newBook = new Book( {chapters:{},filename,toc3Name:usfmHeaders.toc3,targetUsfmBook:null,sourceUsfmBook:null} );
-                newBooks[usfmHeaders.h] = newBook.addTargetUsfm({filename,usfm_book: usfm_json,toc3Name:usfmHeaders.toc3});
+                const toc3Name = usfmHeaders.toc3; //label to use
+                const currentBookId = contextId?.reference?.bookId;
+                if (bookId === currentBookId) {
+                    currentBookName_ = usfmHeaders.h;
+                }
+                const newBook = new Book( {chapters:{}, filename: bookId,toc3Name,targetUsfmBook:null,sourceUsfmBook:null} );
+                newBooks[bookId] = newBook.addTargetUsfm({filename: bookId,usfm_book: usfm_json,toc3Name});
             });
             
             const newGroup: Group = newGroupCollection_.groups[group_name] || new Group(newBooks);
             const newGroups = {...newGroupCollection_.groups, [group_name]: newGroup};
             const newGroupCollection = new GroupCollection(newGroups, newGroupCollection_.instanceCount + 1);
             newGroupCollection_ = newGroupCollection;
+            setCurrentBookName(currentBookName_);
         }
 
         // #######################################################
@@ -365,45 +272,12 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
 
             const {newGroupCollection, addedVerseCount, droppedVerseCount } = newGroupCollection_.addSourceUsfm( {usfm_json, isResourceSelected: isResourceSelected_} );
             newGroupCollection_ = newGroupCollection;
+            setGroupCollection( newGroupCollection_ );
 
             //await showMessage( `Attached ${addedVerseCount} verses\nDropped ${droppedVerseCount} verses.`);
             // await showMessage( `${addedVerseCount} connections added.`);
             console.log( `${addedVerseCount} connections added.`);
 
-        } catch( error ){
-            //user declined
-            console.error( `error importing ${error}` );
-            // await showMessage( `Error ${error}`)
-        }
-
-        // #######################################################
-        // load the target usfms.
-        try{
-            //load the usfm.
-            const usfm_json : { [key: string]: TUsfmBook } = Object.fromEntries( Object.entries(translationMemory?.targetUsfms).map(([key,value]) => [key, usfm.toJSON(value,  { convertToInt: ['occurrence', 'occurrences'] })]));
-            const group_name = contextId?.bibleId || '';
-    
-            let need_confirmation = false;
-            let confirmation_message = "";
-    
-            //now make sure that for each of the chapters being loaded that that chapter hasn't already been loaded.
-            Object.values(usfm_json).forEach((usfm_book) => {
-                if( groupCollection.hasBookInGroup( {group_name, usfm_book}) ){
-                    const parsed_headers = parseUsfmHeaders(usfm_book.headers);
-                    need_confirmation = true;
-                    confirmation_message += `Do you want to reload ${parsed_headers.h} in ${group_name}?`
-                }
-            })
-    
-            //now do the confirmation if needed.
-            //this will throw an exception if it doesn't pass confirmation.
-            // if( need_confirmation ) await getUserConfirmation(confirmation_message  );
-    
-            //poke all the newly loaded items in.
-            const newGroupCollection = newGroupCollection_.addTargetUsfm({group_name, usfm_json })
-            newGroupCollection_ = newGroupCollection;
-            setGroupCollection( newGroupCollection_ );
-            
         } catch( error ){
             //user declined
             console.error( `error importing ${error}` );
@@ -415,9 +289,30 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
     const trained = !!alignmentPredictor.current
 
     /**
+     * Cleans up worker resources by terminating the worker and clearing the timeout
+     */
+    const cleanupWorker = () => {
+        if (workerTimeoutRef.current) {
+            clearTimeout(workerTimeoutRef.current);
+            workerTimeoutRef.current = null;
+        }
+        if (alignmentTrainingWorkerRef.current) {
+            alignmentTrainingWorkerRef.current.terminate();
+            alignmentTrainingWorkerRef.current = null;
+        }
+    };
+
+    function adjustMaxComplexity(reductionFactor: number) {
+        const newMaxComplexity = Math.ceil(maxComplexity * reductionFactor);
+        console.log(`Reducing maxComplexity from ${maxComplexity} to ${newMaxComplexity}`);
+        setMaxComplexity(newMaxComplexity);
+    }
+
+    /**
      * Starts the alignment training process using a web worker
      * Only runs if there have been changes since last training and enough training data exists
      * Updates training state and alignment predictor with trained model results
+     * Includes a timeout that is cleared if worker completes sooner
      */
     function startTraining(){
         //Use the Refs such as trainingStateRef instead of trainingState
@@ -435,59 +330,63 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
                 //before creating the worker, check to see if there is any data to train on.
                 //get the information for the alignment to training.
                 const alignmentTrainingData = stateRef.current.groupCollection.getAlignmentDataAndCorpusForTrainingOrTesting( {forTesting: false, getCorpus:true} );
-
+                
+                alignmentTrainingData.contextId = contextId;
+                alignmentTrainingData.contextId.bookName = currentBookName || alignmentTrainingData.contextId?.reference?.bookId;
+                alignmentTrainingData.maxComplexity = maxComplexity;
+                
                 //check if there are enough entries in the alignment training data dictionary
                 if( Object.values(alignmentTrainingData.alignments).length > 4 ){
                     handleSetTrainingState?.(true, trained);
 
-                    // blocking operation
-                    // delay(500).then(async () => { // run after UI updates
-                    //     try {
-                    //         console.log( `starting alignment training` );
-                    //        
-                    //         const wordAlignerModel = await createTrainedWordAlignerModel(alignmentTrainingData);
-                    //
-                    //         console.log( `alignment training worker results:`, wordAlignerModel );
-                    //
-                    //         //Load the trained model and put it somewhere it can be used.
-                    //         // if( "trainedModel" in event.data ){
-                    //             const modelData = wordAlignerModel.save();
-                    //             alignmentPredictor.current = AbstractWordMapWrapper.load( modelData );
-                    //         // }
-                    //         // if( "error" in event.data ){
-                    //         //     console.log( "Error running alignment worker: " + event.data.error );
-                    //         // }
-                    //
-                    //         setTrainingState( {...trainingStateRef.current, lastTrainedInstanceCount: trainingStateRef.current.currentTrainingInstanceCount } );
-                    //         handleSetTrainingState?.(false, true); 
-                    //     } catch (error) {
-                    //         console.log(`error training`, error);
-                    //         //TODO, need to communicate error back to the other side.
-                    //         // self.postMessage({
-                    //         //     message: 'There was an error while training the word map.',
-                    //         //     error: error
-                    //         // });
-                    //         handleSetTrainingState?.(false, trained);
-                    //     }
-                    // })
-
+                    const trainingStartTime = Date.now();
+                    
                     try { // background processing
                         console.log(`start training for ${stateRef.current.groupCollection.instanceCount}`);
+
                         setTrainingState( {...trainingStateRef.current, currentTrainingInstanceCount: stateRef.current.groupCollection.instanceCount } );
-                    
+                        // Capture start time
+
                         //create a new worker.
                         // alignmentTrainingWorkerRef.current = new Worker( new URL("../workers/AlignmentTrainer.ts", import.meta.url ) );
                         alignmentTrainingWorkerRef.current = new AlignmentWorker();
 
+                        // Set up a worker timeout
+                        workerTimeoutRef.current = setTimeout(() => {
+                            console.log(`Training timeout after ${getElapsedMinutes(trainingStartTime)} minutes`);
+                            console.log("Worker timed out after 20 minutes");
+
+                            adjustMaxComplexity(0.75);
+
+                            cleanupWorker();
+                            
+                            setTrainingState( {...trainingStateRef.current, lastTrainedInstanceCount: trainingStateRef.current.currentTrainingInstanceCount } );
+                            handleSetTrainingState?.(false, trained);
+                            
+                            // Restart training if needed
+                            startTraining();
+                        }, WORKER_TIMEOUT);
+
                         //Define the callback which will be called after the alignment trainer has finished
                         alignmentTrainingWorkerRef.current.addEventListener('message', (event) => {
-                            console.log( `alignment training worker message: ${event.data}` );
-                            alignmentTrainingWorkerRef.current?.terminate();
-                            alignmentTrainingWorkerRef.current = null;
+                            // Calculate elapsed time in minutes
+                            console.log(`alignment training worker message: ${event.data}`);
+                            
+                            const elapsedMinutes = getElapsedMinutes(trainingStartTime);
+                            console.log(`Training completed in ${elapsedMinutes} minutes`);
+                            if (elapsedMinutes > THRESHOLD_TRAINING_MINUTES) {
+                                console.log("Worker took over 15 minutes");
+                                adjustMaxComplexity(THRESHOLD_TRAINING_MINUTES/elapsedMinutes);
+                            }
+                            
+                            // Clear timeout since worker completed successfully
+                            cleanupWorker();
                     
                             //Load the trained model and put it somewhere it can be used.
                             if( "trainedModel" in event.data ){
                                 alignmentPredictor.current = AbstractWordMapWrapper.load( event.data.trainedModel );
+                                // @ts-ignore
+                                console.log(`Number of alignments: ${alignmentPredictor.current.alignmentStash?.length}`)
                             }
                             if( "error" in event.data ){
                                 console.log( "Error running alignment worker: " + event.data.error );
@@ -505,8 +404,8 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
                         } );
                     } catch (error) {
                         console.error("Error during alignment training setup:", error);
-                        alignmentTrainingWorkerRef.current?.terminate();
-                        alignmentTrainingWorkerRef.current = null;
+                        console.log(`Training failed after ${getElapsedMinutes(trainingStartTime)} minutes`);
+                        cleanupWorker();
                         handleSetTrainingState?.(false, trained);
                     }
 
@@ -529,10 +428,10 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
      * Stops any active alignment training by terminating the worker
      */
     function stopTraining() {
+        console.log( "stopTraining() clicked" );
         if( alignmentTrainingWorkerRef.current !== null ){
             handleSetTrainingState?.(false, trained);
-            alignmentTrainingWorkerRef.current.terminate();
-            alignmentTrainingWorkerRef.current = null;
+            cleanupWorker();
             console.log( "Alignment training stopped" );
         }
     }
@@ -549,6 +448,7 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
     }, [contextId]);
 
     useEffect(() => {
+        console.log( `doTraining changed to ${doTraining}, trainingRunning currently ${trainingRunning}`);
         if (doTraining !== trainingRunning) { // check if training change
             delay(500).then(() => { // run async
                 if (doTraining) {
@@ -559,6 +459,13 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
             })
         }
     }, [doTraining]);
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            cleanupWorker();
+        };
+    }, []);
 
     const suggester= alignmentPredictor.current?.predict.bind(alignmentPredictor.current) || null
     

@@ -1,7 +1,9 @@
-import { TState, TWordAlignerAlignmentResult } from "@/components/WordAlignerDialog";
+// import { TState, TWordAlignerAlignmentResult } from "@/components/WordAlignerDialog";
 import { mergeInAlignments, parseUsfmToWordAlignerData_JSON, verseObjectsToTargetString, verseObjectsToTWordTokens, extractAlignmentsFromTargetVerse_JSON } from "@/utils/usfm_misc";
 import { TWordAlignmentTestScore } from "@/workers/WorkerComTypes";
 import { AlignmentHelpers, TUsfmVerse, TSourceTargetAlignment, TWord } from "suggesting-word-aligner-rcl";
+import {UNALIGNED_THRESHOLD} from "@/common/constants";
+import {TState, TWordAlignerAlignmentResult} from "@/common/classes";
 
 export enum VerseState {
     NoSource = "no-source",
@@ -71,7 +73,14 @@ export default class Verse {
         if( this.targetVerse == null ) return VerseState.NoTarget;
         const wordAlignerData = parseUsfmToWordAlignerData_JSON( this.targetVerse, this.sourceVerse );
         const alignmentComputed = AlignmentHelpers.areAlgnmentsComplete(wordAlignerData.targetWords, wordAlignerData.verseAlignments);
-        if( !alignmentComputed ) return VerseState.Unaligned;
+        if( !alignmentComputed ) {
+            const unalignedTargetWords = wordAlignerData.targetWords.filter(word => !word.disabled).length;
+            const length = wordAlignerData.targetWords?.length || 0;
+            const percentUnalignedTarget = length ? (unalignedTargetWords / length) * 100 : 100;
+            if ((wordAlignerData.verseAlignments?.length < 1) || (percentUnalignedTarget > UNALIGNED_THRESHOLD)) {
+                return VerseState.Unaligned;
+            }
+        }
         if( this.reservedForTesting ) return VerseState.AlignedTest;
         return VerseState.AlignedTrain;
     }
