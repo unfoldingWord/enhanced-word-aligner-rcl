@@ -229,17 +229,17 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
         if ( ! newGroupCollection_.groups?.[group_name]) {
             const newBooks: {[key:string]:Book} = {};
             // need to get the books
-            Object.entries(translationMemory?.targetUsfms).forEach(([filename,usfm_book])=>{
+            Object.entries(translationMemory?.targetUsfms).forEach(([bookId,usfm_book])=>{
                 const usfm_json = usfm.toJSON(usfm_book, { convertToInt: ['occurrence','occurrences']});
                 
                 const usfmHeaders = parseUsfmHeaders(usfm_json.headers);
                 const toc3Name = usfmHeaders.toc3; //label to use
-                const bookId = contextId?.reference?.bookId;
-                if (filename === bookId) {
+                const currentBookId = contextId?.reference?.bookId;
+                if (bookId === currentBookId) {
                     currentBookName_ = usfmHeaders.h;
                 }
-                const newBook = new Book( {chapters:{},filename,toc3Name,targetUsfmBook:null,sourceUsfmBook:null} );
-                newBooks[bookId] = newBook.addTargetUsfm({filename,usfm_book: usfm_json,toc3Name});
+                const newBook = new Book( {chapters:{}, filename: bookId,toc3Name,targetUsfmBook:null,sourceUsfmBook:null} );
+                newBooks[bookId] = newBook.addTargetUsfm({filename: bookId,usfm_book: usfm_json,toc3Name});
             });
             
             const newGroup: Group = newGroupCollection_.groups[group_name] || new Group(newBooks);
@@ -268,45 +268,12 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
 
             const {newGroupCollection, addedVerseCount, droppedVerseCount } = newGroupCollection_.addSourceUsfm( {usfm_json, isResourceSelected: isResourceSelected_} );
             newGroupCollection_ = newGroupCollection;
+            setGroupCollection( newGroupCollection_ );
 
             //await showMessage( `Attached ${addedVerseCount} verses\nDropped ${droppedVerseCount} verses.`);
             // await showMessage( `${addedVerseCount} connections added.`);
             console.log( `${addedVerseCount} connections added.`);
 
-        } catch( error ){
-            //user declined
-            console.error( `error importing ${error}` );
-            // await showMessage( `Error ${error}`)
-        }
-
-        // #######################################################
-        // load the target usfms.
-        try{
-            //load the usfm.
-            const usfm_json : { [key: string]: TUsfmBook } = Object.fromEntries( Object.entries(translationMemory?.targetUsfms).map(([key,value]) => [key, usfm.toJSON(value,  { convertToInt: ['occurrence', 'occurrences'] })]));
-            const group_name = contextId?.bibleId || '';
-    
-            let need_confirmation = false;
-            let confirmation_message = "";
-    
-            //now make sure that for each of the chapters being loaded that that chapter hasn't already been loaded.
-            Object.values(usfm_json).forEach((usfm_book) => {
-                if( groupCollection.hasBookInGroup( {group_name, usfm_book}) ){
-                    const parsed_headers = parseUsfmHeaders(usfm_book.headers);
-                    need_confirmation = true;
-                    confirmation_message += `Do you want to reload ${parsed_headers.h} in ${group_name}?`
-                }
-            })
-    
-            //now do the confirmation if needed.
-            //this will throw an exception if it doesn't pass confirmation.
-            // if( need_confirmation ) await getUserConfirmation(confirmation_message  );
-    
-            //poke all the newly loaded items in.
-            const newGroupCollection = newGroupCollection_.addTargetUsfm({group_name, usfm_json })
-            newGroupCollection_ = newGroupCollection;
-            setGroupCollection( newGroupCollection_ );
-            
         } catch( error ){
             //user declined
             console.error( `error importing ${error}` );
@@ -346,37 +313,6 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
                 //check if there are enough entries in the alignment training data dictionary
                 if( Object.values(alignmentTrainingData.alignments).length > 4 ){
                     handleSetTrainingState?.(true, trained);
-
-                    // blocking operation
-                    // delay(500).then(async () => { // run after UI updates
-                    //     try {
-                    //         console.log( `starting alignment training` );
-                    //        
-                    //         const wordAlignerModel = await createTrainedWordAlignerModel(alignmentTrainingData);
-                    //
-                    //         console.log( `alignment training worker results:`, wordAlignerModel );
-                    //
-                    //         //Load the trained model and put it somewhere it can be used.
-                    //         // if( "trainedModel" in event.data ){
-                    //             const modelData = wordAlignerModel.save();
-                    //             alignmentPredictor.current = AbstractWordMapWrapper.load( modelData );
-                    //         // }
-                    //         // if( "error" in event.data ){
-                    //         //     console.log( "Error running alignment worker: " + event.data.error );
-                    //         // }
-                    //
-                    //         setTrainingState( {...trainingStateRef.current, lastTrainedInstanceCount: trainingStateRef.current.currentTrainingInstanceCount } );
-                    //         handleSetTrainingState?.(false, true); 
-                    //     } catch (error) {
-                    //         console.log(`error training`, error);
-                    //         //TODO, need to communicate error back to the other side.
-                    //         // self.postMessage({
-                    //         //     message: 'There was an error while training the word map.',
-                    //         //     error: error
-                    //         // });
-                    //         handleSetTrainingState?.(false, trained);
-                    //     }
-                    // })
 
                     const trainingStartTime = Date.now();
                     

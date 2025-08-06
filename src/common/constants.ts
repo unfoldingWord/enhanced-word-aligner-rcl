@@ -11,3 +11,4 @@ export const NT_ORIG_LANG: string = 'el-x-koine';
 export const NT_ORIG_LANG_BIBLE: string = 'ugnt';
 export const OT_ORIG_LANG: string = 'hbo';
 export const OT_ORIG_LANG_BIBLE: string = 'uhb';
+export const UNALIGNED_THRESHOLD = 25; // percent at which verse it considered unaligned

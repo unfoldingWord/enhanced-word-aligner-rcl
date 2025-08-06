@@ -1,4 +1,3 @@
-
 import { MorphJLBoostWordMap, updateTokenLocations } from "wordmapbooster";
 import wordmapLexer, { Token } from "wordmap-lexer";
 import { Alignment, Ngram } from "wordmap";
@@ -50,14 +49,15 @@ function removeComplexity(alignedComplexityCount: number, maxComplexity, keyCoun
     let toKeep:string = '';
     const bookId = contextId?.reference?.bookId;
     if (reduceType === ReduceType.otherBook) {
-        toKeep = `[${contextId?.bibleId}] ${bookId}`;
+        toKeep = `[${contextId?.bibleId}] ${bookId} `;
     } else if (reduceType === ReduceType.otherChapter) {
-        toKeep = `[${contextId?.bibleId}] ${bookId} ${contextId?.reference?.chapter}`;
+        toKeep = `[${contextId?.bibleId}] ${bookId} ${contextId?.reference?.chapter}:`;
     }
     let currentIndex = -1;
+    const doSequentialOrder = reduceType === ReduceType.otherBook;
 
     while (alignedComplexityCount > maxComplexity) {
-        if (reduceType === ReduceType.anything) {
+        if (!doSequentialOrder) {
             const randomIndex = Math.floor(Math.random() * keyCount);
             currentIndex = randomIndex
         } else { // in other cases do in order
@@ -70,7 +70,7 @@ function removeComplexity(alignedComplexityCount: number, maxComplexity, keyCoun
         const key = keys[currentIndex];
         
         if (toKeep) {
-            if (key.includes(toKeep)) { // skip over what we want to keep
+            if (key.startsWith(toKeep)) { // skip over what we want to keep
                 continue;
             }
         }
@@ -86,6 +86,10 @@ function removeComplexity(alignedComplexityCount: number, maxComplexity, keyCoun
         delete alignments[key]
 
         trimmedVerses++;
+        
+        if (doSequentialOrder) {
+            currentIndex--; // backup since we removed item for keys
+        }
     }
     return {alignedComplexityCount, trimmedVerses};
 }
@@ -141,6 +145,8 @@ function addAlignmentCorpus(alignedComplexityCount: number, unalignedComplexityC
         trimmedVerses = __ret.trimmedVerses;
 
         console.log(`Trimmed ${trimmedVerses} verses, complexity now ${alignedComplexityCount}`);
+
+        wordAlignerModel.appendKeyedCorpusTokens(sourceVersesTokenized, targetVersesTokenized);
     }
     return alignedComplexityCount;
 }
@@ -216,8 +222,6 @@ export async function createTrainedWordAlignerModel(data: TTrainingAndTestingDat
   addAlignmentCorpus(alignedComplexityCount, unalignedComplexityCount, maxComplexity,
       wordAlignerModel, sourceCorpusTokenized, targetCorpusTokenized, sourceVersesTokenized,
       targetVersesTokenized, alignments, data.contextId);
-
-  wordAlignerModel.appendKeyedCorpusTokens(sourceVersesTokenized, targetVersesTokenized);
 
   // Train the model and return it
   await wordAlignerModel.add_alignments_2(sourceVersesTokenized, targetVersesTokenized, alignments);

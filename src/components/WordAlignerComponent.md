@@ -92,10 +92,10 @@ const WordAlignerPanel = ({
       setTraining(_training);
       if (!_training) {
         setDoTraining(false);
-        setMessage( trained ? "Training Complete" : "")
-      } else {
+       } else {
         setMessage("Training ...")
       }
+      setMessage( trained ? "Training Complete" : "")
     })
   };
 
