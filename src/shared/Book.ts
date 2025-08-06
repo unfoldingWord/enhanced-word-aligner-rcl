@@ -3,7 +3,6 @@ import { is_number } from '@/utils/usfm_misc';
 import Verse from './Verse';
 import { TSourceTargetAlignment, TUsfmBook, TUsfmChapter, TWord } from 'word-aligner-rcl';
 import { deepClone } from '@/utils/load_file';
-// @ts-ignore
 import JSZip from 'jszip';
 // @ts-ignore
 import usfm from 'usfm-js';

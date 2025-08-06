@@ -114,7 +114,7 @@ function getElapsedMinutes(trainingStartTime: number) {
     return (Date.now() - trainingStartTime) / (1000 * 60);
 }
 
-export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
+export const EnhancedWordAligner: React.FC<SuggestingWordAlignerProps> = (
 {
    styles,
    contextId,
@@ -353,8 +353,8 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
 
                         // Set up a worker timeout
                         workerTimeoutRef.current = setTimeout(() => {
-                            console.log(`Training timeout after ${getElapsedMinutes(trainingStartTime)} minutes`);
-                            console.log("Worker timed out after 20 minutes");
+                            const elapsedMinutes1 = getElapsedMinutes(trainingStartTime);
+                            console.log(`Training Worker timeout after ${elapsedMinutes1} minutes`);
 
                             adjustMaxComplexity(0.75);
 
@@ -371,7 +371,11 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
                         alignmentTrainingWorkerRef.current.addEventListener('message', (event) => {
                             // Calculate elapsed time in minutes
                             console.log(`alignment training worker message: ${event.data}`);
-                            
+
+                            // Clear timeout since worker completed successfully
+                            cleanupWorker();
+
+                            //Load the trained model and put it somewhere it can be used.
                             const elapsedMinutes = getElapsedMinutes(trainingStartTime);
                             console.log(`Training completed in ${elapsedMinutes} minutes`);
                             if (elapsedMinutes > THRESHOLD_TRAINING_MINUTES) {
@@ -379,10 +383,6 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
                                 adjustMaxComplexity(THRESHOLD_TRAINING_MINUTES/elapsedMinutes);
                             }
                             
-                            // Clear timeout since worker completed successfully
-                            cleanupWorker();
-                    
-                            //Load the trained model and put it somewhere it can be used.
                             if( "trainedModel" in event.data ){
                                 alignmentPredictor.current = AbstractWordMapWrapper.load( event.data.trainedModel );
                                 // @ts-ignore

@@ -1,7 +1,7 @@
 
 # enhanced-word-aligner-rcl
 
-Wraps `suggesting-work-aligner` with suggesting logic from `alignment-transferer` to make an RCL component that can make alignment suggestions.
+Wraps the `SuggestingWordAligner` from `word-aligner-rcl` with WordMap training and suggesting logic from `alignment-transferer` to make `EnhancedWordAligner` - an RCL component that can make alignment suggestions.
 
 
 ## Installation

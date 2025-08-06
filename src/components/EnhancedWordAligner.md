@@ -7,7 +7,7 @@ import {
   UsfmFileConversionHelpers,
   usfmHelpers
 } from "word-aligner-rcl";
-import { WordAlignerComponent } from './WordAlignerComponent'
+import {EnhancedWordAligner} from './EnhancedWordAligner'
 import delay from "../utils/delay";
 
 import {NT_ORIG_LANG} from "../common/constants";
@@ -92,10 +92,10 @@ const WordAlignerPanel = ({
       setTraining(_training);
       if (!_training) {
         setDoTraining(false);
-       } else {
+      } else {
         setMessage("Training ...")
       }
-      setMessage( trained ? "Training Complete" : "")
+      setMessage(trained ? "Training Complete" : "")
     })
   };
 
@@ -140,12 +140,12 @@ const WordAlignerPanel = ({
         >
           {trainingButtonStr}
         </button>
-        
-      <span style={{marginLeft: '8px', color: '#000'}}> {message} </span>
- 
+
+        <span style={{marginLeft: '8px', color: '#000'}}> {message} </span>
+
       </div>
-      <WordAlignerComponent
-        styles={{ maxHeight: '450px', overflowY: 'auto', ...styles }}
+      <EnhancedWordAligner
+        styles={{maxHeight: '450px', overflowY: 'auto', ...styles}}
         verseAlignments={verseAlignments}
         targetWords={targetWords}
         translate={translate}

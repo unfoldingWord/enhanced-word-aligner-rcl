@@ -2,7 +2,6 @@ import Group, { TGroupTestResults } from "./Group";
 import {parseUsfmHeaders} from "../utils/usfm_misc";
 import Verse from "./Verse";
 import { TSourceTargetAlignment, TUsfmBook, TWord } from "word-aligner-rcl";
-// @ts-ignore
 import JSZip from "jszip";
 import { TTrainingAndTestingData, TWordAlignmentTestScore } from "@/workers/WorkerComTypes";
 import {TState, TWordAlignerAlignmentResult} from "@/common/classes";
