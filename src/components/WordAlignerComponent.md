@@ -12,17 +12,22 @@ import delay from "../utils/delay";
 
 import {NT_ORIG_LANG} from "../common/constants";
 
+console.log('Loading WordAlignerComponent.md');
+
 // const alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1.json');
 const alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1_partial.json');
 const originalVerseJson = require('../__tests__/fixtures/alignments/grk_tit_1_1.json');
 const LexiconData = require("../__tests__/fixtures/lexicon/lexicons.json");
 const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory.json");
-// delete translationMemory.sourceUsfms.jas
-// delete translationMemory.targetUsfms.jas
-const translationMemory2 = require("../__tests__/fixtures/alignments/full_books/translationMemoryMat.json");
+
+// limit to single book
+translationMemory.targetUsfms = { "tit": translationMemory.targetUsfms.tit};
+translationMemory.sourceUsfms = { "tit": translationMemory.sourceUsfms.tit};
+
+// const translationMemory2 = require("../__tests__/fixtures/alignments/full_books/translationMemoryMat.json");
 // merge together translationMemory and translationMemory2
-translationMemory.targetUsfms = {...translationMemory.targetUsfms, ...translationMemory2.targetUsfms};
-translationMemory.sourceUsfms = {...translationMemory.sourceUsfms, ...translationMemory2.sourceUsfms};
+// translationMemory.targetUsfms = {...translationMemory.targetUsfms, ...translationMemory2.targetUsfms};
+// translationMemory.sourceUsfms = {...translationMemory.sourceUsfms, ...translationMemory2.sourceUsfms};
 // const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory2Cor.json");
 // const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryMark.json");
 // const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryActs.json");

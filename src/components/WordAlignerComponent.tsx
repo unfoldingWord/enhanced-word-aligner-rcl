@@ -488,5 +488,5 @@ export const WordAlignerComponent: React.FC<SuggestingWordAlignerProps> = (
             hasRenderedSuggestions={hasRenderedSuggestions}
             suggester={suggester}
         />
-  )
+    )
 }
