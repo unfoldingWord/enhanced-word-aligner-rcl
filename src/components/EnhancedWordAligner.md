@@ -6,26 +6,35 @@ import {
   AlignmentHelpers,
   UsfmFileConversionHelpers,
   usfmHelpers
-} from "suggesting-word-aligner-rcl";
-import { WordAlignerComponent } from './WordAlignerComponent'
+} from "word-aligner-rcl";
+import usfm from 'usfm-js';
+import {EnhancedWordAligner} from './EnhancedWordAligner'
+import {extractVerseText} from "../utils/misc";
 import delay from "../utils/delay";
 
 import {NT_ORIG_LANG} from "../common/constants";
 
+console.log('Loading WordAlignerComponent.md');
+
 // const alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1.json');
-const alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1_partial.json');
-const originalVerseJson = require('../__tests__/fixtures/alignments/grk_tit_1_1.json');
+// const alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1_partial.json');
+// const originalVerseJson = require('../__tests__/fixtures/alignments/grk_tit_1_1.json');
 const LexiconData = require("../__tests__/fixtures/lexicon/lexicons.json");
-const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory.json");
-// delete translationMemory.sourceUsfms.jas
-// delete translationMemory.targetUsfms.jas
-const translationMemory2 = require("../__tests__/fixtures/alignments/full_books/translationMemoryMat.json");
+// const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory.json");
+//
+// // limit to single book
+// translationMemory.targetUsfms = { "tit": translationMemory.targetUsfms.tit};
+// translationMemory.sourceUsfms = { "tit": translationMemory.sourceUsfms.tit};
+
+// const translationMemory2 = require("../__tests__/fixtures/alignments/full_books/translationMemoryMat.json");
 // merge together translationMemory and translationMemory2
-translationMemory.targetUsfms = {...translationMemory.targetUsfms, ...translationMemory2.targetUsfms};
-translationMemory.sourceUsfms = {...translationMemory.sourceUsfms, ...translationMemory2.sourceUsfms};
+// translationMemory.targetUsfms = {...translationMemory.targetUsfms, ...translationMemory2.targetUsfms};
+// translationMemory.sourceUsfms = {...translationMemory.sourceUsfms, ...translationMemory2.sourceUsfms};
 // const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory2Cor.json");
 // const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryMark.json");
 // const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryActs.json");
+const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryRuth.json");
+
 const translate = (key) => {
   const lookup = {
     "suggestions.refresh_suggestions": "Refresh suggestions.",
@@ -44,8 +53,16 @@ const translate = (key) => {
   }
 };
 
-const targetVerseUSFM = alignedVerseJson.usfm;
-const sourceVerseUSFM = originalVerseJson.usfm;
+const bookId = 'rut';
+const chapter = 2;
+const verse = 3;
+const source_json = usfm.toJSON(translationMemory.sourceUsfms[bookId], { convertToInt: ['occurrence','occurrences']});
+const target_json = usfm.toJSON(translationMemory.targetUsfms[bookId], { convertToInt: ['occurrence','occurrences']});
+const sourceVerseUSFM = extractVerseText(translationMemory.sourceUsfms[bookId], chapter, verse)
+const targetVerseUSFM = extractVerseText(translationMemory.targetUsfms[bookId], chapter, verse)
+
+const alignedVerseJson = usfmHelpers.usfmVerseToJson(targetVerseUSFM);
+const originalVerseJson = usfmHelpers.usfmVerseToJson(sourceVerseUSFM);
 
 const {targetWords, verseAlignments} = AlignmentHelpers.parseUsfmToWordAlignerData(targetVerseUSFM, sourceVerseUSFM);
 
@@ -92,10 +109,10 @@ const WordAlignerPanel = ({
       setTraining(_training);
       if (!_training) {
         setDoTraining(false);
-       } else {
+      } else {
         setMessage("Training ...")
       }
-      setMessage( trained ? "Training Complete" : "")
+      setMessage(trained ? "Training Complete" : "")
     })
   };
 
@@ -140,12 +157,12 @@ const WordAlignerPanel = ({
         >
           {trainingButtonStr}
         </button>
-        
-      <span style={{marginLeft: '8px', color: '#000'}}> {message} </span>
- 
+
+        <span style={{marginLeft: '8px', color: '#000'}}> {message} </span>
+
       </div>
-      <WordAlignerComponent
-        styles={{ maxHeight: '450px', overflowY: 'auto', ...styles }}
+      <EnhancedWordAligner
+        styles={{maxHeight: '450px', overflowY: 'auto', ...styles}}
         verseAlignments={verseAlignments}
         targetWords={targetWords}
         translate={translate}
@@ -171,9 +188,9 @@ const App = () => {
   const lexicons = {};
   const contextId = {
     "reference": {
-      "bookId": "tit",
-      "chapter": 1,
-      "verse": 1
+      "bookId": bookId,
+      "chapter": chapter,
+      "verse": verse,
     },
     "tool": "wordAlignment",
     "groupId": "chapter_1",
@@ -181,10 +198,11 @@ const App = () => {
   };
   const showPopover = (PopoverTitle, wordDetails, positionCoord, rawData) => {
     console.log(`showPopover()`, rawData)
-    window.prompt(`User clicked on ${JSON.stringify(rawData.token)}`)
+    window.prompt(`User clicked on ${JSON.stringify(rawData)}`)
   };
   const loadLexiconEntry = (key) => {
     console.log(`loadLexiconEntry(${key})`)
+    return LexiconData
   };
   const getLexiconData_ = (lexiconId, entryId) => {
     console.log(`loadLexiconEntry(${lexiconId}, ${entryId})`)

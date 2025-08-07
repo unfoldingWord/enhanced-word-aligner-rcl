@@ -1,7 +1,7 @@
 import React from "react";
 import Group from "@/shared/Group";
 import GroupCollection from "@/shared/GroupCollection";
-import {TAlignerData, TSourceTargetAlignment, TWord} from "suggesting-word-aligner-rcl";
+import {TAlignerData, TSourceTargetAlignment, TWord} from "word-aligner-rcl";
 import {Token} from 'wordmap-lexer'
 import {Suggestion} from 'wordmap'
 import {TWordAlignmentTestResults} from "@/workers/WorkerComTypes";

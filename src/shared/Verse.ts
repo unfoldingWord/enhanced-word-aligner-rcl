@@ -1,7 +1,12 @@
-// import { TState, TWordAlignerAlignmentResult } from "@/components/WordAlignerDialog";
-import { mergeInAlignments, parseUsfmToWordAlignerData_JSON, verseObjectsToTargetString, verseObjectsToTWordTokens, extractAlignmentsFromTargetVerse_JSON } from "@/utils/usfm_misc";
+import {
+    extractAlignmentsFromTargetVerse_JSON,
+    mergeInAlignments,
+    parseUsfmToWordAlignerData_JSON,
+    verseObjectsToTargetString,
+    verseObjectsToTWordTokens,
+} from "@/utils/usfm_misc";
 import { TWordAlignmentTestScore } from "@/workers/WorkerComTypes";
-import { AlignmentHelpers, TUsfmVerse, TSourceTargetAlignment, TWord } from "suggesting-word-aligner-rcl";
+import { AlignmentHelpers, TUsfmVerse, TSourceTargetAlignment, TWord } from "word-aligner-rcl";
 import {UNALIGNED_THRESHOLD} from "@/common/constants";
 import {TState, TWordAlignerAlignmentResult} from "@/common/classes";
 

@@ -1,9 +1,8 @@
 import { is_number } from "@/utils/usfm_misc";
 import Verse, { VerseState } from "./Verse";
-import { TState, TWordAlignerAlignmentResult } from "@/components/WordAlignerDialog";
-import { TSourceTargetAlignment, TUsfmChapter, TUsfmVerse, TWord } from "suggesting-word-aligner-rcl";
+import { TSourceTargetAlignment, TUsfmChapter, TUsfmVerse, TWord } from "word-aligner-rcl";
 import { TTrainingAndTestingData, TWordAlignmentTestScore } from "@/workers/WorkerComTypes";
-
+import {TState, TWordAlignerAlignmentResult} from "@/common/classes";
 
 export interface TChapterTestResults{
     [key:number]: TWordAlignmentTestScore;
