@@ -15,8 +15,8 @@ import {NT_ORIG_LANG} from "../common/constants";
 console.log('Loading WordAlignerComponent.md');
 
 // const alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1.json');
-const alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1_partial.json');
-const originalVerseJson = require('../__tests__/fixtures/alignments/grk_tit_1_1.json');
+// const alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1_partial.json');
+// const originalVerseJson = require('../__tests__/fixtures/alignments/grk_tit_1_1.json');
 const LexiconData = require("../__tests__/fixtures/lexicon/lexicons.json");
 const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory.json");
 
@@ -31,6 +31,7 @@ translationMemory.sourceUsfms = { "tit": translationMemory.sourceUsfms.tit};
 // const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory2Cor.json");
 // const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryMark.json");
 // const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryActs.json");
+
 const translate = (key) => {
   const lookup = {
     "suggestions.refresh_suggestions": "Refresh suggestions.",
