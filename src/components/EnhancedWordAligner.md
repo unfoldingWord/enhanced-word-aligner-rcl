@@ -7,14 +7,16 @@ import {
   UsfmFileConversionHelpers,
   usfmHelpers
 } from "word-aligner-rcl";
+import usfm from 'usfm-js';
 import {EnhancedWordAligner} from './EnhancedWordAligner'
+import {extractVerseText} from "../utils/misc";
 import delay from "../utils/delay";
 
 import {NT_ORIG_LANG} from "../common/constants";
 
 // const alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1.json');
-const alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1_partial.json');
-const originalVerseJson = require('../__tests__/fixtures/alignments/grk_tit_1_1.json');
+// const alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1_partial.json');
+// const originalVerseJson = require('../__tests__/fixtures/alignments/grk_tit_1_1.json');
 const LexiconData = require("../__tests__/fixtures/lexicon/lexicons.json");
 const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory.json");
 // delete translationMemory.sourceUsfms.jas
@@ -44,8 +46,16 @@ const translate = (key) => {
   }
 };
 
-const targetVerseUSFM = alignedVerseJson.usfm;
-const sourceVerseUSFM = originalVerseJson.usfm;
+const bookId = 'tit';
+const chapter = 1;
+const verse = 1;
+const source_json = usfm.toJSON(translationMemory.sourceUsfms[bookId], { convertToInt: ['occurrence','occurrences']});
+const target_json = usfm.toJSON(translationMemory.targetUsfms[bookId], { convertToInt: ['occurrence','occurrences']});
+const sourceVerseUSFM = extractVerseText(translationMemory.sourceUsfms[bookId], chapter, verse)
+const targetVerseUSFM = extractVerseText(translationMemory.sourceUsfms[bookId], chapter, verse)
+
+// const alignedVerseJson = usfmHelpers.usfmVerseToJson(targetVerseUSFM);
+// const originalVerseJson = usfmHelpers.usfmVerseToJson(sourceVerseUSFM);
 
 const {targetWords, verseAlignments} = AlignmentHelpers.parseUsfmToWordAlignerData(targetVerseUSFM, sourceVerseUSFM);
 
@@ -171,9 +181,9 @@ const App = () => {
   const lexicons = {};
   const contextId = {
     "reference": {
-      "bookId": "tit",
-      "chapter": 1,
-      "verse": 1
+      "bookId": bookId,
+      "chapter": chapter,
+      "verse": verse,
     },
     "tool": "wordAlignment",
     "groupId": "chapter_1",
