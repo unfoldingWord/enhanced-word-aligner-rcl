@@ -20,11 +20,11 @@ console.log('Loading WordAlignerComponent.md');
 // const alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1_partial.json');
 // const originalVerseJson = require('../__tests__/fixtures/alignments/grk_tit_1_1.json');
 const LexiconData = require("../__tests__/fixtures/lexicon/lexicons.json");
-const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory.json");
-
-// limit to single book
-translationMemory.targetUsfms = { "tit": translationMemory.targetUsfms.tit};
-translationMemory.sourceUsfms = { "tit": translationMemory.sourceUsfms.tit};
+// const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory.json");
+//
+// // limit to single book
+// translationMemory.targetUsfms = { "tit": translationMemory.targetUsfms.tit};
+// translationMemory.sourceUsfms = { "tit": translationMemory.sourceUsfms.tit};
 
 // const translationMemory2 = require("../__tests__/fixtures/alignments/full_books/translationMemoryMat.json");
 // merge together translationMemory and translationMemory2
@@ -33,6 +33,7 @@ translationMemory.sourceUsfms = { "tit": translationMemory.sourceUsfms.tit};
 // const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory2Cor.json");
 // const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryMark.json");
 // const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryActs.json");
+const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryRuth.json");
 
 const translate = (key) => {
   const lookup = {
@@ -52,7 +53,7 @@ const translate = (key) => {
   }
 };
 
-const bookId = 'tit';
+const bookId = 'rut';
 const chapter = 2;
 const verse = 3;
 const source_json = usfm.toJSON(translationMemory.sourceUsfms[bookId], { convertToInt: ['occurrence','occurrences']});
