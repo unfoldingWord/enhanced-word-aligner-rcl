@@ -53,15 +53,15 @@ const translate = (key) => {
 };
 
 const bookId = 'tit';
-const chapter = 1;
-const verse = 1;
+const chapter = 2;
+const verse = 3;
 const source_json = usfm.toJSON(translationMemory.sourceUsfms[bookId], { convertToInt: ['occurrence','occurrences']});
 const target_json = usfm.toJSON(translationMemory.targetUsfms[bookId], { convertToInt: ['occurrence','occurrences']});
 const sourceVerseUSFM = extractVerseText(translationMemory.sourceUsfms[bookId], chapter, verse)
-const targetVerseUSFM = extractVerseText(translationMemory.sourceUsfms[bookId], chapter, verse)
+const targetVerseUSFM = extractVerseText(translationMemory.targetUsfms[bookId], chapter, verse)
 
-// const alignedVerseJson = usfmHelpers.usfmVerseToJson(targetVerseUSFM);
-// const originalVerseJson = usfmHelpers.usfmVerseToJson(sourceVerseUSFM);
+const alignedVerseJson = usfmHelpers.usfmVerseToJson(targetVerseUSFM);
+const originalVerseJson = usfmHelpers.usfmVerseToJson(sourceVerseUSFM);
 
 const {targetWords, verseAlignments} = AlignmentHelpers.parseUsfmToWordAlignerData(targetVerseUSFM, sourceVerseUSFM);
 
