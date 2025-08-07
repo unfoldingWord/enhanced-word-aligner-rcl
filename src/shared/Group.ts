@@ -2,7 +2,6 @@ import { is_number, parseUsfmHeaders } from "@/utils/usfm_misc";
 import Book, { TBookTestResults } from "./Book";
 import Verse from "./Verse";
 import { TSourceTargetAlignment, TUsfmBook, TUsfmChapter, TWord } from "word-aligner-rcl";
-// @ts-ignore
 import JSZip from "jszip";
 import { TTrainingAndTestingData } from "@/workers/WorkerComTypes";
 import {TState, TWordAlignerAlignmentResult} from "@/common/classes";

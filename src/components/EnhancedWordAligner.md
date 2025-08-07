@@ -7,7 +7,9 @@ import {
   UsfmFileConversionHelpers,
   usfmHelpers
 } from "word-aligner-rcl";
-import { WordAlignerComponent } from './WordAlignerComponent'
+import usfm from 'usfm-js';
+import {EnhancedWordAligner} from './EnhancedWordAligner'
+import {extractVerseText} from "../utils/misc";
 import delay from "../utils/delay";
 
 import {NT_ORIG_LANG} from "../common/constants";
@@ -50,8 +52,16 @@ const translate = (key) => {
   }
 };
 
-const targetVerseUSFM = alignedVerseJson.usfm;
-const sourceVerseUSFM = originalVerseJson.usfm;
+const bookId = 'tit';
+const chapter = 1;
+const verse = 1;
+const source_json = usfm.toJSON(translationMemory.sourceUsfms[bookId], { convertToInt: ['occurrence','occurrences']});
+const target_json = usfm.toJSON(translationMemory.targetUsfms[bookId], { convertToInt: ['occurrence','occurrences']});
+const sourceVerseUSFM = extractVerseText(translationMemory.sourceUsfms[bookId], chapter, verse)
+const targetVerseUSFM = extractVerseText(translationMemory.sourceUsfms[bookId], chapter, verse)
+
+// const alignedVerseJson = usfmHelpers.usfmVerseToJson(targetVerseUSFM);
+// const originalVerseJson = usfmHelpers.usfmVerseToJson(sourceVerseUSFM);
 
 const {targetWords, verseAlignments} = AlignmentHelpers.parseUsfmToWordAlignerData(targetVerseUSFM, sourceVerseUSFM);
 
@@ -98,10 +108,10 @@ const WordAlignerPanel = ({
       setTraining(_training);
       if (!_training) {
         setDoTraining(false);
-       } else {
+      } else {
         setMessage("Training ...")
       }
-      setMessage( trained ? "Training Complete" : "")
+      setMessage(trained ? "Training Complete" : "")
     })
   };
 
@@ -146,12 +156,12 @@ const WordAlignerPanel = ({
         >
           {trainingButtonStr}
         </button>
-        
-      <span style={{marginLeft: '8px', color: '#000'}}> {message} </span>
- 
+
+        <span style={{marginLeft: '8px', color: '#000'}}> {message} </span>
+
       </div>
-      <WordAlignerComponent
-        styles={{ maxHeight: '450px', overflowY: 'auto', ...styles }}
+      <EnhancedWordAligner
+        styles={{maxHeight: '450px', overflowY: 'auto', ...styles}}
         verseAlignments={verseAlignments}
         targetWords={targetWords}
         translate={translate}
@@ -177,9 +187,9 @@ const App = () => {
   const lexicons = {};
   const contextId = {
     "reference": {
-      "bookId": "tit",
-      "chapter": 1,
-      "verse": 1
+      "bookId": bookId,
+      "chapter": chapter,
+      "verse": verse,
     },
     "tool": "wordAlignment",
     "groupId": "chapter_1",

@@ -56,3 +56,231 @@
     return false;
 
   }
+
+  /**
+   * Extracts USFM content between chapter n and chapter n+1 (or end of file if last chapter)
+   * @param usfmContent The complete USFM content as a string
+   * @param chapterNum The chapter number to extract (1-based)
+   * @returns The USFM content for the specified chapter, or empty string if chapter not found
+   */
+  export function extractChapterContent(usfmContent: string, chapterNum: number): string {
+      if (!usfmContent || chapterNum < 1) {
+          return '';
+      }
+
+      // Create regex to find the start of the requested chapter
+      const startChapterRegex = new RegExp(`\\\\c\\s+${chapterNum}(?:\\s|$)`, 'm');
+      const startMatch = usfmContent.match(startChapterRegex);
+
+      if (!startMatch) {
+          // Chapter not found
+          return '';
+      }
+
+      const startIndex = startMatch.index!;
+
+      // Create regex to find the start of the next chapter
+      const nextChapterRegex = new RegExp(`\\\\c\\s+${chapterNum + 1}(?:\\s|$)`, 'm');
+      const nextMatch = usfmContent.match(nextChapterRegex);
+
+      let endIndex: number;
+      if (nextMatch) {
+          // Next chapter found, extract up to (but not including) the next chapter marker
+          endIndex = nextMatch.index!;
+      } else {
+          // No next chapter found, extract to end of file
+          endIndex = usfmContent.length;
+      }
+
+      return usfmContent.substring(startIndex, endIndex).trim();
+  }
+
+  /**
+   * Extracts multiple chapters from USFM content
+   * @param usfmContent The complete USFM content as a string
+   * @param startChapter The starting chapter number (1-based, inclusive)
+   * @param endChapter The ending chapter number (1-based, inclusive). If not provided, extracts only startChapter
+   * @returns The USFM content for the specified chapter range
+   */
+  export function extractChapterRange(usfmContent: string, startChapter: number, endChapter?: number): string {
+      if (!usfmContent || startChapter < 1) {
+          return '';
+      }
+
+      const finalEndChapter = endChapter || startChapter;
+
+      if (finalEndChapter < startChapter) {
+          return '';
+      }
+
+      // Find the start of the first chapter
+      const startChapterRegex = new RegExp(`\\\\c\\s+${startChapter}(?:\\s|$)`, 'm');
+      const startMatch = usfmContent.match(startChapterRegex);
+
+      if (!startMatch) {
+          return '';
+      }
+
+      const startIndex = startMatch.index!;
+
+      // Find the start of the chapter after the last requested chapter
+      const afterEndChapterRegex = new RegExp(`\\\\c\\s+${finalEndChapter + 1}(?:\\s|$)`, 'm');
+      const afterEndMatch = usfmContent.match(afterEndChapterRegex);
+
+      let endIndex: number;
+      if (afterEndMatch) {
+          endIndex = afterEndMatch.index!;
+      } else {
+          endIndex = usfmContent.length;
+      }
+
+      return usfmContent.substring(startIndex, endIndex).trim();
+  }
+  
+  /**
+   * Extracts USFM content for a specific chapter and verse
+   * @param usfmContent The complete USFM content as a string
+   * @param chapterNum The chapter number to extract (1-based)
+   * @param verseNum The verse number to extract (1-based)
+   * @returns The USFM content for the specified verse, or empty string if not found
+   */
+  export function extractVerseContent(usfmContent: string, chapterNum: number, verseNum: number): string {
+      if (!usfmContent || chapterNum < 1 || verseNum < 1) {
+          return '';
+      }
+
+      // First, extract the chapter content
+      const chapterContent = extractChapterContent(usfmContent, chapterNum);
+      if (!chapterContent) {
+          return '';
+      }
+
+      // Find the start of the requested verse
+      const startVerseRegex = new RegExp(`\\\\v\\s+${verseNum}(?:\\s|$)`, 'm');
+      const startMatch = chapterContent.match(startVerseRegex);
+
+      if (!startMatch) {
+          // Verse not found
+          return '';
+      }
+
+      const startIndex = startMatch.index!;
+
+      // Find the start of the next verse
+      const nextVerseRegex = new RegExp(`\\\\v\\s+${verseNum + 1}(?:\\s|$)`, 'm');
+      const nextMatch = chapterContent.match(nextVerseRegex);
+
+      let endIndex: number;
+      if (nextMatch) {
+          // Next verse found, extract up to (but not including) the next verse marker
+          endIndex = nextMatch.index!;
+      } else {
+          // No next verse found, check if there's another verse marker after this one
+          const anyNextVerseRegex = /\\v\s+\d+(?:\s|$)/gm;
+          let nextVerseMatch;
+          let foundNextVerse = false;
+
+          // Set regex lastIndex to start searching after our current verse
+          anyNextVerseRegex.lastIndex = startIndex + startMatch[0].length;
+
+          while ((nextVerseMatch = anyNextVerseRegex.exec(chapterContent)) !== null) {
+              foundNextVerse = true;
+              endIndex = nextVerseMatch.index;
+              break;
+          }
+
+          if (!foundNextVerse) {
+              // No other verse found, extract to end of chapter
+              endIndex = chapterContent.length;
+          }
+      }
+
+      return chapterContent.substring(startIndex, endIndex).trim();
+  }
+
+  /**
+   * Extracts USFM content for a range of verses within a chapter
+   * @param usfmContent The complete USFM content as a string
+   * @param chapterNum The chapter number to extract (1-based)
+   * @param startVerse The starting verse number (1-based, inclusive)
+   * @param endVerse The ending verse number (1-based, inclusive). If not provided, extracts only startVerse
+   * @returns The USFM content for the specified verse range
+   */
+  export function extractVerseRange(usfmContent: string, chapterNum: number, startVerse: number, endVerse?: number): string {
+      if (!usfmContent || chapterNum < 1 || startVerse < 1) {
+          return '';
+      }
+
+      const finalEndVerse = endVerse || startVerse;
+
+      if (finalEndVerse < startVerse) {
+          return '';
+      }
+
+      // First, extract the chapter content
+      const chapterContent = extractChapterContent(usfmContent, chapterNum);
+      if (!chapterContent) {
+          return '';
+      }
+
+      // Find the start of the first verse
+      const startVerseRegex = new RegExp(`\\\\v\\s+${startVerse}(?:\\s|$)`, 'm');
+      const startMatch = chapterContent.match(startVerseRegex);
+
+      if (!startMatch) {
+          return '';
+      }
+
+      const startIndex = startMatch.index!;
+
+      // Find the start of the verse after the last requested verse
+      const afterEndVerseRegex = new RegExp(`\\\\v\\s+${finalEndVerse + 1}(?:\\s|$)`, 'm');
+      const afterEndMatch = chapterContent.match(afterEndVerseRegex);
+
+      let endIndex: number;
+      if (afterEndMatch) {
+          endIndex = afterEndMatch.index!;
+      } else {
+          // No verse after our range found, check if there's any other verse marker
+          const anyNextVerseRegex = /\\v\s+\d+(?:\s|$)/gm;
+          let nextVerseMatch;
+          let foundNextVerse = false;
+
+          // Set regex lastIndex to start searching after our range
+          anyNextVerseRegex.lastIndex = startIndex;
+
+          while ((nextVerseMatch = anyNextVerseRegex.exec(chapterContent)) !== null) {
+              const verseNumber = parseInt(nextVerseMatch[0].match(/\\v\s+(\d+)/)?.[1] || '0');
+              if (verseNumber > finalEndVerse) {
+                  foundNextVerse = true;
+                  endIndex = nextVerseMatch.index;
+                  break;
+              }
+          }
+
+          if (!foundNextVerse) {
+              // No verse after our range, extract to end of chapter
+              endIndex = chapterContent.length;
+          }
+      }
+
+      return chapterContent.substring(startIndex, endIndex).trim();
+  }
+
+  /**
+   * Extracts just the text content of a verse (without the verse marker)
+   * @param usfmContent The complete USFM content as a string
+   * @param chapterNum The chapter number to extract (1-based)
+   * @param verseNum The verse number to extract (1-based)
+   * @returns The text content of the verse without the USFM marker
+   */
+  export function extractVerseText(usfmContent: string, chapterNum: number, verseNum: number): string {
+      const verseContent = extractVerseContent(usfmContent, chapterNum, verseNum);
+      if (!verseContent) {
+          return '';
+      }
+
+      // Remove the verse marker from the beginning
+      const verseMarkerRegex = /^\\v\s+\d+\s*/;
+      return verseContent.replace(verseMarkerRegex, '').trim();
+  }
