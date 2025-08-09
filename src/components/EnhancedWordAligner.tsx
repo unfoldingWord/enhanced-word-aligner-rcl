@@ -379,7 +379,7 @@ export const EnhancedWordAligner: React.FC<SuggestingWordAlignerProps> = (
                             const elapsedMinutes = getElapsedMinutes(trainingStartTime);
                             console.log(`Training completed in ${elapsedMinutes} minutes`);
                             if (elapsedMinutes > THRESHOLD_TRAINING_MINUTES) {
-                                console.log("Worker took over 15 minutes");
+                                console.log(`Worker took over ${THRESHOLD_TRAINING_MINUTES} minutes`);
                                 adjustMaxComplexity(THRESHOLD_TRAINING_MINUTES/elapsedMinutes);
                             }
                             
@@ -459,13 +459,53 @@ export const EnhancedWordAligner: React.FC<SuggestingWordAlignerProps> = (
             })
         }
     }, [doTraining]);
+    
+    const modelKey = (contextId?.groupId && contextId?.reference?.bookId) ? `${contextId?.groupId}-${contextId?.bibleId}-${contextId?.reference?.bookId}}` : ''
 
-    // Cleanup on unmount
+    async function loadModelFromStorage(dbStorage: IndexedDBStorage, modelKey:string) {
+        if (modelKey) {
+            //load the model.
+            const modelStr: string | null = await dbStorage.getItem(modelKey);
+            if (modelStr && modelStr !== "undefined") {
+                const model = JSON.parse(modelStr);
+                if (model !== null) {
+                    try {
+                        alignmentPredictor.current = AbstractWordMapWrapper.load(model);
+                    } catch (e: any) {
+                        console.log(`error loading alignmentPredictor: ${e.message}`);
+                    }
+                }
+            }
+        }
+    }
+
+    //here we load from "local storage".
     useEffect(() => {
         return () => {
             cleanupWorker();
         };
-    }, []);
+    },[]);
+
+    useEffect(() => {
+        (async () => {
+            if (modelKey) {
+                if (!dbStorageRef.current) { // if not initialized
+                    const dbStorage = new IndexedDBStorage( 'app-state', 'dataStore' );
+                    await dbStorage.initialize();
+                    console.log( `IndexedDBStorage initialized ${dbStorage.isReady()}` );
+
+                    await loadModelFromStorage(dbStorage, modelKey);
+
+                    //don't set the reference to the dbStorage for setting until after
+                    //we have finished loading so that data which is stale doesn't overwrite
+                    //the data we are wanting to load.
+                    dbStorageRef.current = dbStorage;
+                } else {
+                    await loadModelFromStorage(dbStorageRef.current, modelKey);
+                }
+            }
+        })();
+    }, [contextId]);
 
     const suggester= alignmentPredictor.current?.predict.bind(alignmentPredictor.current) || null
     
