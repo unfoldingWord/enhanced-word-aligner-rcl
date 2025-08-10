@@ -53,6 +53,7 @@ const translate = (key) => {
   }
 };
 
+const targetLanguage = 'en';
 const bookId = 'rut';
 const chapter = 2;
 const verse = 3;
@@ -169,6 +170,7 @@ const WordAlignerPanel = ({
         contextId={contextId}
         targetLanguageFont={targetLanguageFont}
         sourceLanguage={sourceLanguage}
+        targetLanguage={targetLanguage}
         showPopover={showPopover}
         lexicons={lexicons}
         loadLexiconEntry={loadLexiconEntry}
@@ -184,7 +186,7 @@ const WordAlignerPanel = ({
 
 const App = () => {
   const targetLanguageFont = '';
-  const sourceLanguage = NT_ORIG_LANG;
+  const sourceLanguage = bibleHelper.getOrigLangforBook(bookId);
   const lexicons = {};
   const contextId = {
     "reference": {

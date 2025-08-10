@@ -1,6 +1,6 @@
 import React, {useEffect, useRef, useState} from 'react'
 import '../App.css'
-import {SuggestingWordAligner,} from 'word-aligner-rcl'
+import {bibleHelpers, SuggestingWordAligner} from 'word-aligner-rcl'
 import GroupCollection from "@/shared/GroupCollection";
 import IndexedDBStorage from "@/shared/IndexedDBStorage";
 import {AbstractWordMapWrapper} from 'wordmapbooster';
@@ -54,6 +54,7 @@ interface SuggestingWordAlignerProps {
     sourceLanguage: string;
     sourceLanguageFont?: string;
     sourceFontSizePercent?: number;
+    targetLanguage: string;
     targetLanguageFont?: string;
     targetFontSizePercent?: number;
     translate: (key: string) => void;
@@ -125,6 +126,7 @@ export const EnhancedWordAligner: React.FC<SuggestingWordAlignerProps> = (
    sourceLanguage,
    sourceLanguageFont,
    sourceFontSizePercent,
+   targetLanguage,
    targetLanguageFont,
    targetFontSizePercent,
    translate,
@@ -459,8 +461,23 @@ export const EnhancedWordAligner: React.FC<SuggestingWordAlignerProps> = (
             })
         }
     }, [doTraining]);
-    
-    const modelKey = (contextId?.bibleId && contextId?.reference?.bookId) ? `${contextId?.bibleId}-${contextId?.reference?.bookId}}` : ''
+
+    function getLangPair() {
+        return `settings_${targetLanguage}_${sourceLanguage}`;
+    }
+
+    function getModelKey():string {
+        let modelKey_ = '';
+        const bookId = contextId?.reference?.bookId;
+        const bibleId = contextId?.bibleId;
+        if (bibleId && bookId) {
+            const testament = bibleHelpers.isNewTestament(bookId) ? 'NT' : 'OT';
+            modelKey_ = `${bibleId}_${testament}_${bookId}}`;
+        }
+        return modelKey_
+    }
+
+    const modelKey = getModelKey()
 
     async function loadModelFromStorage(dbStorage: IndexedDBStorage, modelKey:string) {
         if (modelKey) {
@@ -476,7 +493,20 @@ export const EnhancedWordAligner: React.FC<SuggestingWordAlignerProps> = (
                         console.log(`error loading alignmentPredictor: ${e.message}`);
                     }
                 }
+                const langSettingsPair = getLangPair()
+
             }
+            
+            // load language based settings
+            const langSettingsPair = getLangPair();
+            let settings_: string | null = await dbStorageRef.current.getItem(langSettingsPair);
+            if (settings_) {
+                const settings = JSON.parse(settings_);
+                if (settings?.maxComplexity) {
+                    setMaxComplexity(settings.maxComplexity);
+                }
+            }
+
         }
     }
 
@@ -494,6 +524,12 @@ export const EnhancedWordAligner: React.FC<SuggestingWordAlignerProps> = (
                 if (!dbStorageRef.current.isReady()) return;
 
                 await dbStorageRef.current.setItem(modelKey, JSON.stringify(alignmentPredictor.current?.save()));
+                
+                const langSettingsPair = getLangPair();
+                const settings = {
+                    maxComplexity,
+                }
+                await dbStorageRef.current.setItem(langSettingsPair, JSON.stringify(settings));
             }
         })();
     }, [trainingStateRef?.current?.lastTrainedInstanceCount]);
