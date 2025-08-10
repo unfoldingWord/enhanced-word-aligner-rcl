@@ -460,7 +460,7 @@ export const EnhancedWordAligner: React.FC<SuggestingWordAlignerProps> = (
         }
     }, [doTraining]);
     
-    const modelKey = (contextId?.groupId && contextId?.reference?.bookId) ? `${contextId?.groupId}-${contextId?.bibleId}-${contextId?.reference?.bookId}}` : ''
+    const modelKey = (contextId?.bibleId && contextId?.reference?.bookId) ? `${contextId?.bibleId}-${contextId?.reference?.bookId}}` : ''
 
     async function loadModelFromStorage(dbStorage: IndexedDBStorage, modelKey:string) {
         if (modelKey) {
@@ -485,6 +485,17 @@ export const EnhancedWordAligner: React.FC<SuggestingWordAlignerProps> = (
             cleanupWorker();
         };
     },[]);
+    
+    useEffect(() => { // Also save the model to local storage.
+        (async () => {
+            if (modelKey && (trainingStateRef?.current?.lastTrainedInstanceCount > 0)) {
+                if (dbStorageRef.current == null) return;
+                if (!dbStorageRef.current.isReady()) return;
+
+                await dbStorageRef.current.setItem(modelKey, JSON.stringify(alignmentPredictor.current?.save()));
+            }
+        })();
+    }, [trainingStateRef?.current?.lastTrainedInstanceCount]);
 
     useEffect(() => {
         (async () => {
