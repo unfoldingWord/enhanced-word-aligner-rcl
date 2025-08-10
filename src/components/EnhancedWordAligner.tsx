@@ -499,7 +499,7 @@ export const EnhancedWordAligner: React.FC<SuggestingWordAlignerProps> = (
             
             // load language based settings
             const langSettingsPair = getLangPair();
-            let settings_: string | null = await dbStorageRef.current.getItem(langSettingsPair);
+            let settings_: string | null = await dbStorage.getItem(langSettingsPair);
             if (settings_) {
                 const settings = JSON.parse(settings_);
                 if (settings?.maxComplexity) {

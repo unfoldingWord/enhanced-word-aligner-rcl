@@ -4,6 +4,7 @@ Suggesting Word Aligner Example:
 import React, {useState} from 'react';
 import {
   AlignmentHelpers,
+  bibleHelpers,
   UsfmFileConversionHelpers,
   usfmHelpers
 } from "word-aligner-rcl";
@@ -87,7 +88,8 @@ const WordAlignerPanel = ({
 }) => {
   const [addTranslationMemory, setAddTranslationMemory] = useState(null);
   const [translationMemoryLoaded, setTranslationMemoryLoaded] = useState(false);
-  const [doTraining, setDoTraining] = useState(false);
+  const [doingTraining, setDoingTraining] = useState(false);
+  const [trained, setTrained] = useState(false);
   const [training, setTraining] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -101,7 +103,7 @@ const WordAlignerPanel = ({
   const handleToggleTraining = () => {
     const newTrainingState = !training;
     console.log('Toggle training to: ' + newTrainingState);
-    setDoTraining(newTrainingState);
+    setDoingTraining(newTrainingState);
   };
 
   const handleSetTrainingState = (_training, trained) => {
@@ -109,18 +111,19 @@ const WordAlignerPanel = ({
     delay(500).then(() => { // update async
       setTraining(_training);
       if (!_training) {
-        setDoTraining(false);
+        setDoingTraining(false);
       } else {
         setMessage("Training ...")
       }
       setMessage(trained ? "Training Complete" : "")
+      setTrained(trained);
     })
   };
 
   const trainingButtonStr = training ? "Stop Training" : "Start Training"
 
-  const enableLoadTranslation = !doTraining && !translationMemoryLoaded;
-  const enableTrainingToggle = translationMemoryLoaded && !doTraining;
+  const enableLoadTranslation = !doingTraining && !translationMemoryLoaded;
+  const enableTrainingToggle = trained || (translationMemoryLoaded && !doingTraining);
 
   return (
     <>
@@ -148,11 +151,11 @@ const WordAlignerPanel = ({
           disabled={!enableTrainingToggle}
           style={{
             padding: '8px 16px',
-            backgroundColor: translationMemoryLoaded ? '#4285f4' : '#cccccc',
+            backgroundColor: enableTrainingToggle ? '#4285f4' : '#cccccc',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: translationMemoryLoaded ? 'pointer' : 'not-allowed',
+            cursor: enableTrainingToggle ? 'pointer' : 'not-allowed',
             marginBottom: '10px'
           }}
         >
@@ -177,7 +180,7 @@ const WordAlignerPanel = ({
         onChange={onChange}
         getLexiconData={getLexiconData}
         addTranslationMemory={addTranslationMemory}
-        doTraining={doTraining}
+        doTraining={doingTraining}
         handleSetTrainingState={handleSetTrainingState}
       />
     </>
@@ -186,7 +189,8 @@ const WordAlignerPanel = ({
 
 const App = () => {
   const targetLanguageFont = '';
-  const sourceLanguage = bibleHelper.getOrigLangforBook(bookId);
+  const source = bibleHelpers.getOrigLangforBook(bookId);
+  const sourceLanguage = source && source.languageId || NT_ORIG_LANG;
   const lexicons = {};
   const contextId = {
     "reference": {
