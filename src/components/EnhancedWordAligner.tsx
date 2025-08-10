@@ -471,6 +471,7 @@ export const EnhancedWordAligner: React.FC<SuggestingWordAlignerProps> = (
                 if (model !== null) {
                     try {
                         alignmentPredictor.current = AbstractWordMapWrapper.load(model);
+                        handleSetTrainingState?.(false, true); // now trained
                     } catch (e: any) {
                         console.log(`error loading alignmentPredictor: ${e.message}`);
                     }
