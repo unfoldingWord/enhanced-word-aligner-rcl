@@ -5,7 +5,11 @@ import GroupCollection from "@/shared/GroupCollection";
 import IndexedDBStorage from "@/shared/IndexedDBStorage";
 import {AbstractWordMapWrapper} from 'wordmapbooster';
 import usfm from 'usfm-js';
-import {isProvidedResourcePartiallySelected, isProvidedResourceSelected} from "@/utils/misc";
+import {
+    isProvidedResourcePartiallySelected,
+    isProvidedResourceSelected,
+    limitRangeOfComplexity,
+} from "@/utils/misc";
 import {parseUsfmHeaders} from "@/utils/usfm_misc";
 import delay from "@/utils/delay";
 import Group from "@/shared/Group";
@@ -25,8 +29,6 @@ import {Alignment, Suggestion} from "wordmap";
 import {Token} from 'wordmap-lexer'
 import {
     DEFAULT_MAX_COMPLEXITY,
-    MAX_COMPLEXITY,
-    MIN_COMPLEXITY,
     MIN_THRESHOLD_TRAINING_MINUTES,
     THRESHOLD_TRAINING_MINUTES,
     WORKER_TIMEOUT
@@ -309,8 +311,7 @@ export const EnhancedWordAligner: React.FC<SuggestingWordAlignerProps> = (
 
     function adjustMaxComplexity(reductionFactor: number) {
         let newMaxComplexity = Math.ceil(maxComplexity * reductionFactor);
-        // Ensure newMaxComplexity stays within MIN_COMPLEXITY and MAX_COMPLEXITY bounds
-        newMaxComplexity = Math.max(MIN_COMPLEXITY, Math.min(MAX_COMPLEXITY, newMaxComplexity));
+        newMaxComplexity = limitRangeOfComplexity(newMaxComplexity);
         console.log(`Adjusting maxComplexity from ${maxComplexity} to ${newMaxComplexity}`);
         setMaxComplexity(newMaxComplexity);
     }
@@ -520,7 +521,12 @@ export const EnhancedWordAligner: React.FC<SuggestingWordAlignerProps> = (
                 const settings = JSON.parse(settings_);
                 if (settings?.maxComplexity) {
                     maxComplexity_ = settings.maxComplexity;
+                    const limitComplexity = limitRangeOfComplexity(maxComplexity_);
                     console.log(`loaded maxComplexity from local storage: ${maxComplexity_}`);
+                    if (limitComplexity !== maxComplexity_) {
+                        console.log(`maxComplexity out of range, setting to ${limitComplexity}`);
+                        maxComplexity_ = limitComplexity;
+                    }
                 }
             }
             setMaxComplexity(maxComplexity_);
