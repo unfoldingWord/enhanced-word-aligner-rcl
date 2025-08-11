@@ -27,14 +27,14 @@ const LexiconData = require("../__tests__/fixtures/lexicon/lexicons.json");
 // translationMemory.targetUsfms = { "tit": translationMemory.targetUsfms.tit};
 // translationMemory.sourceUsfms = { "tit": translationMemory.sourceUsfms.tit};
 
-// const translationMemory2 = require("../__tests__/fixtures/alignments/full_books/translationMemoryMat.json");
+const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryMat.json");
 // merge together translationMemory and translationMemory2
 // translationMemory.targetUsfms = {...translationMemory.targetUsfms, ...translationMemory2.targetUsfms};
 // translationMemory.sourceUsfms = {...translationMemory.sourceUsfms, ...translationMemory2.sourceUsfms};
 // const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory2Cor.json");
 // const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryMark.json");
 // const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryActs.json");
-const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryRuth.json");
+// const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryRuth.json");
 
 const translate = (key) => {
   const lookup = {
@@ -55,7 +55,7 @@ const translate = (key) => {
 };
 
 const targetLanguage = 'en';
-const bookId = 'rut';
+const bookId = 'mat';
 const chapter = 2;
 const verse = 3;
 const source_json = usfm.toJSON(translationMemory.sourceUsfms[bookId], { convertToInt: ['occurrence','occurrences']});
@@ -122,7 +122,7 @@ const WordAlignerPanel = ({
 
   const trainingButtonStr = training ? "Stop Training" : "Start Training"
 
-  const enableLoadTranslation = !doingTraining && !translationMemoryLoaded;
+  const enableLoadTranslationMemory = !doingTraining;
   const enableTrainingToggle = trained || (translationMemoryLoaded && !doingTraining);
 
   return (
@@ -131,14 +131,14 @@ const WordAlignerPanel = ({
         <button
           onClick={handleLoadTranslationMemory}
           className="load-translation-btn"
-          disabled={!enableLoadTranslation}
+          disabled={!enableLoadTranslationMemory}
           style={{
             padding: '8px 16px',
-            backgroundColor: enableLoadTranslation ? '#4285f4' : '#cccccc',
+            backgroundColor: enableLoadTranslationMemory ? '#4285f4' : '#cccccc',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: enableLoadTranslation ? 'pointer' : 'not-allowed',
+            cursor: enableLoadTranslationMemory ? 'pointer' : 'not-allowed',
             marginBottom: '10px'
           }}
         >
@@ -202,6 +202,7 @@ const App = () => {
     "groupId": "chapter_1",
     "bibleId": "unfoldingWord/en_ult"
   };
+  console.log(`App() - contextId`, contextId);
   const showPopover = (PopoverTitle, wordDetails, positionCoord, rawData) => {
     console.log(`showPopover()`, rawData)
     window.prompt(`User clicked on ${JSON.stringify(rawData)}`)

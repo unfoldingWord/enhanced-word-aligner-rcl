@@ -24,7 +24,10 @@ import {
 import {Alignment, Suggestion} from "wordmap";
 import {Token} from 'wordmap-lexer'
 import {
+    DEFAULT_MAX_COMPLEXITY,
     MAX_COMPLEXITY,
+    MIN_COMPLEXITY,
+    MIN_THRESHOLD_TRAINING_MINUTES,
     THRESHOLD_TRAINING_MINUTES,
     WORKER_TIMEOUT
 } from "@/common/constants";
@@ -150,7 +153,7 @@ export const EnhancedWordAligner: React.FC<SuggestingWordAlignerProps> = (
         _setState( newState );
     }
     
-    const [maxComplexity, setMaxComplexity]  = useState<number>(MAX_COMPLEXITY);
+    const [maxComplexity, setMaxComplexity]  = useState<number>(DEFAULT_MAX_COMPLEXITY);
     const [currentBookName, setCurrentBookName]  = useState<string>(contextId?.reference?.bookId || '');
     const [trainingState, _setTrainingState] = useState<TrainingState>(defaultTrainingState())
     const trainingStateRef = useRef<TrainingState>(trainingState);
@@ -305,8 +308,10 @@ export const EnhancedWordAligner: React.FC<SuggestingWordAlignerProps> = (
     };
 
     function adjustMaxComplexity(reductionFactor: number) {
-        const newMaxComplexity = Math.ceil(maxComplexity * reductionFactor);
-        console.log(`Reducing maxComplexity from ${maxComplexity} to ${newMaxComplexity}`);
+        let newMaxComplexity = Math.ceil(maxComplexity * reductionFactor);
+        // Ensure newMaxComplexity stays within MIN_COMPLEXITY and MAX_COMPLEXITY bounds
+        newMaxComplexity = Math.max(MIN_COMPLEXITY, Math.min(MAX_COMPLEXITY, newMaxComplexity));
+        console.log(`Adjusting maxComplexity from ${maxComplexity} to ${newMaxComplexity}`);
         setMaxComplexity(newMaxComplexity);
     }
 
@@ -383,6 +388,11 @@ export const EnhancedWordAligner: React.FC<SuggestingWordAlignerProps> = (
                             if (elapsedMinutes > THRESHOLD_TRAINING_MINUTES) {
                                 console.log(`Worker took over ${THRESHOLD_TRAINING_MINUTES} minutes`);
                                 adjustMaxComplexity(THRESHOLD_TRAINING_MINUTES/elapsedMinutes);
+                            } else if (event.data?.trimmedVerses && elapsedMinutes < MIN_THRESHOLD_TRAINING_MINUTES) { // if we have trimmed verses, but time is below threshold, bump up complexity limit so we can train with more data
+                                const targetTime = (THRESHOLD_TRAINING_MINUTES + MIN_THRESHOLD_TRAINING_MINUTES) / 2;
+                                const adjustComplexity = (targetTime / elapsedMinutes);
+                                console.log(`Worker took under ${MIN_THRESHOLD_TRAINING_MINUTES} minutes, adjusting complexity by ${adjustComplexity}`);
+                                adjustMaxComplexity(adjustComplexity);
                             }
                             
                             if( "trainedModel" in event.data ){
@@ -479,34 +489,44 @@ export const EnhancedWordAligner: React.FC<SuggestingWordAlignerProps> = (
 
     const modelKey = getModelKey()
 
-    async function loadModelFromStorage(dbStorage: IndexedDBStorage, modelKey:string) {
+    async function loadSettingsFromStorage(dbStorage: IndexedDBStorage, modelKey:string) {
         if (modelKey) {
             //load the model.
+            let predictorModel: AbstractWordMapWrapper = null; // default to null
             const modelStr: string | null = await dbStorage.getItem(modelKey);
             if (modelStr && modelStr !== "undefined") {
                 const model = JSON.parse(modelStr);
                 if (model !== null) {
                     try {
-                        alignmentPredictor.current = AbstractWordMapWrapper.load(model);
-                        handleSetTrainingState?.(false, true); // now trained
+                        predictorModel = AbstractWordMapWrapper.load(model);
+                        console.log('loaded alignmentPredictor from local storage');
                     } catch (e: any) {
                         console.log(`error loading alignmentPredictor: ${e.message}`);
                     }
                 }
-                const langSettingsPair = getLangPair()
-
             }
+            alignmentPredictor.current = predictorModel;
+            const trainingComplete = !!predictorModel;
+            if (!trainingComplete) {
+                console.log('no alignmentPredictor found in local storage');
+            }
+            handleSetTrainingState?.(false, trainingComplete);
             
             // load language based settings
             const langSettingsPair = getLangPair();
             let settings_: string | null = await dbStorage.getItem(langSettingsPair);
-            if (settings_) {
+            let maxComplexity_ = DEFAULT_MAX_COMPLEXITY; // default to max complexity
+            if (settings_  && settings_ !== "undefined") {
                 const settings = JSON.parse(settings_);
                 if (settings?.maxComplexity) {
-                    setMaxComplexity(settings.maxComplexity);
+                    maxComplexity_ = settings.maxComplexity;
+                    console.log(`loaded maxComplexity from local storage: ${maxComplexity_}`);
                 }
             }
-
+            setMaxComplexity(maxComplexity_);
+            if (maxComplexity_ === DEFAULT_MAX_COMPLEXITY) {
+                console.log(`maxComplexity not found in local storage, using default ${maxComplexity_}`);
+            }
         }
     }
 
@@ -542,14 +562,14 @@ export const EnhancedWordAligner: React.FC<SuggestingWordAlignerProps> = (
                     await dbStorage.initialize();
                     console.log( `IndexedDBStorage initialized ${dbStorage.isReady()}` );
 
-                    await loadModelFromStorage(dbStorage, modelKey);
+                    await loadSettingsFromStorage(dbStorage, modelKey);
 
                     //don't set the reference to the dbStorage for setting until after
                     //we have finished loading so that data which is stale doesn't overwrite
                     //the data we are wanting to load.
                     dbStorageRef.current = dbStorage;
                 } else {
-                    await loadModelFromStorage(dbStorageRef.current, modelKey);
+                    await loadSettingsFromStorage(dbStorageRef.current, modelKey);
                 }
             }
         })();
