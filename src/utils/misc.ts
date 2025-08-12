@@ -1,4 +1,6 @@
-  /**
+import {MAX_COMPLEXITY, MIN_COMPLEXITY} from "@/common/constants";
+
+/**
    * Checks to see if a specific string array references a given resource.
    * The locations in the string are [group][book name][chapter num][verse num]
    * The array only needs to be as long as the granularity.
@@ -284,3 +286,15 @@
       const verseMarkerRegex = /^\\v\s+\d+\s*/;
       return verseContent.replace(verseMarkerRegex, '').trim();
   }
+
+  /**
+   * Adjusts the complexity value to ensure it is within the allowable range.
+   *
+   * @param {number} newMaxComplexity - The proposed maximum complexity value that needs to be limited within predefined bounds.
+   * @return {number} The constrained complexity value that falls within the MIN_COMPLEXITY and MAX_COMPLEXITY bounds.
+   */
+  export function limitRangeOfComplexity(newMaxComplexity: number) {
+      // Ensure newMaxComplexity stays within MIN_COMPLEXITY and MAX_COMPLEXITY bounds
+      return Math.max(MIN_COMPLEXITY, Math.min(MAX_COMPLEXITY, newMaxComplexity));
+  }
+  

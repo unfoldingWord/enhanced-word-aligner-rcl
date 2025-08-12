@@ -3,7 +3,7 @@ import wordmapLexer, { Token } from "wordmap-lexer";
 import { Alignment, Ngram } from "wordmap";
 import { TTrainingAndTestingData } from "./WorkerComTypes";
 import {ContextId} from "@/common/classes";
-import {MAX_COMPLEXITY} from "@/common/constants";
+import {DEFAULT_MAX_COMPLEXITY} from "@/common/constants";
 
 enum ReduceType {
     anything,
@@ -97,7 +97,7 @@ function removeComplexity(alignedComplexityCount: number, maxComplexity, keyCoun
 
 /**
  * Adds alignment corpus by appending tokenized data to the word aligner model. Also limits complexity
- *  to prevent memory overflow in worker.
+ * to prevent memory overflow in worker.
  *
  * @param {number} alignedComplexityCount - The total complexity count of aligned verses in the corpus.
  * @param {number} unalignedComplexityCount - The total complexity count of unaligned verses in the corpus.
@@ -108,14 +108,17 @@ function removeComplexity(alignedComplexityCount: number, maxComplexity, keyCoun
  * @param {{[p: string]: Token[]}} sourceVersesTokenized - The tokenized source verses.
  * @param {{[p: string]: Token[]}} targetVersesTokenized - The tokenized target verses.
  * @param {{[p: string]: Alignment[]}} alignments - The alignments associated with the verses.
- * @return {number} - The updated aligned complexity count after the adjustments.
+ * @param {ContextId} contextId - The context identifier for the alignment operations.
+ * @return {{alignedComplexityCount: number, trimmedVerses: number}} An object containing the updated aligned complexity count and the number of trimmed verses.
  */
-function addAlignmentCorpus(alignedComplexityCount: number, unalignedComplexityCount: number, maxComplexity, wordAlignerModel: MorphJLBoostWordMap, sourceCorpusTokenized: {
+function addAlignmentCorpus(alignedComplexityCount: number, unalignedComplexityCount: number, maxComplexity: number, wordAlignerModel: MorphJLBoostWordMap, sourceCorpusTokenized: {
     [p: string]: Token[]
  }, targetCorpusTokenized: { [p: string]: Token[] }, sourceVersesTokenized: {
     [p: string]: Token[]
  }, targetVersesTokenized: { [p: string]: Token[] }, alignments: { [p: string]: Alignment[] }
  , contextId: ContextId) {
+    let trimmedVerses = 0;
+    
     if (alignedComplexityCount + unalignedComplexityCount < maxComplexity) {
         wordAlignerModel.appendKeyedCorpusTokens(sourceCorpusTokenized, targetCorpusTokenized);
 
@@ -125,7 +128,6 @@ function addAlignmentCorpus(alignedComplexityCount: number, unalignedComplexityC
         console.warn("The corpus is too complex to train the word map.  Trimming.  The corpus complexity is:", alignedComplexityCount);
         const keys = Object.keys(targetVersesTokenized)
         let keyCount = keys.length;
-        let trimmedVerses = 0;
 
         // first remove from other books
         let __ret = removeComplexity(alignedComplexityCount, maxComplexity, keyCount, keys, sourceVersesTokenized, targetVersesTokenized,
@@ -149,16 +151,21 @@ function addAlignmentCorpus(alignedComplexityCount: number, unalignedComplexityC
 
         wordAlignerModel.appendKeyedCorpusTokens(sourceVersesTokenized, targetVersesTokenized);
     }
-    return alignedComplexityCount;
+    return {
+        alignedComplexityCount,
+        trimmedVerses,
+    };
 }
 
 /**
- * Creates and trains a word alignment model
- * @param data - The training and testing data
- * @returns Promise that resolves to the trained MorphJLBoostWordMap model
+ * Creates and trains a word alignment model using the provided training data.
+ * Processes alignment and corpus data, applies complexity limitations, and trains the model.
+ *
+ * @param {TTrainingAndTestingData} data - The training and testing data containing alignments, corpus, contextId, and maxComplexity options.
+ * @returns {Promise<{trimmedVerses: number, wordAlignerModel: MorphJLBoostWordMap}>} Promise that resolves to an object containing the number of trimmed verses and the trained word alignment model.
  */
-export async function createTrainedWordAlignerModel(data: TTrainingAndTestingData): Promise<MorphJLBoostWordMap> {
-  const maxComplexity = data.maxComplexity || MAX_COMPLEXITY;
+export async function createTrainedWordAlignerModel(data: TTrainingAndTestingData): Promise<{trimmedVerses: number, wordAlignerModel: MorphJLBoostWordMap}> {
+  const maxComplexity = data.maxComplexity || DEFAULT_MAX_COMPLEXITY;
   // Convert the data into the structure which the training model expects.
   const sourceVersesTokenized: { [reference: string]: Token[] } = {};
   const targetVersesTokenized: { [reference: string]: Token[] } = {};
@@ -220,14 +227,20 @@ export async function createTrainedWordAlignerModel(data: TTrainingAndTestingDat
     train_steps: 1000 
   });
   
-  addAlignmentCorpus(alignedComplexityCount, unalignedComplexityCount, maxComplexity,
+  const {
+      alignedComplexityCount: alignedComplexityCount_,
+      trimmedVerses,
+  } = addAlignmentCorpus(alignedComplexityCount, unalignedComplexityCount, maxComplexity,
       wordAlignerModel, sourceCorpusTokenized, targetCorpusTokenized, sourceVersesTokenized,
       targetVersesTokenized, alignments, data.contextId);
 
   // Train the model and return it
   await wordAlignerModel.add_alignments_2(sourceVersesTokenized, targetVersesTokenized, alignments);
   
-  return wordAlignerModel;
+  return {
+      trimmedVerses,
+      wordAlignerModel
+  };
 }
 
 /**
@@ -238,11 +251,15 @@ async function processTrainingData(data: TTrainingAndTestingData) {
   console.log("Training worker has started");
 
   try {
-    const wordAlignerModel = await createTrainedWordAlignerModel(data);
+    const {
+        trimmedVerses,
+        wordAlignerModel
+    } = await createTrainedWordAlignerModel(data);
     
     self.postMessage({ 
       message: 'Worker has finished', 
-      trainedModel: wordAlignerModel.save() 
+      trainedModel: wordAlignerModel.save(),
+      trimmedVerses
     });
   } catch (error) {
     console.log(error);

@@ -4,6 +4,7 @@ Suggesting Word Aligner Example:
 import React, {useState} from 'react';
 import {
   AlignmentHelpers,
+  bibleHelpers,
   UsfmFileConversionHelpers,
   usfmHelpers
 } from "word-aligner-rcl";
@@ -26,14 +27,14 @@ const LexiconData = require("../__tests__/fixtures/lexicon/lexicons.json");
 // translationMemory.targetUsfms = { "tit": translationMemory.targetUsfms.tit};
 // translationMemory.sourceUsfms = { "tit": translationMemory.sourceUsfms.tit};
 
-// const translationMemory2 = require("../__tests__/fixtures/alignments/full_books/translationMemoryMat.json");
+const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryMat.json");
 // merge together translationMemory and translationMemory2
 // translationMemory.targetUsfms = {...translationMemory.targetUsfms, ...translationMemory2.targetUsfms};
 // translationMemory.sourceUsfms = {...translationMemory.sourceUsfms, ...translationMemory2.sourceUsfms};
 // const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory2Cor.json");
 // const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryMark.json");
 // const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryActs.json");
-const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryRuth.json");
+// const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryRuth.json");
 
 const translate = (key) => {
   const lookup = {
@@ -53,7 +54,8 @@ const translate = (key) => {
   }
 };
 
-const bookId = 'rut';
+const targetLanguage = 'en';
+const bookId = 'mat';
 const chapter = 2;
 const verse = 3;
 const source_json = usfm.toJSON(translationMemory.sourceUsfms[bookId], { convertToInt: ['occurrence','occurrences']});
@@ -86,7 +88,8 @@ const WordAlignerPanel = ({
 }) => {
   const [addTranslationMemory, setAddTranslationMemory] = useState(null);
   const [translationMemoryLoaded, setTranslationMemoryLoaded] = useState(false);
-  const [doTraining, setDoTraining] = useState(false);
+  const [doingTraining, setDoingTraining] = useState(false);
+  const [trained, setTrained] = useState(false);
   const [training, setTraining] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -100,7 +103,7 @@ const WordAlignerPanel = ({
   const handleToggleTraining = () => {
     const newTrainingState = !training;
     console.log('Toggle training to: ' + newTrainingState);
-    setDoTraining(newTrainingState);
+    setDoingTraining(newTrainingState);
   };
 
   const handleSetTrainingState = (_training, trained) => {
@@ -108,18 +111,19 @@ const WordAlignerPanel = ({
     delay(500).then(() => { // update async
       setTraining(_training);
       if (!_training) {
-        setDoTraining(false);
+        setDoingTraining(false);
       } else {
         setMessage("Training ...")
       }
       setMessage(trained ? "Training Complete" : "")
+      setTrained(trained);
     })
   };
 
   const trainingButtonStr = training ? "Stop Training" : "Start Training"
 
-  const enableLoadTranslation = !doTraining && !translationMemoryLoaded;
-  const enableTrainingToggle = translationMemoryLoaded && !doTraining;
+  const enableLoadTranslationMemory = !doingTraining;
+  const enableTrainingToggle = trained || (translationMemoryLoaded && !doingTraining);
 
   return (
     <>
@@ -127,14 +131,14 @@ const WordAlignerPanel = ({
         <button
           onClick={handleLoadTranslationMemory}
           className="load-translation-btn"
-          disabled={!enableLoadTranslation}
+          disabled={!enableLoadTranslationMemory}
           style={{
             padding: '8px 16px',
-            backgroundColor: enableLoadTranslation ? '#4285f4' : '#cccccc',
+            backgroundColor: enableLoadTranslationMemory ? '#4285f4' : '#cccccc',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: enableLoadTranslation ? 'pointer' : 'not-allowed',
+            cursor: enableLoadTranslationMemory ? 'pointer' : 'not-allowed',
             marginBottom: '10px'
           }}
         >
@@ -147,11 +151,11 @@ const WordAlignerPanel = ({
           disabled={!enableTrainingToggle}
           style={{
             padding: '8px 16px',
-            backgroundColor: translationMemoryLoaded ? '#4285f4' : '#cccccc',
+            backgroundColor: enableTrainingToggle ? '#4285f4' : '#cccccc',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: translationMemoryLoaded ? 'pointer' : 'not-allowed',
+            cursor: enableTrainingToggle ? 'pointer' : 'not-allowed',
             marginBottom: '10px'
           }}
         >
@@ -169,13 +173,14 @@ const WordAlignerPanel = ({
         contextId={contextId}
         targetLanguageFont={targetLanguageFont}
         sourceLanguage={sourceLanguage}
+        targetLanguage={targetLanguage}
         showPopover={showPopover}
         lexicons={lexicons}
         loadLexiconEntry={loadLexiconEntry}
         onChange={onChange}
         getLexiconData={getLexiconData}
         addTranslationMemory={addTranslationMemory}
-        doTraining={doTraining}
+        doTraining={doingTraining}
         handleSetTrainingState={handleSetTrainingState}
       />
     </>
@@ -184,7 +189,8 @@ const WordAlignerPanel = ({
 
 const App = () => {
   const targetLanguageFont = '';
-  const sourceLanguage = NT_ORIG_LANG;
+  const source = bibleHelpers.getOrigLangforBook(bookId);
+  const sourceLanguage = source && source.languageId || NT_ORIG_LANG;
   const lexicons = {};
   const contextId = {
     "reference": {
@@ -196,6 +202,7 @@ const App = () => {
     "groupId": "chapter_1",
     "bibleId": "unfoldingWord/en_ult"
   };
+  console.log(`App() - contextId`, contextId);
   const showPopover = (PopoverTitle, wordDetails, positionCoord, rawData) => {
     console.log(`showPopover()`, rawData)
     window.prompt(`User clicked on ${JSON.stringify(rawData)}`)

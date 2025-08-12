@@ -21,9 +21,9 @@ export interface TWordAlignerAlignmentResult{
 }
 
 export interface TState{
-    aligned: boolean
-    sourceLanguage: string
-    targetLanguage: string
+    aligned: boolean;
+    sourceLanguage: string;
+    targetLanguage: string;
     reference: TReference;
     alignerData: TAlignerData;
 }
