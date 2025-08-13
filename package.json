@@ -1,7 +1,7 @@
 {
   "name": "enhanced-word-aligner-rcl",
   "description": "A React Component Library for UnfoldingWord Suggesting Word ALigner.",
-  "version": "0.9.0-beta",
+  "version": "0.9.0-beta.3",
   "repository": {
     "type": "git",
     "url": "https://github.com/unfoldingWord-box3/suggesting-word-aligner-rcl"
@@ -9,7 +9,8 @@
   "license": "MIT",
   "main": "dist/index.js",
   "files": [
-    "dist/*"
+    "dist/*",
+    "src/**/*.css"
   ],
   "engines": {
     "node": ">=20.0.0"
@@ -21,7 +22,8 @@
     "test": "jest",
     "styleguide": "styleguidist server ",
     "styleguide:build": "styleguidist build",
-    "prepublishOnly": "rm -fr ./dist && babel ./src --out-dir ./dist -s inline --extensions \".ts,.tsx,.js\"",
+    "compile": "rm -fr ./dist && babel ./src --out-dir ./dist -s inline --extensions \".ts,.tsx,.js\" && cp -r src/**/*.css dist/",
+    "prepublishOnly": "npm run compile && cp -r src/*.css dist/",
     "pack-next": "yarn version --prerelease --no-git-tag-version && yarn && yarn run prepublishOnly && yarn pack"
   },
   "devDependencies": {
@@ -40,6 +42,7 @@
     "@typescript-eslint/eslint-plugin": "^4.14.1",
     "@unfoldingword/eslint-config": "1.3.0",
     "babel-loader": "^8.1.0",
+    "babel-plugin-module-resolver": "^5.0.2",
     "babel-plugin-transform-class-properties": "^6.24.1",
     "core-js": "3.7.0",
     "css-loader": "^7.1.2",
