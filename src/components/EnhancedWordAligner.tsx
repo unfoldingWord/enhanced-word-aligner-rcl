@@ -1,5 +1,4 @@
 import React, {useEffect, useRef, useState} from 'react'
-import '../App.css'
 import {SuggestingWordAligner} from 'word-aligner-rcl'
 import {
     ContextId,
