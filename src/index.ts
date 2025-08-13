@@ -1,6 +1,8 @@
 
 // Export components
 import { EnhancedWordAligner } from './components/EnhancedWordAligner';
+import { useAlignmentSuggestions } from './hooks/useAlignmentSuggestions'
+import * as AlignmentTrainerUtils from './workers/utils/AlignmentTrainerUtils'
 import {
     AlignmentHelpers,
     bibleHelpers,
@@ -11,9 +13,11 @@ import {
 
 export {
     AlignmentHelpers,
+    AlignmentTrainerUtils,
     bibleHelpers,
     EnhancedWordAligner,
     SuggestingWordAligner,
+    useAlignmentSuggestions,
     UsfmFileConversionHelpers,
     usfmHelpers
 } 

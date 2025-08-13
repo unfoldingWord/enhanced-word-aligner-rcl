@@ -8,7 +8,8 @@ import Group from "@/shared/Group";
 import Book from "@/shared/Book";
 import GroupCollection from "@/shared/GroupCollection";
 import IndexedDBStorage from "@/shared/IndexedDBStorage";
-import AlignmentWorker from '../workers/AlignmentTrainer.worker';
+// Remove the static import
+// import AlignmentWorker from '../workers/AlignmentTrainer.worker';
 import { limitRangeOfComplexity } from "@/utils/misc";
 import {
     TrainingState,
@@ -24,23 +25,25 @@ import {
     MIN_THRESHOLD_TRAINING_MINUTES
 } from "@/common/constants";
 
-interface AlignmentSuggestionsHookProps {
+// console.log("useAlignmentSuggestions.ts AlignmentWorker", AlignmentWorker);
+
+interface useAlignmentSuggestionsProps {
     contextId: ContextId;
+    doTraining: boolean; // triggers start of training when it changes from false to true
+    handleSetTrainingState?: THandleSetTrainingState;
     sourceLanguage: string;
     targetLanguage: string;
-    addTranslationMemory?: translationMemoryType;
-    doTraining: boolean;
-    handleSetTrainingState?: THandleSetTrainingState;
 }
 
-interface AlignmentSuggestionsHookReturn {
+interface useAlignmentSuggestionsReturn {
+    cleanupWorker: () => void;
+    failedToLoadCachedTraining: boolean;
+    loadTranslationMemory: (translationMemory: translationMemoryType) => Promise<void>;
     maxComplexity: number;
+    suggester: ((sourceSentence: any, targetSentence: any, maxSuggestions?: number, manuallyAligned?: any[]) => any[]) | null;
     trainingState: TrainingState;
     trainingRunning: boolean;
     trained: boolean;
-    suggester: ((sourceSentence: any, targetSentence: any, maxSuggestions?: number, manuallyAligned?: any[]) => any[]) | null;
-    loadTranslationMemory: (translationMemory: translationMemoryType) => Promise<void>;
-    cleanupWorker: () => void;
 }
 
 function getSelectionFromContext(contextId: ContextId) {
@@ -80,14 +83,45 @@ function getElapsedMinutes(trainingStartTime: number) {
     return (Date.now() - trainingStartTime) / (1000 * 60);
 }
 
+/**
+ * Creates an alignment worker using dynamic import
+ * This approach is more compatible across different bundlers and environments
+ */
+async function createAlignmentWorker(): Promise<Worker> {
+    try {
+        // Try dynamic import first (works with most modern bundlers)
+        const AlignmentWorkerModule = await import('../workers/AlignmentTrainer.worker');
+        const AlignmentWorker = AlignmentWorkerModule.default;
+        return new AlignmentWorker();
+    } catch (error) {
+        console.error('Failed to load worker via dynamic import:', error);
+        
+        try {
+            // Fallback: try to create worker from URL (modern browsers with module workers)
+            const workerUrl = new URL('../workers/AlignmentTrainer.worker.ts', import.meta.url);
+            return new Worker(workerUrl, { type: 'module' });
+        } catch (urlError) {
+            console.error('Failed to load worker via URL:', urlError);
+            
+            // Final fallback: try without module type
+            try {
+                const workerUrl = new URL('../workers/AlignmentTrainer.worker.ts', import.meta.url);
+                return new Worker(workerUrl);
+            } catch (finalError) {
+                console.error('All worker creation methods failed:', finalError);
+                // throw new Error('Unable to create alignment worker. Please ensure your bundler supports web workers.');
+            }
+        }
+    }
+}
+
 export const useAlignmentSuggestions = ({
     contextId,
     sourceLanguage,
     targetLanguage,
-    addTranslationMemory,
     doTraining,
     handleSetTrainingState,
-}: AlignmentSuggestionsHookProps): AlignmentSuggestionsHookReturn => {
+}: useAlignmentSuggestionsProps): useAlignmentSuggestionsReturn => {
     const dbStorageRef = useRef<IndexedDBStorage | null>(null);
 
     const [state, _setState] = useState<AppState>(defaultAppState(contextId));
@@ -103,6 +137,8 @@ export const useAlignmentSuggestions = ({
     const [currentBookName, setCurrentBookName]  = useState<string>(contextId?.reference?.bookId || '');
     const [trainingState, _setTrainingState] = useState<TrainingState>(defaultTrainingState())
     const trainingStateRef = useRef<TrainingState>(trainingState);
+    const [failedToLoadCachedTraining, setFailedToLoadCachedTraining] = useState<boolean>(false)
+
     function setTrainingState(newState: TrainingState) {
         trainingStateRef.current = newState;
         _setTrainingState(newState);
@@ -190,6 +226,7 @@ export const useAlignmentSuggestions = ({
 
         } catch (error) {
             console.error(`error importing ${error}`);
+            throw new Error("Failed to load source data");
         }
     }, [contextId, currentSelection, stateRef, setGroupCollection, setCurrentBookName]);
 
@@ -235,7 +272,7 @@ export const useAlignmentSuggestions = ({
      * Updates training state and alignment predictor with trained model results
      * Includes a timeout that is cleared if worker completes sooner
      */
-    const startTraining = useCallback(() => {
+    const startTraining = async () => {
         //Use the Refs such as trainingStateRef instead of trainingState
         //because in the callback the objects are stale because they were
         //captured from a previous invocation of the function and don't
@@ -267,8 +304,8 @@ export const useAlignmentSuggestions = ({
 
                         setTrainingState({ ...trainingStateRef.current, currentTrainingInstanceCount: stateRef.current.groupCollection.instanceCount });
 
-                        // create a new worker.
-                        alignmentTrainingWorkerRef.current = new AlignmentWorker();
+                        // Create worker using dynamic import
+                        alignmentTrainingWorkerRef.current = await createAlignmentWorker();
 
                         // Set up a worker timeout
                         workerTimeoutRef.current = setTimeout(() => {
@@ -345,7 +382,7 @@ export const useAlignmentSuggestions = ({
             console.log("information not changed");
             handleSetTrainingState?.(false, trained);
         }
-    }, [contextId, currentBookName, maxComplexity, trained, handleSetTrainingState]);
+    };
 
     /**
      * A callback function to stop the alignment training process. This function
@@ -364,14 +401,14 @@ export const useAlignmentSuggestions = ({
      * - Cleans up resources related to the alignment training worker.
      * - Logs the successful stoppage of alignment training.
      */
-    const stopTraining = useCallback(() => {
+    const stopTraining = () => {
         console.log("stopTraining() clicked");
         if (alignmentTrainingWorkerRef.current !== null) {
             handleSetTrainingState?.(false, trained);
             cleanupWorker();
             console.log("Alignment training stopped");
         }
-    }, [trained, handleSetTrainingState]);
+    };
 
     useEffect(() => {
         console.log(`doTraining changed to ${doTraining}, trainingRunning currently ${trainingRunning}`);
@@ -410,7 +447,7 @@ export const useAlignmentSuggestions = ({
         const bibleId = contextId?.bibleId;
         if (bibleId && bookId) {
             const testament = bibleHelpers.isNewTestament(bookId) ? 'NT' : 'OT';
-            modelKey_ = `${bibleId}_${testament}_${bookId}}`;
+            modelKey_ = `${bibleId}_${testament}_${bookId}`;
         }
         return modelKey_
     }
@@ -430,6 +467,8 @@ export const useAlignmentSuggestions = ({
      * @param {string} modelKey - The key used to identify and load the predictive model from local storage.
      */
     const loadSettingsFromStorage = useCallback(async (dbStorage: IndexedDBStorage, modelKey: string) => {
+        setFailedToLoadCachedTraining(false);
+        
         if (modelKey) {
             //load the model.
             let predictorModel: AbstractWordMapWrapper | null = null; // default to null
@@ -449,6 +488,7 @@ export const useAlignmentSuggestions = ({
             const trainingComplete = !!predictorModel;
             if (!trainingComplete) {
                 console.log('no alignmentPredictor found in local storage');
+                setFailedToLoadCachedTraining(true);
             }
             handleSetTrainingState?.(false, trainingComplete);
 
@@ -531,6 +571,7 @@ export const useAlignmentSuggestions = ({
 
     return {
         cleanupWorker,
+        failedToLoadCachedTraining,
         loadTranslationMemory,
         maxComplexity,
         trainingState,

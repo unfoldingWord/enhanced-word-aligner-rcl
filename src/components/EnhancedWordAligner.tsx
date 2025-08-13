@@ -10,7 +10,7 @@ import {
 import {Alignment, Suggestion} from "wordmap";
 import {Token} from 'wordmap-lexer'
 
-import { useAlignmentSuggestions } from '@/hooks/AlignmentSuggestionsHook';
+import { useAlignmentSuggestions } from '@/hooks/useAlignmentSuggestions';
 
 interface SuggestingWordAlignerProps {
     styles?: React.CSSProperties;
@@ -92,7 +92,6 @@ export const EnhancedWordAligner: React.FC<SuggestingWordAlignerProps> = (
         contextId,
         sourceLanguage,
         targetLanguage,
-        addTranslationMemory,
         doTraining,
         handleSetTrainingState,
     });
