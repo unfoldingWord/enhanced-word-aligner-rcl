@@ -3,6 +3,7 @@
 import { EnhancedWordAligner } from './components/EnhancedWordAligner';
 import { useAlignmentSuggestions } from './hooks/useAlignmentSuggestions'
 import * as AlignmentTrainerUtils from './workers/utils/AlignmentTrainerUtils'
+import AlignmentTrainerWorker from "./workers/AlignmentTrainer.worker"
 import {
     AlignmentHelpers,
     bibleHelpers,
@@ -14,6 +15,7 @@ import {
 export {
     AlignmentHelpers,
     AlignmentTrainerUtils,
+    AlignmentTrainerWorker,
     bibleHelpers,
     EnhancedWordAligner,
     SuggestingWordAligner,
