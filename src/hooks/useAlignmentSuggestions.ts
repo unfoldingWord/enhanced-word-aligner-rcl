@@ -24,6 +24,7 @@ import {
     THRESHOLD_TRAINING_MINUTES,
     MIN_THRESHOLD_TRAINING_MINUTES
 } from "@/common/constants";
+import {createAlignmentTrainingWorker} from "@/workers/utils/startAlignmentTrainer";
 
 // console.log("useAlignmentSuggestions.ts AlignmentWorker", AlignmentWorker);
 
@@ -33,6 +34,7 @@ interface useAlignmentSuggestionsProps {
     handleSetTrainingState?: THandleSetTrainingState;
     sourceLanguage: string;
     targetLanguage: string;
+    createAlignmentTrainingWorker: () => Promise<Worker>;
 }
 
 interface useAlignmentSuggestionsReturn {
@@ -81,38 +83,6 @@ function defaultTrainingState(): TrainingState {
 
 function getElapsedMinutes(trainingStartTime: number) {
     return (Date.now() - trainingStartTime) / (1000 * 60);
-}
-
-/**
- * Creates an alignment worker using dynamic import
- * This approach is more compatible across different bundlers and environments
- */
-async function createAlignmentWorker(): Promise<Worker> {
-    try {
-        // Try dynamic import first (works with most modern bundlers)
-        const AlignmentWorkerModule = await import('../workers/AlignmentTrainer.worker');
-        const AlignmentWorker = AlignmentWorkerModule.default;
-        return new AlignmentWorker();
-    } catch (error) {
-        console.error('Failed to load worker via dynamic import:', error);
-        
-        try {
-            // Fallback: try to create worker from URL (modern browsers with module workers)
-            const workerUrl = new URL('../workers/AlignmentTrainer.worker.ts', import.meta.url);
-            return new Worker(workerUrl, { type: 'module' });
-        } catch (urlError) {
-            console.error('Failed to load worker via URL:', urlError);
-            
-            // Final fallback: try without module type
-            try {
-                const workerUrl = new URL('../workers/AlignmentTrainer.worker.ts', import.meta.url);
-                return new Worker(workerUrl);
-            } catch (finalError) {
-                console.error('All worker creation methods failed:', finalError);
-                // throw new Error('Unable to create alignment worker. Please ensure your bundler supports web workers.');
-            }
-        }
-    }
 }
 
 export const useAlignmentSuggestions = ({
@@ -305,7 +275,7 @@ export const useAlignmentSuggestions = ({
                         setTrainingState({ ...trainingStateRef.current, currentTrainingInstanceCount: stateRef.current.groupCollection.instanceCount });
 
                         // Create worker using dynamic import
-                        alignmentTrainingWorkerRef.current = await createAlignmentWorker();
+                        alignmentTrainingWorkerRef.current = await createAlignmentTrainingWorker();
 
                         // Set up a worker timeout
                         workerTimeoutRef.current = setTimeout(() => {

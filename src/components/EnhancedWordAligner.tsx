@@ -11,6 +11,7 @@ import {Alignment, Suggestion} from "wordmap";
 import {Token} from 'wordmap-lexer'
 
 import { useAlignmentSuggestions } from '@/hooks/useAlignmentSuggestions';
+import {createAlignmentTrainingWorker} from "@/workers/utils/startAlignmentTrainer";
 
 interface SuggestingWordAlignerProps {
     styles?: React.CSSProperties;
@@ -94,6 +95,7 @@ export const EnhancedWordAligner: React.FC<SuggestingWordAlignerProps> = (
         targetLanguage,
         doTraining,
         handleSetTrainingState,
+        createAlignmentTrainingWorker,
     });
 
     // Effect to load translation memory when it changes
