@@ -2,10 +2,11 @@
  * Creates an alignment worker using dynamic import
  * This approach is more compatible across different bundlers and environments
  */
-export async function createAlignmentTrainingWorker(): Promise<Worker> {
+export async function createAlignmentTrainingWorker(WorkerPath: string, typescript: boolean): Promise<Worker> {
+    const extension = typescript ? '.ts' : '.js';
     try {
         // Try dynamic import first (works with most modern bundlers)
-        const AlignmentWorkerModule = await import('../AlignmentTrainer.worker');
+        const AlignmentWorkerModule = await import(WorkerPath);
         const AlignmentWorker = AlignmentWorkerModule.default;
         return new AlignmentWorker();
     } catch (error) {

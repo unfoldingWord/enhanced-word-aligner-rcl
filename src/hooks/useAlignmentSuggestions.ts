@@ -24,7 +24,6 @@ import {
     THRESHOLD_TRAINING_MINUTES,
     MIN_THRESHOLD_TRAINING_MINUTES
 } from "@/common/constants";
-import {createAlignmentTrainingWorker} from "@/workers/utils/startAlignmentTrainer";
 
 // console.log("useAlignmentSuggestions.ts AlignmentWorker", AlignmentWorker);
 
@@ -34,7 +33,6 @@ interface useAlignmentSuggestionsProps {
     handleSetTrainingState?: THandleSetTrainingState;
     sourceLanguage: string;
     targetLanguage: string;
-    createAlignmentTrainingWorker: () => Promise<Worker>;
 }
 
 interface useAlignmentSuggestionsReturn {
