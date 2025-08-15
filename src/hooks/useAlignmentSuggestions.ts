@@ -29,7 +29,9 @@ import {
 
 interface useAlignmentSuggestionsProps {
     contextId: ContextId;
+    createAlignmentTrainingWorker?:() => Promise<Worker>; // needed to support alignment training in a web worker
     doTraining: boolean; // triggers start of training when it changes from false to true
+    shown: boolean;
     handleSetTrainingState?: THandleSetTrainingState;
     sourceLanguage: string;
     targetLanguage: string;
@@ -83,12 +85,33 @@ function getElapsedMinutes(trainingStartTime: number) {
     return (Date.now() - trainingStartTime) / (1000 * 60);
 }
 
+/**
+ * Custom hook that provides functionality for handling alignment suggestions and training processes.
+ *
+ * This hook manages the application's internal state, alignment training worker,
+ * and supports operations such as loading translation memories, adjusting complexity,
+ * and managing web worker-based alignment training.
+ *
+ * @param {useAlignmentSuggestionsProps} options - Configuration object for initializing the hook.
+ * @param {string} options.contextId - Identifier for the current context, used for managing alignment and training data.
+ * @param {string} options.sourceLanguage - Source language identifier.
+ * @param {string} options.targetLanguage - Target language identifier.
+ * @param {boolean} options.doTraining - Flag indicating whether alignment training should be performed.
+ * @param {function} options.handleSetTrainingState - Callback to update training state outside the hook.
+ * @param {function} options.createAlignmentTrainingWorker - Factory function to create a web worker for alignment training.
+ *                      Needed to support alignment training in a web worker.  *** Tricky: this is needed because webpack
+ *                      didn't support creating a web worker in a module.
+ *
+ * @returns {useAlignmentSuggestionsReturn} Returns an object containing the hook's utilities, state, and results related to alignment and training.
+ */
 export const useAlignmentSuggestions = ({
     contextId,
-    sourceLanguage,
-    targetLanguage,
+    createAlignmentTrainingWorker,
     doTraining,
     handleSetTrainingState,
+    shown,
+    sourceLanguage,
+    targetLanguage,
 }: useAlignmentSuggestionsProps): useAlignmentSuggestionsReturn => {
     const dbStorageRef = useRef<IndexedDBStorage | null>(null);
 
@@ -104,6 +127,7 @@ export const useAlignmentSuggestions = ({
     const [maxComplexity, setMaxComplexity] = useState<number>(DEFAULT_MAX_COMPLEXITY);
     const [currentBookName, setCurrentBookName]  = useState<string>(contextId?.reference?.bookId || '');
     const [trainingState, _setTrainingState] = useState<TrainingState>(defaultTrainingState())
+    const [loadingTraining, setLoadingTraining] = useState<boolean>(false)
     const trainingStateRef = useRef<TrainingState>(trainingState);
     const [failedToLoadCachedTraining, setFailedToLoadCachedTraining] = useState<boolean>(false)
 
@@ -249,6 +273,10 @@ export const useAlignmentSuggestions = ({
         //a callback needs to use the Refs.
         //https://stackoverflow.com/a/60643670
 
+        if (!createAlignmentTrainingWorker) {
+            console.log("startTraining() - createAlignmentTrainingWorker not defined");
+            return;
+        }
         //make sure that lastUsedInstanceCount isn't still the same as groupCollection.instanceCount
         if (trainingStateRef.current.lastTrainedInstanceCount !== stateRef.current.groupCollection.instanceCount) {
             if (alignmentTrainingWorkerRef.current === null) {
@@ -511,8 +539,9 @@ export const useAlignmentSuggestions = ({
      */
     useEffect(() => {
         (async () => {
-            if (modelKey) {
+            if (shown && modelKey && !loadingTraining) {
                 console.log(`modelKey changed to ${modelKey}`);
+                setLoadingTraining(true)
                 if (!dbStorageRef.current) { // if not initialized
                     const dbStorage = new IndexedDBStorage('app-state', 'dataStore');
                     await dbStorage.initialize();
@@ -527,9 +556,10 @@ export const useAlignmentSuggestions = ({
                 } else {
                     await loadSettingsFromStorage(dbStorageRef.current, modelKey);
                 }
+                setLoadingTraining(false)
             }
         })();
-    }, [modelKey]);
+    }, [modelKey, shown]);
     
     useEffect(() => {
         setCurrentSelection( getSelectionFromContext(contextId) );

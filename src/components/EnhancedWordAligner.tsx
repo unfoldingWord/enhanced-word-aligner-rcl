@@ -1,4 +1,4 @@
-import React, {useEffect, useRef, useState} from 'react'
+import React, {useEffect} from 'react'
 import {SuggestingWordAligner} from 'word-aligner-rcl'
 import {
     ContextId,
@@ -13,7 +13,7 @@ import {Token} from 'wordmap-lexer'
 import { useAlignmentSuggestions } from '@/hooks/useAlignmentSuggestions';
 import {createAlignmentTrainingWorker} from "@/workers/utils/startAlignmentTrainer";
 
-interface SuggestingWordAlignerProps {
+interface EnhancedWordAlignerProps {
     styles?: React.CSSProperties;
     contextId: ContextId;
     lexiconCache?: Record<string, any>;
@@ -62,7 +62,7 @@ interface SuggestingWordAlignerProps {
     handleSetTrainingState?: THandleSetTrainingState;
 }
 
-export const EnhancedWordAligner: React.FC<SuggestingWordAlignerProps> = (
+export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
 {
    styles,
    contextId,
@@ -80,7 +80,6 @@ export const EnhancedWordAligner: React.FC<SuggestingWordAlignerProps> = (
    verseAlignments,
    targetWords,
    hasRenderedSuggestions,
-   asyncSuggester,
    addTranslationMemory,
    doTraining, 
    handleSetTrainingState,
@@ -91,11 +90,12 @@ export const EnhancedWordAligner: React.FC<SuggestingWordAlignerProps> = (
         suggester,
     } = useAlignmentSuggestions({
         contextId,
-        sourceLanguage,
-        targetLanguage,
+        createAlignmentTrainingWorker,
         doTraining,
         handleSetTrainingState,
-        createAlignmentTrainingWorker,
+        shown: true,
+        sourceLanguage,
+        targetLanguage,
     });
 
     // Effect to load translation memory when it changes
