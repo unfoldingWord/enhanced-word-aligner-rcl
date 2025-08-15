@@ -28,7 +28,7 @@ async function processTrainingData(data: TTrainingAndTestingData) {
     self.postMessage({
       type: TRAINING_RESULTS,
       message: 'There was an error while training the word map.', 
-      error: error .toString()
+      error: error.toString()
     });
   }
 }
