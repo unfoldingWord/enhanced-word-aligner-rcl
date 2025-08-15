@@ -1,6 +1,8 @@
 import { TTrainingAndTestingData } from "./WorkerComTypes";
 import {createTrainedWordAlignerModel} from "./utils/AlignmentTrainerUtils";
 
+const TRAINING_RESULTS = 'trainingResults';
+
 /**
  * Processes the training data and performs word alignment training sending results back to main thread
  * @param data - The training and testing data received from the main thread
@@ -15,6 +17,7 @@ async function processTrainingData(data: TTrainingAndTestingData) {
     } = await createTrainedWordAlignerModel(data);
     
     self.postMessage({ 
+      type: TRAINING_RESULTS,
       message: 'Worker has finished', 
       trainedModel: wordAlignerModel.save(),
       trimmedVerses
@@ -22,9 +25,10 @@ async function processTrainingData(data: TTrainingAndTestingData) {
   } catch (error) {
     console.log(error);
       //TODO, need to communicate error back to the other side.
-      self.postMessage({ 
+    self.postMessage({
+      type: TRAINING_RESULTS,
       message: 'There was an error while training the word map.', 
-      error: error 
+      error: error .toString()
     });
   }
 }

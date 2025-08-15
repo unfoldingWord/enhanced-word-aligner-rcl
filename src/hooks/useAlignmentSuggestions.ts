@@ -296,7 +296,7 @@ export const useAlignmentSuggestions = ({
                     const trainingStartTime = Date.now(); // Capture start time
 
                     try { // background processing
-                        console.log(`start training for ${stateRef.current.groupCollection.instanceCount}`);
+                        console.log(`startTraining() - start training for ${stateRef.current.groupCollection.instanceCount}`);
 
                         setTrainingState({ ...trainingStateRef.current, currentTrainingInstanceCount: stateRef.current.groupCollection.instanceCount });
 
@@ -321,31 +321,36 @@ export const useAlignmentSuggestions = ({
 
                         //Define the callback which will be called after the alignment trainer has finished
                         alignmentTrainingWorkerRef.current.addEventListener('message', (event) => {
-                            console.log(`alignment training worker message: ${event.data}`);
-
+                            console.log(`startTraining() - alignment training worker message:`, event.data?.type);
+                            
+                            if ('trainingResults' !== event.data?.type) {
+                                console.log(`startTraining() - not training results - ignoring`)
+                                return
+                            }
+                            
                             // Clear timeout since worker completed successfully
                             cleanupWorker();
 
                             //Load the trained model and put it somewhere it can be used.
                             const elapsedMinutes = getElapsedMinutes(trainingStartTime);
-                            console.log(`Training completed in ${elapsedMinutes} minutes`);
+                            console.log(`startTraining() - Training completed in ${elapsedMinutes} minutes`);
                             if (elapsedMinutes > THRESHOLD_TRAINING_MINUTES) {
-                                console.log(`Worker took over ${THRESHOLD_TRAINING_MINUTES} minutes`);
+                                console.log(`startTraining() - Worker took over ${THRESHOLD_TRAINING_MINUTES} minutes, adjusting down`);
                                 adjustMaxComplexity(THRESHOLD_TRAINING_MINUTES / elapsedMinutes);
                             } else if (event.data?.trimmedVerses && elapsedMinutes < MIN_THRESHOLD_TRAINING_MINUTES) { // if we have trimmed verses, but time is below threshold, bump up complexity limit so we can train with more data
                                 const targetTime = (THRESHOLD_TRAINING_MINUTES + MIN_THRESHOLD_TRAINING_MINUTES) / 2;
                                 const adjustComplexity = (targetTime / elapsedMinutes);
-                                console.log(`Worker took under ${MIN_THRESHOLD_TRAINING_MINUTES} minutes, adjusting complexity by ${adjustComplexity}`);
+                                console.log(`startTraining() - Worker took under ${MIN_THRESHOLD_TRAINING_MINUTES} minutes, adjusting complexity by ${adjustComplexity}`);
                                 adjustMaxComplexity(adjustComplexity);
                             }
 
                             if ("trainedModel" in event.data) {
                                 alignmentPredictor.current = AbstractWordMapWrapper.load(event.data.trainedModel);
                                 // @ts-ignore
-                                console.log(`Number of alignments: ${alignmentPredictor.current?.alignmentStash?.length}`)
+                                console.log(`startTraining() - Number of alignments: ${alignmentPredictor.current?.alignmentStash?.length}`)
                             }
                             if ("error" in event.data) {
-                                console.log("Error running alignment worker: " + event.data.error);
+                                console.log("startTraining() - Error running alignment worker: " + event.data.error);
                             }
 
                             setTrainingState({ ...trainingStateRef.current, lastTrainedInstanceCount: trainingStateRef.current.currentTrainingInstanceCount });
@@ -354,13 +359,14 @@ export const useAlignmentSuggestions = ({
                             startTraining();
                         });
 
+                        // start the training worker
                         alignmentTrainingWorkerRef.current.postMessage({
                             type: "startTraining",
                             data: alignmentTrainingData
                         });
                     } catch (error) {
-                        console.error("Error during alignment training setup:", error);
-                        console.log(`Training failed after ${getElapsedMinutes(trainingStartTime)} minutes`);
+                        console.error("startTraining() - Error during alignment training setup:", error);
+                        console.log(`startTraining() - Training failed after ${getElapsedMinutes(trainingStartTime)} minutes`);
                         cleanupWorker();
                         handleSetTrainingState?.(false, trained);
                     }
@@ -371,11 +377,11 @@ export const useAlignmentSuggestions = ({
                 }
 
             } else {
-                console.log("Alignment training already running");
+                console.log("startTraining() - Alignment training already running");
                 handleSetTrainingState?.(false, trained);
             }
         } else {
-            console.log("information not changed");
+            console.log("startTraining() - information not changed");
             handleSetTrainingState?.(false, trained);
         }
     };
