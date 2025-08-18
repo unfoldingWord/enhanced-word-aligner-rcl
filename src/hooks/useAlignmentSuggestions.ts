@@ -2,6 +2,8 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { AbstractWordMapWrapper } from 'wordmapbooster';
 import { bibleHelpers } from 'word-aligner-rcl';
 import usfm from 'usfm-js';
+import cloneDeep from "lodash.clonedeep";
+import isEqual from 'deep-equal'
 import { parseUsfmHeaders } from "@/utils/usfm_misc";
 import delay from "@/utils/delay";
 import Group from "@/shared/Group";
@@ -141,13 +143,13 @@ async function storeLanguagePreferences(sourceLanguageId: string, targetLanguage
  *
  * @param {React.RefObject<IndexedDBStorage | null>} dbStorageRef A reference object pointing to the IndexedDB storage instance.
  * @param {string} modelKey The key under which the alignment model will be stored.
- * @param {React.RefObject<AbstractWordMapWrapper | null>} alignmentPredictor A reference object pointing to the alignment predictor instance to be saved.
+ * @param {AbstractWordMapWrapper | null} abstractWordMapWrapper The alignment model to be saved.
  * @param {string} sourceLanguageId The language code of the source language.
  * @param {string} targetLanguageId The language code of the target language.
  * @param {number} maxComplexity The maximum complexity value to be saved in the settings.
  * @return {Promise<void>} A promise that resolves once the model and settings are saved, or resolves immediately if the storage is unavailable or not ready.
  */
-async function saveModelAndSettings(dbStorageRef: React.RefObject<IndexedDBStorage | null>, modelKey: string, alignmentPredictor: React.RefObject<AbstractWordMapWrapper | null>, sourceLanguageId: string, targetLanguageId: string, maxComplexity: number) {
+async function saveModelAndSettings(dbStorageRef: React.RefObject<IndexedDBStorage | null>, modelKey: string, abstractWordMapWrapper: AbstractWordMapWrapper | null, sourceLanguageId: string, targetLanguageId: string, maxComplexity: number) {
     if (!dbStorageRef?.current?.isReady()) {
         console.log("saveModelAndSettings() - storage not ready");
         return
@@ -161,7 +163,7 @@ async function saveModelAndSettings(dbStorageRef: React.RefObject<IndexedDBStora
     console.log(`saveModelAndSettings() - saving model for ${modelKey}`);
 
     // save model to local storage
-    await dbStorageRef.current.setItem(modelKey, JSON.stringify(alignmentPredictor.current?.save()));
+    await dbStorageRef.current.setItem(modelKey, JSON.stringify(abstractWordMapWrapper?.save()));
 
     await storeLanguagePreferences(sourceLanguageId, targetLanguageId, maxComplexity, dbStorageRef);
 }
@@ -210,6 +212,7 @@ export const useAlignmentSuggestions = ({
     const [trainingState, _setTrainingState] = useState<TrainingState>(defaultTrainingState())
     const [loadingTraining, setLoadingTraining] = useState<boolean>(false)
     const trainingStateRef = useRef<TrainingState>(trainingState);
+    const contextIdRef = useRef<ContextId>(contextId);
     const [failedToLoadCachedTraining, setFailedToLoadCachedTraining] = useState<boolean>(false)
 
     function setTrainingState(newState: TrainingState) {
@@ -434,31 +437,45 @@ export const useAlignmentSuggestions = ({
                                 adjustMaxComplexity(adjustComplexity);
                             }
 
+                            let abstractWordMapWrapper;
+
                             if ("trainedModel" in workerResults) {
-                                alignmentPredictor.current = AbstractWordMapWrapper.load(workerResults.trainedModel);
+                                abstractWordMapWrapper = AbstractWordMapWrapper.load(workerResults.trainedModel);
+                                
                                 // @ts-ignore
-                                console.log(`startTraining() - Number of alignments: ${alignmentPredictor.current?.alignmentStash?.length}`)
+                                console.log(`startTraining() - Number of alignments: ${abstractWordMapWrapper?.alignmentStash?.length}`)
                             }
                             if ("error" in workerResults) {
                                 console.log("startTraining() - Error running alignment worker: " + workerResults.error);
-                            }
+                            } else {
+                                const modelKey = getModelKey(workerResults.contextId)
+                                const currentModelKey = getModelKey(contextIdRef?.current)
+                                console.log(`startTraining() - currentModelKey: ${currentModelKey}`)
 
-                            setTrainingState({ ...trainingStateRef.current, lastTrainedInstanceCount: trainingStateRef.current.currentTrainingInstanceCount });
-                            handleSetTrainingState?.(false, trained);
-                            
-                            // save the model to local storage NOW
-                            const modelKey = getModelKey(workerResults.contextId)
-                            saveModelAndSettings(
-                                dbStorageRef,
-                                modelKey,
-                                alignmentPredictor,
-                                workerResults.sourceLanguageId,
-                                workerResults.targetLanguageId,
-                                workerResults.maxComplexity
-                            ).then(() => {
-                                //start the training again.  It won't run again if the instanceCount hasn't changed
-                                startTraining();    
-                            })
+                                if (currentModelKey == modelKey) { // check if the current model is the same as the one we are training
+                                    alignmentPredictor.current = abstractWordMapWrapper;
+                                    setTrainingState({
+                                        ...trainingStateRef.current,
+                                        lastTrainedInstanceCount: trainingStateRef.current.currentTrainingInstanceCount
+                                    });
+                                    handleSetTrainingState?.(false, true);
+                                } else {
+                                    console.log(`startTraining() - currentModelKey: ${currentModelKey} != ${modelKey} - so not replacing current model`)
+                                }
+
+                                // save the model to local storage NOW
+                                saveModelAndSettings(
+                                    dbStorageRef,
+                                    modelKey,
+                                    abstractWordMapWrapper,
+                                    workerResults.sourceLanguageId,
+                                    workerResults.targetLanguageId,
+                                    workerResults.maxComplexity
+                                ).then(() => {
+                                    //start the training again.  It won't run again if the instanceCount hasn't changed
+                                    startTraining();
+                                })
+                            }
                         });
 
                         // start the training worker
@@ -622,6 +639,11 @@ export const useAlignmentSuggestions = ({
     
     useEffect(() => {
         setCurrentSelection( getSelectionFromContext(contextId) );
+        if (!isEqual(contextId, contextIdRef.current)) {
+            console.log(`contextId changed to ${JSON.stringify(contextId)}`);
+            contextIdRef.current = cloneDeep(contextId);
+            setCurrentBookName(contextId?.reference?.bookId || '');
+        }
     }, [contextId]);
     
     const suggester = alignmentPredictor.current?.predict.bind(alignmentPredictor.current) || null
