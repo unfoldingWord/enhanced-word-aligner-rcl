@@ -113,6 +113,15 @@ export const getModelKey = (contextId: ContextId): string => {
     return modelKey_
 }
 
+/**
+ * Stores language preferences in the provided indexed database storage reference.
+ *
+ * @param {string} sourceLanguageId - The identifier for the source language.
+ * @param {string} targetLanguageId - The identifier for the target language.
+ * @param {number} maxComplexity - The maximum complexity level for the language preferences.
+ * @param {React.RefObject<IndexedDBStorage | null>} dbStorageRef - A React reference object pointing to the IndexedDB storage instance.
+ * @return {Promise<void>} A promise that resolves when the language preferences have been successfully stored, or returns early if the storage is not ready.
+ */
 async function storeLanguagePreferences(sourceLanguageId: string, targetLanguageId: string, maxComplexity: number, dbStorageRef: React.RefObject<IndexedDBStorage | null>) {
     if (!dbStorageRef?.current?.isReady()) {
         console.log("saveModelAndSettings() - storage not ready");
