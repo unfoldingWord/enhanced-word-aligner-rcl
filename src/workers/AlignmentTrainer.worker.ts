@@ -1,4 +1,4 @@
-import { TTrainingAndTestingData } from "./WorkerComTypes";
+import {TTrainedWordAlignerModelWorkerResults, TTrainingAndTestingData} from "./WorkerComTypes";
 import {createTrainedWordAlignerModel} from "./utils/AlignmentTrainerUtils";
 
 const TRAINING_RESULTS = 'trainingResults';
@@ -11,17 +11,15 @@ async function processTrainingData(data: TTrainingAndTestingData) {
   console.log("Training worker has started");
 
   try {
-    const {
-        trimmedVerses,
-        wordAlignerModel
-    } = await createTrainedWordAlignerModel(data);
-    
-    self.postMessage({ 
+    const trainingModelResults = await createTrainedWordAlignerModel(data);
+    const trainedModel = trainingModelResults.wordAlignerModel.save();
+    const workerResults: TTrainedWordAlignerModelWorkerResults = {
       type: TRAINING_RESULTS,
-      message: 'Worker has finished', 
-      trainedModel: wordAlignerModel.save(),
-      trimmedVerses
-    });
+      message: 'Worker has finished',
+      trainedModel,
+      ...trainingModelResults,
+    }
+    self.postMessage(workerResults);
   } catch (error) {
     console.log(error);
       //TODO, need to communicate error back to the other side.

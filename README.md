@@ -16,7 +16,7 @@ npm add enhanced-word-aligner-rcl
 yarn add enhanced-word-aligner-rcl
 ```
 
-## Testing in styleguidist
+## UI Testing in Styleguidist
 
 ### yarn
 

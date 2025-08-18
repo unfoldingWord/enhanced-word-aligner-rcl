@@ -8,8 +8,6 @@ import Group from "@/shared/Group";
 import Book from "@/shared/Book";
 import GroupCollection from "@/shared/GroupCollection";
 import IndexedDBStorage from "@/shared/IndexedDBStorage";
-// Remove the static import
-// import AlignmentWorker from '../workers/AlignmentTrainer.worker';
 import { limitRangeOfComplexity } from "@/utils/misc";
 import {
     TrainingState,
@@ -24,6 +22,7 @@ import {
     THRESHOLD_TRAINING_MINUTES,
     MIN_THRESHOLD_TRAINING_MINUTES
 } from "@/common/constants";
+import {TTrainedWordAlignerModelWorkerResults} from "@/workers/WorkerComTypes";
 
 // console.log("useAlignmentSuggestions.ts AlignmentWorker", AlignmentWorker);
 
@@ -33,8 +32,8 @@ interface useAlignmentSuggestionsProps {
     doTraining: boolean; // triggers start of training when it changes from false to true
     shown: boolean;
     handleSetTrainingState?: THandleSetTrainingState;
-    sourceLanguage: string;
-    targetLanguage: string;
+    sourceLanguageId: string;
+    targetLanguageId: string;
 }
 
 interface useAlignmentSuggestionsReturn {
@@ -86,6 +85,63 @@ function getElapsedMinutes(trainingStartTime: number) {
 }
 
 /**
+ * Generates a language pair string used for settings based on the target and source languages.
+ *
+ * @returns {string} A string representing the language pair in the format "settings_{targetLanguageId}_{sourceLanguageId}".
+ */
+export const getLangPair = (sourceLanguageId: string, targetLanguageId: string): string => {
+    return `settings_${targetLanguageId}_${sourceLanguageId}`;
+}
+
+/**
+ * Generates a model key based on the context's Bible and book identifiers.
+ *
+ * The function constructs a string key by combining the Bible ID, testament type (New Testament or Old Testament),
+ * and book ID. It first checks the existence of `bibleId` and `bookId` from the context. If both are present,
+ * the testament type is determined using a helper function, and the key is composed in the format `bibleId_testament_bookId`.
+ *
+ * @returns {string} The constructed model key. Returns an empty string if either `bibleId` or `bookId` is missing.
+ */
+export const getModelKey = (contextId: ContextId): string => {
+    let modelKey_ = '';
+    const bookId = contextId?.reference?.bookId;
+    const bibleId = contextId?.bibleId;
+    if (bibleId && bookId) {
+        const testament = bibleHelpers.isNewTestament(bookId) ? 'NT' : 'OT';
+        modelKey_ = `${bibleId}_${testament}_${bookId}`;
+    }
+    return modelKey_
+}
+
+/**
+ * Saves the alignment model and related language settings to the local storage via IndexedDB.
+ *
+ * @param {React.RefObject<IndexedDBStorage | null>} dbStorageRef A reference object pointing to the IndexedDB storage instance.
+ * @param {string} modelKey The key under which the alignment model will be stored.
+ * @param {React.RefObject<AbstractWordMapWrapper | null>} alignmentPredictor A reference object pointing to the alignment predictor instance to be saved.
+ * @param {string} sourceLanguageId The language code of the source language.
+ * @param {string} targetLanguageId The language code of the target language.
+ * @param {number} maxComplexity The maximum complexity value to be saved in the settings.
+ * @return {Promise<void>} A promise that resolves once the model and settings are saved, or resolves immediately if the storage is unavailable or not ready.
+ */
+async function saveModelAndSettings(dbStorageRef: React.RefObject<IndexedDBStorage | null>, modelKey: string, alignmentPredictor: React.RefObject<AbstractWordMapWrapper | null>, sourceLanguageId: string, targetLanguageId: string, maxComplexity: number) {
+    if (!dbStorageRef?.current?.isReady()) {
+        console.log("saveModelAndSettings() - storage not ready");
+        return
+    };
+
+    // save model to local storage
+    await dbStorageRef.current.setItem(modelKey, JSON.stringify(alignmentPredictor.current?.save()));
+
+    // save language-based settings to local storage
+    const langSettingsPair = getLangPair(sourceLanguageId, targetLanguageId);
+    const settings = {
+        maxComplexity,
+    }
+    await dbStorageRef.current.setItem(langSettingsPair, JSON.stringify(settings));
+}
+
+/**
  * Custom hook that provides functionality for handling alignment suggestions and training processes.
  *
  * This hook manages the application's internal state, alignment training worker,
@@ -94,8 +150,8 @@ function getElapsedMinutes(trainingStartTime: number) {
  *
  * @param {useAlignmentSuggestionsProps} options - Configuration object for initializing the hook.
  * @param {string} options.contextId - Identifier for the current context, used for managing alignment and training data.
- * @param {string} options.sourceLanguage - Source language identifier.
- * @param {string} options.targetLanguage - Target language identifier.
+ * @param {string} options.sourceLanguageId - Source language identifier.
+ * @param {string} options.targetLanguageId - Target language identifier.
  * @param {boolean} options.doTraining - Flag indicating whether alignment training should be performed.
  * @param {function} options.handleSetTrainingState - Callback to update training state outside the hook.
  * @param {function} options.createAlignmentTrainingWorker - Factory function to create a web worker for alignment training.
@@ -110,8 +166,8 @@ export const useAlignmentSuggestions = ({
     doTraining,
     handleSetTrainingState,
     shown,
-    sourceLanguage,
-    targetLanguage,
+    sourceLanguageId,
+    targetLanguageId,
 }: useAlignmentSuggestionsProps): useAlignmentSuggestionsReturn => {
     const dbStorageRef = useRef<IndexedDBStorage | null>(null);
 
@@ -279,16 +335,23 @@ export const useAlignmentSuggestions = ({
         }
         //make sure that lastUsedInstanceCount isn't still the same as groupCollection.instanceCount
         if (trainingStateRef.current.lastTrainedInstanceCount !== stateRef.current.groupCollection.instanceCount) {
-            if (alignmentTrainingWorkerRef.current === null) {
+            if (alignmentTrainingWorkerRef.current === null) { // check if training already running
 
                 //before creating the worker, check to see if there is any data to train on.
                 //get the information for the alignment to training.
-                const alignmentTrainingData = stateRef.current.groupCollection.getAlignmentDataAndCorpusForTrainingOrTesting({ forTesting: false, getCorpus: true });
+                const alignmentTrainingData_ = stateRef.current.groupCollection.getAlignmentDataAndCorpusForTrainingOrTesting({ forTesting: false, getCorpus: true });
 
-                alignmentTrainingData.contextId = contextId;
-                alignmentTrainingData.contextId.bookName = currentBookName || alignmentTrainingData.contextId?.reference?.bookId;
-                alignmentTrainingData.maxComplexity = maxComplexity;
-
+                const contextId_ = {
+                    ...contextId,
+                    bookName: currentBookName || contextId.reference.bookId
+                }
+                const alignmentTrainingData = {
+                    ...alignmentTrainingData_,
+                    contextId: contextId_,
+                    maxComplexity,
+                    sourceLanguageId,
+                    targetLanguageId
+                }
                 //check if there are enough entries in the alignment training data dictionary
                 if (Object.values(alignmentTrainingData.alignments).length > 4) {
                     handleSetTrainingState?.(true, trained);
@@ -321,9 +384,10 @@ export const useAlignmentSuggestions = ({
 
                         //Define the callback which will be called after the alignment trainer has finished
                         alignmentTrainingWorkerRef.current.addEventListener('message', (event) => {
-                            console.log(`startTraining() - alignment training worker message:`, event.data?.type);
+                            const workerResults: TTrainedWordAlignerModelWorkerResults = event.data;
+                            console.log(`startTraining() - alignment training worker message:`, workerResults?.type);
                             
-                            if ('trainingResults' !== event.data?.type) {
+                            if ('trainingResults' !== workerResults?.type) {
                                 console.log(`startTraining() - not training results - ignoring`)
                                 return
                             }
@@ -337,26 +401,38 @@ export const useAlignmentSuggestions = ({
                             if (elapsedMinutes > THRESHOLD_TRAINING_MINUTES) {
                                 console.log(`startTraining() - Worker took over ${THRESHOLD_TRAINING_MINUTES} minutes, adjusting down`);
                                 adjustMaxComplexity(THRESHOLD_TRAINING_MINUTES / elapsedMinutes);
-                            } else if (event.data?.trimmedVerses && elapsedMinutes < MIN_THRESHOLD_TRAINING_MINUTES) { // if we have trimmed verses, but time is below threshold, bump up complexity limit so we can train with more data
+                            } else if (workerResults.trimmedVerses && elapsedMinutes < MIN_THRESHOLD_TRAINING_MINUTES) { // if we have trimmed verses, but time is below threshold, bump up complexity limit so we can train with more data
                                 const targetTime = (THRESHOLD_TRAINING_MINUTES + MIN_THRESHOLD_TRAINING_MINUTES) / 2;
                                 const adjustComplexity = (targetTime / elapsedMinutes);
                                 console.log(`startTraining() - Worker took under ${MIN_THRESHOLD_TRAINING_MINUTES} minutes, adjusting complexity by ${adjustComplexity}`);
                                 adjustMaxComplexity(adjustComplexity);
                             }
 
-                            if ("trainedModel" in event.data) {
-                                alignmentPredictor.current = AbstractWordMapWrapper.load(event.data.trainedModel);
+                            if ("trainedModel" in workerResults) {
+                                alignmentPredictor.current = AbstractWordMapWrapper.load(workerResults.trainedModel);
                                 // @ts-ignore
                                 console.log(`startTraining() - Number of alignments: ${alignmentPredictor.current?.alignmentStash?.length}`)
                             }
-                            if ("error" in event.data) {
-                                console.log("startTraining() - Error running alignment worker: " + event.data.error);
+                            if ("error" in workerResults) {
+                                console.log("startTraining() - Error running alignment worker: " + workerResults.error);
                             }
 
                             setTrainingState({ ...trainingStateRef.current, lastTrainedInstanceCount: trainingStateRef.current.currentTrainingInstanceCount });
                             handleSetTrainingState?.(false, trained);
-                            //start the training again.  It won't run again if the instanceCount hasn't changed
-                            startTraining();
+                            
+                            // save the model to local storage NOW
+                            const modelKey = getModelKey(workerResults.contextId)
+                            saveModelAndSettings(
+                                dbStorageRef,
+                                modelKey,
+                                alignmentPredictor,
+                                workerResults.sourceLanguageId,
+                                workerResults.targetLanguageId,
+                                workerResults.maxComplexity
+                            ).then(() => {
+                                //start the training again.  It won't run again if the instanceCount hasn't changed
+                                startTraining();    
+                            })
                         });
 
                         // start the training worker
@@ -425,36 +501,7 @@ export const useAlignmentSuggestions = ({
         }
     }, [doTraining]);
 
-    /**
-     * Generates a language pair string used for settings based on the target and source languages.
-     *
-     * @returns {string} A string representing the language pair in the format "settings_{targetLanguage}_{sourceLanguage}".
-     */
-    const getLangPair = (): string => {
-        return `settings_${targetLanguage}_${sourceLanguage}`;
-    }
-
-    /**
-     * Generates a model key based on the context's Bible and book identifiers.
-     *
-     * The function constructs a string key by combining the Bible ID, testament type (New Testament or Old Testament),
-     * and book ID. It first checks the existence of `bibleId` and `bookId` from the context. If both are present,
-     * the testament type is determined using a helper function, and the key is composed in the format `bibleId_testament_bookId`.
-     *
-     * @returns {string} The constructed model key. Returns an empty string if either `bibleId` or `bookId` is missing.
-     */
-    const getModelKey = (): string => {
-        let modelKey_ = '';
-        const bookId = contextId?.reference?.bookId;
-        const bibleId = contextId?.bibleId;
-        if (bibleId && bookId) {
-            const testament = bibleHelpers.isNewTestament(bookId) ? 'NT' : 'OT';
-            modelKey_ = `${bibleId}_${testament}_${bookId}`;
-        }
-        return modelKey_
-    }
-
-    const modelKey = getModelKey()
+    const modelKey = getModelKey(contextId)
 
     /**
      * Asynchronously loads settings and model data from local storage.
@@ -495,7 +542,7 @@ export const useAlignmentSuggestions = ({
             handleSetTrainingState?.(false, trainingComplete);
 
             // load language based settings
-            const langSettingsPair = getLangPair();
+            const langSettingsPair = getLangPair(sourceLanguageId, targetLanguageId);
             let settings_: string | null = await dbStorage.getItem(langSettingsPair);
             let maxComplexity_ = DEFAULT_MAX_COMPLEXITY; // default to max complexity
             if (settings_ && settings_ !== "undefined") {
@@ -516,26 +563,6 @@ export const useAlignmentSuggestions = ({
             }
         }
     }, [handleSetTrainingState]);
-
-    useEffect(() => { // Save the updated model to local storage.
-        (async () => {
-            if (modelKey && (trainingStateRef?.current?.lastTrainedInstanceCount > 0)) {
-                if (dbStorageRef.current == null) return;
-                if (!dbStorageRef.current.isReady()) return;
-
-                // save model to local storage
-                await dbStorageRef.current.setItem(modelKey, JSON.stringify(alignmentPredictor.current?.save()));
-
-                // save language-based settings to local storage
-                const langSettingsPair = getLangPair();
-                const settings = {
-                    maxComplexity,
-                }
-                await dbStorageRef.current.setItem(langSettingsPair, JSON.stringify(settings));
-            }
-        })();
-    }, [trainingStateRef?.current?.lastTrainedInstanceCount]);
-
 
     /**
      * Effect hook that handles loading settings and model data from storage when modelKey changes.

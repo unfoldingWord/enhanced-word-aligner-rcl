@@ -35,10 +35,10 @@ interface EnhancedWordAlignerProps {
             lexiconData: any;
         }
     ) => void;
-    sourceLanguage: string;
+    sourceLanguageId: string;
     sourceLanguageFont?: string;
     sourceFontSizePercent?: number;
-    targetLanguage: string;
+    targetLanguageId: string;
     targetLanguageFont?: string;
     targetFontSizePercent?: number;
     translate: (key: string) => void;
@@ -70,10 +70,10 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
    loadLexiconEntry,
    onChange,
    showPopover,
-   sourceLanguage,
+   sourceLanguageId,
    sourceLanguageFont,
    sourceFontSizePercent,
-   targetLanguage,
+   targetLanguageId,
    targetLanguageFont,
    targetFontSizePercent,
    translate,
@@ -94,8 +94,8 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
         doTraining,
         handleSetTrainingState,
         shown: true,
-        sourceLanguage,
-        targetLanguage,
+        sourceLanguageId,
+        targetLanguageId,
     });
 
     // Effect to load translation memory when it changes
@@ -121,7 +121,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             translate={translate}
             contextId={contextId}
             targetLanguageFont={targetLanguageFont}
-            sourceLanguage={sourceLanguage}
+            sourceLanguage={sourceLanguageId}
             showPopover={showPopover}
             lexiconCache={lexiconCache}
             loadLexiconEntry={loadLexiconEntry}

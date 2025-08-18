@@ -1,8 +1,7 @@
-
 import { MorphJLBoostWordMap, updateTokenLocations } from "wordmapbooster";
 import wordmapLexer, { Token } from "wordmap-lexer";
 import { Alignment, Ngram } from "wordmap";
-import { TTrainingAndTestingData } from "../WorkerComTypes";
+import {TTrainedWordAlignerModelResults, TTrainingAndTestingData} from "../WorkerComTypes";
 import {ContextId} from "@/common/classes";
 import {DEFAULT_MAX_COMPLEXITY} from "@/common/constants";
 
@@ -165,7 +164,7 @@ export function addAlignmentCorpus(alignedComplexityCount: number, unalignedComp
  * @param {TTrainingAndTestingData} data - The training and testing data containing alignments, corpus, contextId, and maxComplexity options.
  * @returns {Promise<{trimmedVerses: number, wordAlignerModel: MorphJLBoostWordMap}>} Promise that resolves to an object containing the number of trimmed verses and the trained word alignment model.
  */
-export async function createTrainedWordAlignerModel(data: TTrainingAndTestingData): Promise<{trimmedVerses: number, wordAlignerModel: MorphJLBoostWordMap}> {
+export async function createTrainedWordAlignerModel(data: TTrainingAndTestingData): Promise<TTrainedWordAlignerModelResults> {
   const maxComplexity = data.maxComplexity || DEFAULT_MAX_COMPLEXITY;
   // Convert the data into the structure which the training model expects.
   const sourceVersesTokenized: { [reference: string]: Token[] } = {};
@@ -239,6 +238,10 @@ export async function createTrainedWordAlignerModel(data: TTrainingAndTestingDat
   await wordAlignerModel.add_alignments_2(sourceVersesTokenized, targetVersesTokenized, alignments);
   
   return {
+      contextId: data.contextId,
+      maxComplexity,
+      sourceLanguageId: data.sourceLanguageId,
+      targetLanguageId: data.targetLanguageId,
       trimmedVerses,
       wordAlignerModel
   };

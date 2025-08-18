@@ -54,7 +54,7 @@ const translate = (key) => {
   }
 };
 
-const targetLanguage = 'en';
+const targetLanguageId = 'en';
 const bookId = 'mat';
 const chapter = 2;
 const verse = 3;
@@ -77,7 +77,7 @@ const WordAlignerPanel = ({
     translate,
     contextId,
     targetLanguageFont,
-    sourceLanguage,
+    sourceLanguageId,
     showPopover,
     lexicons,
     loadLexiconEntry,
@@ -172,8 +172,8 @@ const WordAlignerPanel = ({
         translate={translate}
         contextId={contextId}
         targetLanguageFont={targetLanguageFont}
-        sourceLanguage={sourceLanguage}
-        targetLanguage={targetLanguage}
+        sourceLanguageId={sourceLanguageId}
+        targetLanguageId={targetLanguageId}
         showPopover={showPopover}
         lexicons={lexicons}
         loadLexiconEntry={loadLexiconEntry}
@@ -190,7 +190,7 @@ const WordAlignerPanel = ({
 const App = () => {
   const targetLanguageFont = '';
   const source = bibleHelpers.getOrigLangforBook(bookId);
-  const sourceLanguage = source && source.languageId || NT_ORIG_LANG;
+  const sourceLanguageId = source && source.languageId || NT_ORIG_LANG;
   const lexicons = {};
   const contextId = {
     "reference": {
@@ -234,7 +234,7 @@ const App = () => {
         translate={translate}
         contextId={contextId}
         targetLanguageFont={targetLanguageFont}
-        sourceLanguage={sourceLanguage}
+        sourceLanguageId={sourceLanguageId}
         showPopover={showPopover}
         lexicons={lexicons}
         loadLexiconEntry={loadLexiconEntry}
