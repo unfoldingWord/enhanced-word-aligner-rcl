@@ -18,9 +18,9 @@ import {
 } from "@/common/classes";
 import {
     DEFAULT_MAX_COMPLEXITY,
-    WORKER_TIMEOUT,
+    MIN_THRESHOLD_TRAINING_MINUTES,
     THRESHOLD_TRAINING_MINUTES,
-    MIN_THRESHOLD_TRAINING_MINUTES
+    WORKER_TIMEOUT
 } from "@/common/constants";
 import {TTrainedWordAlignerModelWorkerResults} from "@/workers/WorkerComTypes";
 
@@ -30,8 +30,8 @@ interface useAlignmentSuggestionsProps {
     contextId: ContextId;
     createAlignmentTrainingWorker?:() => Promise<Worker>; // needed to support alignment training in a web worker
     doTraining: boolean; // triggers start of training when it changes from false to true
-    shown: boolean;
     handleSetTrainingState?: THandleSetTrainingState;
+    shown: boolean;
     sourceLanguageId: string;
     targetLanguageId: string;
 }
@@ -59,24 +59,24 @@ function defaultAppState(contextId: ContextId): AppState{
     const newGroups : {[key:string]: Group} = {};
     const groupCollection = new GroupCollection(newGroups, 0);
     return {
-        groupCollection,
-        scope: "Book",
+        alignerStatus: null,
         currentSelection,
         doubleClickedVerse: null,
-        alignerStatus: null,
+        groupCollection,
+        scope: "Book",
     }
 }
 
 function defaultTrainingState(): TrainingState {
     return {
+        currentTestingInstanceCount: -1,
+        currentTrainingInstanceCount: -1,
         isTrainingEnabled: false,
         isTestingEnabled: false,
-        trainingStatusOutput: "",
-        lastTrainedInstanceCount: -1,
-        currentTrainingInstanceCount: -1,
         lastTestAlignedCount: -1,
-        currentTestingInstanceCount: -1,
+        lastTrainedInstanceCount: -1,
         testResults: null,
+        trainingStatusOutput: "",
     }
 }
 
@@ -113,6 +113,20 @@ export const getModelKey = (contextId: ContextId): string => {
     return modelKey_
 }
 
+async function storeLanguagePreferences(sourceLanguageId: string, targetLanguageId: string, maxComplexity: number, dbStorageRef: React.RefObject<IndexedDBStorage | null>) {
+    if (!dbStorageRef?.current?.isReady()) {
+        console.log("saveModelAndSettings() - storage not ready");
+        return
+    };
+
+    // save language-based settings to local storage
+    const langSettingsPair = getLangPair(sourceLanguageId, targetLanguageId);
+    const settings = {
+        maxComplexity,
+    }
+    await dbStorageRef.current.setItem(langSettingsPair, JSON.stringify(settings));
+}
+
 /**
  * Saves the alignment model and related language settings to the local storage via IndexedDB.
  *
@@ -130,35 +144,37 @@ async function saveModelAndSettings(dbStorageRef: React.RefObject<IndexedDBStora
         return
     };
 
+    if (!modelKey) {
+        console.log("saveModelAndSettings() - modelKey not defined");
+        return
+    };
+
+    console.log(`saveModelAndSettings() - saving model for ${modelKey}`);
+
     // save model to local storage
     await dbStorageRef.current.setItem(modelKey, JSON.stringify(alignmentPredictor.current?.save()));
 
-    // save language-based settings to local storage
-    const langSettingsPair = getLangPair(sourceLanguageId, targetLanguageId);
-    const settings = {
-        maxComplexity,
-    }
-    await dbStorageRef.current.setItem(langSettingsPair, JSON.stringify(settings));
+    await storeLanguagePreferences(sourceLanguageId, targetLanguageId, maxComplexity, dbStorageRef);
 }
 
 /**
- * Custom hook that provides functionality for handling alignment suggestions and training processes.
+ * Handles alignment suggestions and manages their state, training process, and updates.
  *
- * This hook manages the application's internal state, alignment training worker,
- * and supports operations such as loading translation memories, adjusting complexity,
- * and managing web worker-based alignment training.
+ * This function manages the lifecycle of alignment suggestions, including their initialization,
+ * updates, and training using alignment models. It provides functionalities such as loading
+ * translation memory data, managing stateful information for alignments, and starting or stopping
+ * training processes using a web worker. It also adjusts complexity settings to fine-tune suggestions
+ * and ensures proper cleanup of resources when necessary.
  *
- * @param {useAlignmentSuggestionsProps} options - Configuration object for initializing the hook.
- * @param {string} options.contextId - Identifier for the current context, used for managing alignment and training data.
- * @param {string} options.sourceLanguageId - Source language identifier.
- * @param {string} options.targetLanguageId - Target language identifier.
- * @param {boolean} options.doTraining - Flag indicating whether alignment training should be performed.
- * @param {function} options.handleSetTrainingState - Callback to update training state outside the hook.
- * @param {function} options.createAlignmentTrainingWorker - Factory function to create a web worker for alignment training.
- *                      Needed to support alignment training in a web worker.  *** Tricky: this is needed because webpack
- *                      didn't support creating a web worker in a module.
- *
- * @returns {useAlignmentSuggestionsReturn} Returns an object containing the hook's utilities, state, and results related to alignment and training.
+ * @param {Object} useAlignmentSuggestionsProps - Object containing properties for alignment suggestions.
+ * @param {string} useAlignmentSuggestionsProps.contextId - Identifier for the current alignment context.
+ * @param {function} useAlignmentSuggestionsProps.createAlignmentTrainingWorker - Function to create a web worker for training.
+ * @param {function} useAlignmentSuggestionsProps.doTraining - Function to trigger the actual training operation.
+ * @param {function} useAlignmentSuggestionsProps.handleSetTrainingState - Callback to handle updates to the training state.
+ * @param {boolean} useAlignmentSuggestionsProps.shown - Indicator whether the alignment suggestions are visible.
+ * @param {string} useAlignmentSuggestionsProps.sourceLanguageId - Identifier for the source language.
+ * @param {string} useAlignmentSuggestionsProps.targetLanguageId - Identifier for the target language.
+ * @return {Object} useAlignmentSuggestionsReturn - An object containing state, utilities, and actions related to alignment suggestions.
  */
 export const useAlignmentSuggestions = ({
     contextId,
@@ -298,20 +314,19 @@ export const useAlignmentSuggestions = ({
     /**
      * Adjusts the maximum complexity value based on a given reduction factor.
      *
-     * This function calculates a new maximum complexity by multiplying the current
-     * maximum complexity with the provided reduction factor and rounding the result
-     * up to the nearest integer. The resulting value is then constrained within
-     * a predefined acceptable range of complexity values. Finally, the adjusted
-     * maximum complexity value is applied and logged for reference.
+     * This function takes the current maximum complexity value and multiplies it by the provided
+     * reduction factor. The result is rounded up to ensure a whole number and constrained within
+     * predefined limits. The adjusted value is then set as the new maximum complexity.
      *
-     * @param {number} reductionFactor - A multiplier that reduces the current maximum complexity.
-     *                                    Should typically be within the range of 0 to 1.
+     * @param {number} reductionFactor - Multiplier between 0 and 1 to reduce the maximum complexity
+     * @returns {number} The adjusted and constrained maximum complexity value
      */
     const adjustMaxComplexity = (reductionFactor: number) => {
         let newMaxComplexity = Math.ceil(maxComplexity * reductionFactor);
         newMaxComplexity = limitRangeOfComplexity(newMaxComplexity);
         console.log(`Adjusting maxComplexity from ${maxComplexity} to ${newMaxComplexity}`);
         setMaxComplexity(newMaxComplexity);
+        return newMaxComplexity;
     }
 
     /**
@@ -371,15 +386,17 @@ export const useAlignmentSuggestions = ({
                             const elapsedMinutes1 = getElapsedMinutes(trainingStartTime);
                             console.log(`Training Worker timeout after ${elapsedMinutes1} minutes`);
 
-                            adjustMaxComplexity(0.75);
+                            const newMaxComplexity = adjustMaxComplexity(0.75);
 
                             cleanupWorker();
 
                             setTrainingState({ ...trainingStateRef.current, lastTrainedInstanceCount: trainingStateRef.current.currentTrainingInstanceCount });
                             handleSetTrainingState?.(false, trained);
 
-                            // Restart training if needed
-                            startTraining();
+                            storeLanguagePreferences(sourceLanguageId, targetLanguageId, newMaxComplexity, dbStorageRef).then(() => {
+                                // Restart training if needed
+                                startTraining();
+                            })
                         }, WORKER_TIMEOUT);
 
                         //Define the callback which will be called after the alignment trainer has finished

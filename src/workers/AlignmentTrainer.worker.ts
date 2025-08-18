@@ -13,12 +13,14 @@ async function processTrainingData(data: TTrainingAndTestingData) {
   try {
     const trainingModelResults = await createTrainedWordAlignerModel(data);
     const trainedModel = trainingModelResults.wordAlignerModel.save();
+    delete trainingModelResults.wordAlignerModel; // trim the model to save memory
     const workerResults: TTrainedWordAlignerModelWorkerResults = {
       type: TRAINING_RESULTS,
       message: 'Worker has finished',
       trainedModel,
       ...trainingModelResults,
     }
+    
     self.postMessage(workerResults);
   } catch (error) {
     console.log(error);
