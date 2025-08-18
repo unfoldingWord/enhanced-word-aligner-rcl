@@ -447,35 +447,36 @@ export const useAlignmentSuggestions = ({
                             }
                             if ("error" in workerResults) {
                                 console.log("startTraining() - Error running alignment worker: " + workerResults.error);
-                            } else {
-                                const modelKey = getModelKey(workerResults.contextId)
-                                const currentModelKey = getModelKey(contextIdRef?.current)
-                                console.log(`startTraining() - currentModelKey: ${currentModelKey}`)
-
-                                if (currentModelKey == modelKey) { // check if the current model is the same as the one we are training
-                                    alignmentPredictor.current = abstractWordMapWrapper;
-                                    setTrainingState({
-                                        ...trainingStateRef.current,
-                                        lastTrainedInstanceCount: trainingStateRef.current.currentTrainingInstanceCount
-                                    });
-                                    handleSetTrainingState?.(false, true);
-                                } else {
-                                    console.log(`startTraining() - currentModelKey: ${currentModelKey} != ${modelKey} - so not replacing current model`)
-                                }
-
-                                // save the model to local storage NOW
-                                saveModelAndSettings(
-                                    dbStorageRef,
-                                    modelKey,
-                                    abstractWordMapWrapper,
-                                    workerResults.sourceLanguageId,
-                                    workerResults.targetLanguageId,
-                                    workerResults.maxComplexity
-                                ).then(() => {
-                                    //start the training again.  It won't run again if the instanceCount hasn't changed
-                                    startTraining();
-                                })
+                                return;
                             }
+                            
+                            const modelKey = getModelKey(workerResults.contextId)
+                            const currentModelKey = getModelKey(contextIdRef?.current)
+                            console.log(`startTraining() - currentModelKey: ${currentModelKey}`)
+
+                            if (currentModelKey == modelKey) { // check if the current model is the same as the one we are training
+                                alignmentPredictor.current = abstractWordMapWrapper;
+                                setTrainingState({
+                                    ...trainingStateRef.current,
+                                    lastTrainedInstanceCount: trainingStateRef.current.currentTrainingInstanceCount
+                                });
+                                handleSetTrainingState?.(false, true);
+                            } else {
+                                console.log(`startTraining() - currentModelKey: ${currentModelKey} != ${modelKey} - so not replacing current model`)
+                            }
+
+                            // save the model to local storage NOW
+                            saveModelAndSettings(
+                                dbStorageRef,
+                                modelKey,
+                                abstractWordMapWrapper,
+                                workerResults.sourceLanguageId,
+                                workerResults.targetLanguageId,
+                                workerResults.maxComplexity
+                            ).then(() => {
+                                //start the training again.  It won't run again if the instanceCount hasn't changed
+                                startTraining();
+                            })
                         });
 
                         // start the training worker
