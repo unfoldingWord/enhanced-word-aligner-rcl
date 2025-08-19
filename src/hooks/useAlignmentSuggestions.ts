@@ -210,7 +210,8 @@ export const useAlignmentSuggestions = ({
     const [maxComplexity, setMaxComplexity] = useState<number>(DEFAULT_MAX_COMPLEXITY);
     const [currentBookName, setCurrentBookName]  = useState<string>(contextId?.reference?.bookId || '');
     const [trainingState, _setTrainingState] = useState<TrainingState>(defaultTrainingState())
-    const [loadingTraining, setLoadingTraining] = useState<boolean>(false)
+    const [loadingTrainingData, setLoadingTrainingData] = useState<boolean>(false)
+    const [kickOffTraining, setKickOffTraining] = useState<boolean>(false)
     const trainingStateRef = useRef<TrainingState>(trainingState);
     const contextIdRef = useRef<ContextId>(contextId);
     const [failedToLoadCachedTraining, setFailedToLoadCachedTraining] = useState<boolean>(false)
@@ -439,15 +440,15 @@ export const useAlignmentSuggestions = ({
 
                             let abstractWordMapWrapper;
 
-                            if ("trainedModel" in workerResults) {
-                                abstractWordMapWrapper = AbstractWordMapWrapper.load(workerResults.trainedModel);
-                                
-                                // @ts-ignore
-                                console.log(`startTraining() - Number of alignments: ${abstractWordMapWrapper?.alignmentStash?.length}`)
-                            }
                             if ("error" in workerResults) {
                                 console.log("startTraining() - Error running alignment worker: " + workerResults.error);
                                 return;
+                            }
+
+                            if ("trainedModel" in workerResults) {
+                                abstractWordMapWrapper = AbstractWordMapWrapper.load(workerResults.trainedModel);
+                                // @ts-ignore
+                                console.log(`startTraining() - Number of alignments: ${abstractWordMapWrapper?.alignmentStash?.length}`)
                             }
                             
                             const modelKey = getModelKey(workerResults.contextId)
@@ -474,8 +475,10 @@ export const useAlignmentSuggestions = ({
                                 workerResults.targetLanguageId,
                                 workerResults.maxComplexity
                             ).then(() => {
-                                //start the training again.  It won't run again if the instanceCount hasn't changed
-                                startTraining();
+                                delay(1000).then(() => { // run async
+                                    //start the training again.  It won't run again if the instanceCount hasn't changed
+                                   setKickOffTraining(true);
+                                })
                             })
                         });
 
@@ -498,11 +501,9 @@ export const useAlignmentSuggestions = ({
 
             } else {
                 console.log("startTraining() - Alignment training already running");
-                handleSetTrainingState?.(false, trained);
             }
         } else {
             console.log("startTraining() - information not changed");
-            handleSetTrainingState?.(false, trained);
         }
     };
 
@@ -533,17 +534,22 @@ export const useAlignmentSuggestions = ({
     };
 
     useEffect(() => {
-        console.log(`doTraining changed to ${doTraining}, trainingRunning currently ${trainingRunning}`);
-        if (doTraining !== trainingRunning) { // check if training change
+        const doTraining_ = doTraining || kickOffTraining;
+        console.log(`doTraining_ changed to ${doTraining_}, trainingRunning currently ${trainingRunning}`);
+        if (doTraining_ !== trainingRunning) { // check if training change
             delay(500).then(() => { // run async
-                if (doTraining) {
+                if (kickOffTraining) {
+                    setKickOffTraining(false);
+                }
+
+                if (doTraining_) {
                     startTraining();
                 } else {
                     stopTraining();
                 }
             })
         }
-    }, [doTraining]);
+    }, [doTraining, kickOffTraining]);
 
     const modelKey = getModelKey(contextId)
 
@@ -576,8 +582,12 @@ export const useAlignmentSuggestions = ({
                         console.log(`error loading alignmentPredictor: ${(e as Error).message}`);
                     }
                 }
+                if (predictorModel) {
+                    alignmentPredictor.current = predictorModel;
+                } else if (!trainingRunning) { // if training is running, then don't reset the alignmentPredictor
+                    alignmentPredictor.current = null
+                }
             }
-            alignmentPredictor.current = predictorModel;
             const trainingComplete = !!predictorModel;
             if (!trainingComplete) {
                 console.log('no alignmentPredictor found in local storage');
@@ -616,9 +626,9 @@ export const useAlignmentSuggestions = ({
      */
     useEffect(() => {
         (async () => {
-            if (shown && modelKey && !loadingTraining) {
+            if (shown && modelKey && !loadingTrainingData) {
                 console.log(`modelKey changed to ${modelKey}`);
-                setLoadingTraining(true)
+                setLoadingTrainingData(true)
                 if (!dbStorageRef.current) { // if not initialized
                     const dbStorage = new IndexedDBStorage('app-state', 'dataStore');
                     await dbStorage.initialize();
@@ -633,7 +643,7 @@ export const useAlignmentSuggestions = ({
                 } else {
                     await loadSettingsFromStorage(dbStorageRef.current, modelKey);
                 }
-                setLoadingTraining(false)
+                setLoadingTrainingData(false)
             }
         })();
     }, [modelKey, shown]);
@@ -646,7 +656,15 @@ export const useAlignmentSuggestions = ({
             setCurrentBookName(contextId?.reference?.bookId || '');
         }
     }, [contextId]);
-    
+
+    useEffect(() => {
+        console.log('useAlignmentSubscriptions hook mounted')
+        // Cleanup function that runs on unmount
+        return () => {
+            console.log('useAlignmentSubscriptions hook unmounted')
+        };
+    }, []);
+
     const suggester = alignmentPredictor.current?.predict.bind(alignmentPredictor.current) || null
 
     return {
