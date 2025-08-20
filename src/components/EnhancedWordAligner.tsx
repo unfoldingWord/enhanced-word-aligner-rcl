@@ -10,7 +10,7 @@ import {
 import {Alignment, Suggestion} from "wordmap";
 import {Token} from 'wordmap-lexer'
 
-import { useAlignmentSuggestions } from '@/hooks/useAlignmentSuggestions';
+import {TAlignmentCompletedInfo, useAlignmentSuggestions} from '@/hooks/useAlignmentSuggestions';
 import {createAlignmentTrainingWorker} from "@/workers/utils/startAlignmentTrainer";
 
 interface EnhancedWordAlignerProps {
@@ -84,6 +84,10 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
    doTraining, 
    handleSetTrainingState,
 }) => {
+    const handleTrainingCompleted = (info: TAlignmentCompletedInfo) => {
+        console.log("handleTrainingCompleted", info);
+    }
+
     const {
         cleanupWorker,
         loadTranslationMemory,
@@ -93,6 +97,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
         createAlignmentTrainingWorker,
         doTraining,
         handleSetTrainingState,
+        handleTrainingCompleted,
         shown: true,
         sourceLanguageId,
         targetLanguageId,

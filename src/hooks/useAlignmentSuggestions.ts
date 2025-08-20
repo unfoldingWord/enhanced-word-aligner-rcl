@@ -173,7 +173,8 @@ async function saveModelAndSettings(dbStorageRef: React.RefObject<IndexedDBStora
     console.log(`saveModelAndSettings() - saving model for ${modelKey_}`);
 
     // save model to local storage
-    await dbStorageRef.current.setItem(modelKey_, JSON.stringify(alignmentCompletedInfo.model?.save()));
+    const abstractWordMapWrapper: AbstractWordMapWrapper = alignmentCompletedInfo.model;
+    await dbStorageRef.current.setItem(modelKey_, JSON.stringify(abstractWordMapWrapper?.save()));
 
     await storeLanguagePreferences(alignmentCompletedInfo.sourceLanguageId, alignmentCompletedInfo.targetLanguageId, alignmentCompletedInfo.maxComplexity, dbStorageRef);
 
@@ -483,8 +484,7 @@ export const useAlignmentSuggestions = ({
                             // save the model to local storage NOW
                             const alignmentCompletedInfo: TAlignmentCompletedInfo = {
                                 modelKey,
-                                // @ts-ignore
-                                model: AbstractWordMapWrapper,
+                                model: abstractWordMapWrapper,
                                 sourceLanguageId,
                                 targetLanguageId,
                                 maxComplexity,
