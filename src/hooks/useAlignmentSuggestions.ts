@@ -680,6 +680,7 @@ export const useAlignmentSuggestions = ({
                 setTrainingState(defaultTrainingState(newContextId));
                 setLoadingTrainingData(false)
                 setKickOffTraining(false);
+                setFailedToLoadCachedTraining(false);
             }
             contextIdRef.current = newContextId;
             setCurrentBookName(contextId?.reference?.bookId || '');
