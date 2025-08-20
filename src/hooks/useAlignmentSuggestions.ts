@@ -28,11 +28,22 @@ import {TTrainedWordAlignerModelWorkerResults} from "@/workers/WorkerComTypes";
 
 // console.log("useAlignmentSuggestions.ts AlignmentWorker", AlignmentWorker);
 
+export interface TAlignmentCompletedInfo {
+    modelKey: string;
+    model: AbstractWordMapWrapper | null;
+    sourceLanguageId: string;
+    targetLanguageId: string;
+    maxComplexity: number;
+}
+
+type THandleTrainingCompleted = (info: TAlignmentCompletedInfo) => void;
+
 interface useAlignmentSuggestionsProps {
     contextId: ContextId;
     createAlignmentTrainingWorker?:() => Promise<Worker>; // needed to support alignment training in a web worker
     doTraining: boolean; // triggers start of training when it changes from false to true
     handleSetTrainingState?: THandleSetTrainingState;
+    handleTrainingCompleted?: THandleTrainingCompleted ;
     shown: boolean;
     sourceLanguageId: string;
     targetLanguageId: string;
@@ -69,8 +80,9 @@ function defaultAppState(contextId: ContextId): AppState{
     }
 }
 
-function defaultTrainingState(): TrainingState {
+function defaultTrainingState(contextId_: ContextId): TrainingState {
     return {
+        contextId: contextId_,
         currentTestingInstanceCount: -1,
         currentTrainingInstanceCount: -1,
         isTrainingEnabled: false,
@@ -139,33 +151,33 @@ async function storeLanguagePreferences(sourceLanguageId: string, targetLanguage
 }
 
 /**
- * Saves the alignment model and related language settings to the local storage via IndexedDB.
+ * Saves the trained model and associated settings into local storage and invokes a callback function upon completion.
  *
- * @param {React.RefObject<IndexedDBStorage | null>} dbStorageRef A reference object pointing to the IndexedDB storage instance.
- * @param {string} modelKey The key under which the alignment model will be stored.
- * @param {AbstractWordMapWrapper | null} abstractWordMapWrapper The alignment model to be saved.
- * @param {string} sourceLanguageId The language code of the source language.
- * @param {string} targetLanguageId The language code of the target language.
- * @param {number} maxComplexity The maximum complexity value to be saved in the settings.
- * @return {Promise<void>} A promise that resolves once the model and settings are saved, or resolves immediately if the storage is unavailable or not ready.
+ * @param {React.RefObject<IndexedDBStorage | null>} dbStorageRef - A reference to the IndexedDBStorage object used for saving data.
+ * @param {TAlignmentCompletedInfo} alignmentCompletedInfo - An object containing information about the completed model alignment, including model key and metadata.
+ * @param {THandleTrainingCompleted | null} handleTrainingCompleted - A nullable callback function to handle post-training completion logic.
+ * @return {Promise<void>} A promise that resolves once the model and settings have been successfully saved, or if the storage is not ready.
  */
-async function saveModelAndSettings(dbStorageRef: React.RefObject<IndexedDBStorage | null>, modelKey: string, abstractWordMapWrapper: AbstractWordMapWrapper | null, sourceLanguageId: string, targetLanguageId: string, maxComplexity: number) {
+async function saveModelAndSettings(dbStorageRef: React.RefObject<IndexedDBStorage | null>, alignmentCompletedInfo: TAlignmentCompletedInfo, handleTrainingCompleted: THandleTrainingCompleted | null) {
     if (!dbStorageRef?.current?.isReady()) {
         console.log("saveModelAndSettings() - storage not ready");
         return
     };
 
-    if (!modelKey) {
+    const modelKey_ = alignmentCompletedInfo.modelKey;
+    if (!modelKey_) {
         console.log("saveModelAndSettings() - modelKey not defined");
         return
     };
 
-    console.log(`saveModelAndSettings() - saving model for ${modelKey}`);
+    console.log(`saveModelAndSettings() - saving model for ${modelKey_}`);
 
     // save model to local storage
-    await dbStorageRef.current.setItem(modelKey, JSON.stringify(abstractWordMapWrapper?.save()));
+    await dbStorageRef.current.setItem(modelKey_, JSON.stringify(alignmentCompletedInfo.model?.save()));
 
-    await storeLanguagePreferences(sourceLanguageId, targetLanguageId, maxComplexity, dbStorageRef);
+    await storeLanguagePreferences(alignmentCompletedInfo.sourceLanguageId, alignmentCompletedInfo.targetLanguageId, alignmentCompletedInfo.maxComplexity, dbStorageRef);
+
+    handleTrainingCompleted?.(alignmentCompletedInfo); 
 }
 
 /**
@@ -191,6 +203,7 @@ export const useAlignmentSuggestions = ({
     contextId,
     createAlignmentTrainingWorker,
     doTraining,
+    handleTrainingCompleted,
     handleSetTrainingState,
     shown,
     sourceLanguageId,
@@ -209,7 +222,7 @@ export const useAlignmentSuggestions = ({
     
     const [maxComplexity, setMaxComplexity] = useState<number>(DEFAULT_MAX_COMPLEXITY);
     const [currentBookName, setCurrentBookName]  = useState<string>(contextId?.reference?.bookId || '');
-    const [trainingState, _setTrainingState] = useState<TrainingState>(defaultTrainingState())
+    const [trainingState, _setTrainingState] = useState<TrainingState>(defaultTrainingState(contextId))
     const [loadingTrainingData, setLoadingTrainingData] = useState<boolean>(false)
     const [kickOffTraining, setKickOffTraining] = useState<boolean>(false)
     const trainingStateRef = useRef<TrainingState>(trainingState);
@@ -308,7 +321,7 @@ export const useAlignmentSuggestions = ({
     }, [contextId, currentSelection, stateRef, setGroupCollection, setCurrentBookName]);
 
     const trainingRunning = !!alignmentTrainingWorkerRef.current
-    const trained = !!alignmentPredictor.current
+    const trained = !!(alignmentPredictor.current && shown)
 
     /**
      * Cleans up worker resources by terminating the worker and clearing the timeout
@@ -455,7 +468,8 @@ export const useAlignmentSuggestions = ({
                             const currentModelKey = getModelKey(contextIdRef?.current)
                             console.log(`startTraining() - currentModelKey: ${currentModelKey}`)
 
-                            if (currentModelKey == modelKey) { // check if the current model is the same as the one we are training
+                            const forCurrentModel = currentModelKey == modelKey;
+                            if (forCurrentModel) { // check if the current model is the same as the one we are training
                                 alignmentPredictor.current = abstractWordMapWrapper;
                                 setTrainingState({
                                     ...trainingStateRef.current,
@@ -467,18 +481,25 @@ export const useAlignmentSuggestions = ({
                             }
 
                             // save the model to local storage NOW
+                            const alignmentCompletedInfo: TAlignmentCompletedInfo = {
+                                modelKey,
+                                // @ts-ignore
+                                model: AbstractWordMapWrapper,
+                                sourceLanguageId,
+                                targetLanguageId,
+                                maxComplexity,
+                            }
                             saveModelAndSettings(
                                 dbStorageRef,
-                                modelKey,
-                                abstractWordMapWrapper,
-                                workerResults.sourceLanguageId,
-                                workerResults.targetLanguageId,
-                                workerResults.maxComplexity
+                                alignmentCompletedInfo,
+                                handleTrainingCompleted,
                             ).then(() => {
-                                delay(1000).then(() => { // run async
-                                    //start the training again.  It won't run again if the instanceCount hasn't changed
-                                   setKickOffTraining(true);
-                                })
+                                if (forCurrentModel) {
+                                    delay(1000).then(() => { // run async
+                                        //start the training again.  It won't run again if the instanceCount hasn't changed
+                                        setKickOffTraining(true);
+                                    })
+                                }
                             })
                         });
 
@@ -650,9 +671,17 @@ export const useAlignmentSuggestions = ({
     
     useEffect(() => {
         setCurrentSelection( getSelectionFromContext(contextId) );
+        const newContextId = cloneDeep(contextId);
         if (!isEqual(contextId, contextIdRef.current)) {
+            const newModelKey = getModelKey(newContextId)
             console.log(`contextId changed to ${JSON.stringify(contextId)}`);
-            contextIdRef.current = cloneDeep(contextId);
+            if (!newModelKey) {
+                console.log(`no book selected`);
+                setTrainingState(defaultTrainingState(newContextId));
+                setLoadingTrainingData(false)
+                setKickOffTraining(false);
+            }
+            contextIdRef.current = newContextId;
             setCurrentBookName(contextId?.reference?.bookId || '');
         }
     }, [contextId]);

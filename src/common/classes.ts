@@ -63,6 +63,7 @@ export interface TrainingState{
     lastTestAlignedCount: number; //This count keeps track of which alignment model count was last used to update test alignments.
     currentTestingInstanceCount: number; //This keeps track of what is currently testing so that when it finishes lastTestAlignedCount can be set.
     testResults: TWordAlignmentTestResults | null; //This holds the last results which were returned from the testing thread.
+    contextId: ContextId | null;
 }
 
 export interface ContextId {
