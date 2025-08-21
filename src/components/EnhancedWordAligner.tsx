@@ -5,7 +5,8 @@ import {
     SourceWord,
     TargetWordBank,
     THandleSetTrainingState,
-    translationMemoryType
+    translationMemoryType,
+    TTrainingStateChange
 } from "@/common/classes";
 import {Alignment, Suggestion} from "wordmap";
 import {Token} from 'wordmap-lexer'
@@ -88,7 +89,14 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
         console.log("handleTrainingCompleted", info);
     }
 
+    const handleSetTrainingState_ = (props: TTrainingStateChange) => {
+        handleSetTrainingState?.(props);
+        const trainingCurrent = areTrainingSameBook_();
+        console.log(`handleSetTrainingState - training Current Book: ${trainingCurrent}`);
+    }
+    
     const {
+        areTrainingSameBook,
         cleanupWorker,
         loadTranslationMemory,
         suggester,
@@ -96,12 +104,17 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
         contextId,
         createAlignmentTrainingWorker,
         doTraining,
-        handleSetTrainingState,
+        handleSetTrainingState: handleSetTrainingState_,
         handleTrainingCompleted,
         shown: true,
         sourceLanguageId,
         targetLanguageId,
     });
+    
+    const areTrainingSameBook_ = () => {
+        const trainingCurrent = areTrainingSameBook(contextId);
+        return trainingCurrent;
+    }
 
     // Effect to load translation memory when it changes
     useEffect(() => {
@@ -117,7 +130,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             cleanupWorker();
         };
     },[]);
-    
+
     return (
         <SuggestingWordAligner
             styles={styles}

@@ -2,7 +2,6 @@ import { TSourceTargetAlignment, TWord } from "word-aligner-rcl";
 import {ContextId} from "@/common/classes";
 import {MorphJLBoostWordMap} from "wordmapbooster";
 
-
 export interface TTrainingAndTestingData {
     alignments: {
         [key: string]: {
@@ -35,6 +34,11 @@ export interface TTrainedWordAlignerModelResults {
     targetLanguageId: string;
     trimmedVerses: number;
     wordAlignerModel: MorphJLBoostWordMap;
+}
+
+export interface TAlignmentTrainingWorkerData {
+    worker: Worker;
+    contextId: ContextId;
 }
 
 /**

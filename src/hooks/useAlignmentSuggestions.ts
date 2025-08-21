@@ -24,7 +24,7 @@ import {
     THRESHOLD_TRAINING_MINUTES,
     WORKER_TIMEOUT
 } from "@/common/constants";
-import {TTrainedWordAlignerModelWorkerResults} from "@/workers/WorkerComTypes";
+import {TAlignmentTrainingWorkerData, TTrainedWordAlignerModelWorkerResults} from "@/workers/WorkerComTypes";
 
 // console.log("useAlignmentSuggestions.ts AlignmentWorker", AlignmentWorker);
 
@@ -50,6 +50,7 @@ interface useAlignmentSuggestionsProps {
 }
 
 interface useAlignmentSuggestionsReturn {
+    areTrainingSameBook: (contextId: ContextId) => boolean;
     cleanupWorker: () => void;
     failedToLoadCachedTraining: boolean;
     loadTranslationMemory: (translationMemory: translationMemoryType) => Promise<void>;
@@ -118,7 +119,7 @@ export const getLangPair = (sourceLanguageId: string, targetLanguageId: string):
 export const getModelKey = (contextId: ContextId): string => {
     let modelKey_ = '';
     const bookId = contextId?.reference?.bookId;
-    const bibleId = contextId?.bibleId;
+    const bibleId = contextId?.bibleId; // expected to be unique such as "unfoldingWord/en/ult"
     if (bibleId && bookId) {
         const testament = bibleHelpers.isNewTestament(bookId) ? 'NT' : 'OT';
         modelKey_ = `${bibleId}_${testament}_${bookId}`;
@@ -234,7 +235,7 @@ export const useAlignmentSuggestions = ({
         _setTrainingState(newState);
     }
 
-    const alignmentTrainingWorkerRef = useRef<Worker | null>(null);
+    const alignmentTrainingWorkerRef = useRef<TAlignmentTrainingWorkerData | null>(null);
     const workerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const {groupCollection, scope, currentSelection, doubleClickedVerse, alignerStatus } = state;
@@ -331,7 +332,7 @@ export const useAlignmentSuggestions = ({
             workerTimeoutRef.current = null;
         }
         if (alignmentTrainingWorkerRef.current) {
-            alignmentTrainingWorkerRef.current.terminate();
+            alignmentTrainingWorkerRef.current.worker.terminate();
             alignmentTrainingWorkerRef.current = null;
         }
     }
@@ -404,7 +405,12 @@ export const useAlignmentSuggestions = ({
                         setTrainingState({ ...trainingStateRef.current, currentTrainingInstanceCount: stateRef.current.groupCollection.instanceCount });
 
                         // Create worker using dynamic import
-                        alignmentTrainingWorkerRef.current = await createAlignmentTrainingWorker();
+                        const worker = await createAlignmentTrainingWorker();
+                        const workerData: TAlignmentTrainingWorkerData = {
+                            worker,
+                            contextId: cloneDeep(contextId),
+                        }
+                        alignmentTrainingWorkerRef.current = workerData;
 
                         // Set up a worker timeout
                         workerTimeoutRef.current = setTimeout(() => {
@@ -425,7 +431,7 @@ export const useAlignmentSuggestions = ({
                         }, WORKER_TIMEOUT);
 
                         //Define the callback which will be called after the alignment trainer has finished
-                        alignmentTrainingWorkerRef.current.addEventListener('message', (event) => {
+                        alignmentTrainingWorkerRef.current.worker.addEventListener('message', (event) => {
                             const workerResults: TTrainedWordAlignerModelWorkerResults = event.data;
                             console.log(`startTraining() - alignment training worker message:`, workerResults?.type);
                             
@@ -433,6 +439,9 @@ export const useAlignmentSuggestions = ({
                                 console.log(`startTraining() - not training results - ignoring`)
                                 return
                             }
+
+                            console.log(`startTraining() - alignment training worker completed: `, alignmentTrainingWorkerRef.current);
+                            handleSetTrainingState?.({ training: false })
                             
                             // Clear timeout since worker completed successfully
                             cleanupWorker();
@@ -502,7 +511,7 @@ export const useAlignmentSuggestions = ({
                         });
 
                         // start the training worker
-                        alignmentTrainingWorkerRef.current.postMessage({
+                        alignmentTrainingWorkerRef.current.worker.postMessage({
                             type: "startTraining",
                             data: alignmentTrainingData
                         });
@@ -549,6 +558,18 @@ export const useAlignmentSuggestions = ({
             cleanupWorker();
             console.log("Alignment training stopped");
         }
+    };
+
+    const areTrainingSameBook = (contextId_: ContextId)=> {
+        if (alignmentTrainingWorkerRef?.current !== null) {
+            const trainingContextId = alignmentTrainingWorkerRef.current?.contextId;
+            const sameBibleId = trainingContextId?.bibleId === contextId_?.bibleId;
+            const sameBookId = trainingContextId?.reference?.bookId === contextId_?.reference?.bookId;
+            if (sameBibleId && sameBookId) {
+                return true;
+            }
+        }
+        return false;
     };
 
     useEffect(() => {
@@ -699,6 +720,7 @@ export const useAlignmentSuggestions = ({
     const suggester = alignmentPredictor.current?.predict.bind(alignmentPredictor.current) || null
 
     return {
+        areTrainingSameBook,
         cleanupWorker,
         failedToLoadCachedTraining,
         loadTranslationMemory,
