@@ -57,7 +57,6 @@ interface useAlignmentSuggestionsReturn {
     suggester: ((sourceSentence: any, targetSentence: any, maxSuggestions?: number, manuallyAligned?: any[]) => any[]) | null;
     trainingState: TrainingState;
     trainingRunning: boolean;
-    trained: boolean;
 }
 
 function getSelectionFromContext(contextId: ContextId) {
@@ -322,7 +321,6 @@ export const useAlignmentSuggestions = ({
     }, [contextId, currentSelection, stateRef, setGroupCollection, setCurrentBookName]);
 
     const trainingRunning = !!alignmentTrainingWorkerRef.current
-    const trained = !!(alignmentPredictor.current && shown)
 
     /**
      * Cleans up worker resources by terminating the worker and clearing the timeout
@@ -396,7 +394,7 @@ export const useAlignmentSuggestions = ({
                 }
                 //check if there are enough entries in the alignment training data dictionary
                 if (Object.values(alignmentTrainingData.alignments).length > 4) {
-                    handleSetTrainingState?.(true, trained);
+                    handleSetTrainingState?.({training: true});
 
                     const trainingStartTime = Date.now(); // Capture start time
 
@@ -418,7 +416,7 @@ export const useAlignmentSuggestions = ({
                             cleanupWorker();
 
                             setTrainingState({ ...trainingStateRef.current, lastTrainedInstanceCount: trainingStateRef.current.currentTrainingInstanceCount });
-                            handleSetTrainingState?.(false, trained);
+                            handleSetTrainingState?.({training: false});
 
                             storeLanguagePreferences(sourceLanguageId, targetLanguageId, newMaxComplexity, dbStorageRef).then(() => {
                                 // Restart training if needed
@@ -476,7 +474,7 @@ export const useAlignmentSuggestions = ({
                                     ...trainingStateRef.current,
                                     lastTrainedInstanceCount: trainingStateRef.current.currentTrainingInstanceCount
                                 });
-                                handleSetTrainingState?.(false, true);
+                                handleSetTrainingState?.({training: false, trainingComplete: true});
                             } else {
                                 console.log(`startTraining() - currentModelKey: ${currentModelKey} != ${modelKey} - so not replacing current model`)
                             }
@@ -512,12 +510,12 @@ export const useAlignmentSuggestions = ({
                         console.error("startTraining() - Error during alignment training setup:", error);
                         console.log(`startTraining() - Training failed after ${getElapsedMinutes(trainingStartTime)} minutes`);
                         cleanupWorker();
-                        handleSetTrainingState?.(false, trained);
+                        handleSetTrainingState?.({training: false});
                     }
 
                 } else {
                     console.log("Not enough training data");
-                    handleSetTrainingState?.(false, trained);
+                    handleSetTrainingState?.({training: false});
                 }
 
             } else {
@@ -534,7 +532,6 @@ export const useAlignmentSuggestions = ({
      * training worker is active.
      *
      * Dependencies:
-     * - `trained` - Used to reference the current training state.
      * - `handleSetTrainingState` - Optional function to update the training state.
      * - `alignmentTrainingWorkerRef` - Reference to the alignment training worker.
      *
@@ -548,7 +545,7 @@ export const useAlignmentSuggestions = ({
     const stopTraining = () => {
         console.log("stopTraining() clicked");
         if (alignmentTrainingWorkerRef.current !== null) {
-            handleSetTrainingState?.(false, trained);
+            handleSetTrainingState?.({training: false});
             cleanupWorker();
             console.log("Alignment training stopped");
         }
@@ -614,7 +611,7 @@ export const useAlignmentSuggestions = ({
                 console.log('no alignmentPredictor found in local storage');
                 setFailedToLoadCachedTraining(true);
             }
-            handleSetTrainingState?.(false, trainingComplete);
+            handleSetTrainingState?.({training: false, trainingComplete});
 
             // load language based settings
             const langSettingsPair = getLangPair(sourceLanguageId, targetLanguageId);
@@ -670,6 +667,10 @@ export const useAlignmentSuggestions = ({
     }, [modelKey, shown]);
     
     useEffect(() => {
+        const haveBook = contextId?.reference?.bookId;
+        if (!!haveBook) {
+            setCurrentBookName(contextId?.reference?.bookId || '');
+        }
         setCurrentSelection( getSelectionFromContext(contextId) );
         const newContextId = cloneDeep(contextId);
         if (!isEqual(contextId, contextIdRef.current)) {
@@ -704,7 +705,6 @@ export const useAlignmentSuggestions = ({
         maxComplexity,
         trainingState,
         trainingRunning,
-        trained,
         suggester
     };
 };

@@ -91,7 +91,6 @@ const WordAlignerPanel = ({
   const [doingTraining, setDoingTraining] = useState(false);
   const [trained, setTrained] = useState(false);
   const [training, setTraining] = useState(false);
-  const [message, setMessage] = useState('');
 
   // Handler for the load translation memory button
   const handleLoadTranslationMemory = () => {
@@ -106,22 +105,35 @@ const WordAlignerPanel = ({
     setDoingTraining(newTrainingState);
   };
 
-  const handleSetTrainingState = (_training, trained) => {
-    console.log('Updating training state: ' + _training);
+  const handleSetTrainingState = ({
+                                    training: _training,
+                                    trainingComplete
+                                  }) => {
+    if (_training === undefined) {
+      _training = training;
+    } else {
+      console.log('Updating training state: ' + _training);
+    }
+    if (trainingComplete === undefined) {
+      trainingComplete = trained;
+    } else {
+      console.log('Updating trainingComplete state: ' + trainingComplete);
+    }
     delay(500).then(() => { // update async
-      setTraining(_training);
-      if (!_training) {
-        setDoingTraining(false);
-      } else {
-        setMessage("Training ...")
+      if (_training !== training) {
+        setTraining(_training);
       }
-      setMessage(trained ? "Training Complete" : "")
-      setTrained(trained);
+      if (!_training && doingTraining) {
+        setDoingTraining(false);
+      }
+      if (trainingComplete !== trained) {
+        setTrained(trainingComplete);
+      }
     })
   };
 
   const trainingButtonStr = training ? "Stop Training" : "Start Training"
-
+  const message = training ? "Training in progress..." : trained ? "Trained" : "Not Trained";
   const enableLoadTranslationMemory = !doingTraining;
   const enableTrainingToggle = trained || (translationMemoryLoaded && !doingTraining);
 

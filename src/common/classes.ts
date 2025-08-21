@@ -12,8 +12,10 @@ export type translationMemoryType = {
     sourceUsfms: booksUsfmType;
     targetUsfms: booksUsfmType;
 };
-export type THandleSetTrainingState = (running: boolean, trainingComplete: boolean) => void;
-
+export type THandleSetTrainingState = ({
+   training: boolean,
+   trainingComplete: boolean
+}) => void;
 
 export interface TWordAlignerAlignmentResult{
     targetWords: TWord[];
