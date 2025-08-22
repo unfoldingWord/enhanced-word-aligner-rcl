@@ -53,6 +53,7 @@ interface useAlignmentSuggestionsReturn {
     areTrainingSameBook: (contextId: ContextId) => boolean;
     cleanupWorker: () => void;
     failedToLoadCachedTraining: boolean;
+    getTrainingContextId: () => ContextId;
     loadTranslationMemory: (translationMemory: translationMemoryType) => Promise<void>;
     maxComplexity: number;
     suggester: ((sourceSentence: any, targetSentence: any, maxSuggestions?: number, manuallyAligned?: any[]) => any[]) | null;
@@ -560,11 +561,35 @@ export const useAlignmentSuggestions = ({
         }
     };
 
+    /**
+     * Retrieves the training context ID from the alignment training worker reference.
+     *
+     * @return {string|undefined} The training context ID if available, or undefined if not present.
+     */
+    function getTrainingContextId() {
+        const trainingContextId = alignmentTrainingWorkerRef.current?.contextId;
+        return trainingContextId;
+    }
+
+    /**
+     * Checks whether the training process is being conducted within the same Bible and book context.
+     *
+     * This function compares the given context ID with the current alignment training worker's
+     * context ID to determine if they correspond to the same Bible and book. It returns true
+     * if both the Bible ID and book ID are the same; otherwise, false.
+     *
+     * @param {ContextId} contextId_ - The context ID to be compared, which includes the Bible ID
+     * and book ID details.
+     * @returns {boolean} - Returns true if the Bible ID and book ID in the provided context
+     * match the corresponding IDs in the training context; otherwise, false.
+     */
     const areTrainingSameBook = (contextId_: ContextId)=> {
         if (alignmentTrainingWorkerRef?.current !== null) {
-            const trainingContextId = alignmentTrainingWorkerRef.current?.contextId;
-            const sameBibleId = trainingContextId?.bibleId === contextId_?.bibleId;
-            const sameBookId = trainingContextId?.reference?.bookId === contextId_?.reference?.bookId;
+            const trainingContextId = getTrainingContextId();
+            const trainingBibleId = trainingContextId?.bibleId;
+            const trainingBookId = trainingContextId?.reference?.bookId;
+            const sameBibleId = trainingBibleId === contextId_?.bibleId;
+            const sameBookId = trainingBookId === contextId_?.reference?.bookId;
             if (sameBibleId && sameBookId) {
                 return true;
             }
@@ -572,6 +597,30 @@ export const useAlignmentSuggestions = ({
         return false;
     };
 
+
+    /**
+     * Effect hook that manages the training process based on training state changes.
+     *
+     * This hook monitors changes to the doTraining and kickOffTraining flags to start or stop
+     * the alignment training process. When either flag changes, it introduces a small delay
+     * before taking action to prevent rapid state changes.
+     *
+     * Behavior:
+     * - Combines doTraining and kickOffTraining flags to determine if training should run
+     * - Adds 500ms delay before executing training state changes
+     * - Resets kickOffTraining flag when triggered
+     * - Starts training process if combined flag is true
+     * - Stops training process if combined flag is false
+     *
+     * Requirements:
+     * - startTraining() function must be defined
+     * - stopTraining() function must be defined
+     * - delay() utility must be available
+     * - trainingRunning state must track current training status
+     *
+     * @dependencies {boolean} doTraining - External flag to trigger training
+     * @dependencies {boolean} kickOffTraining - Internal flag to restart training
+     */
     useEffect(() => {
         const doTraining_ = doTraining || kickOffTraining;
         console.log(`doTraining_ changed to ${doTraining_}, trainingRunning currently ${trainingRunning}`);
@@ -603,9 +652,11 @@ export const useAlignmentSuggestions = ({
      *
      * @param {IndexedDBStorage} dbStorage - The persistent storage interface for retrieving stored data.
      * @param {string} modelKey - The key used to identify and load the predictive model from local storage.
+     * @returns {Promise<boolean>} - A promise that resolves to true if the model was successfully loaded; otherwise, false.
      */
     const loadSettingsFromStorage = useCallback(async (dbStorage: IndexedDBStorage, modelKey: string) => {
         setFailedToLoadCachedTraining(false);
+        let success = false;
         
         if (modelKey) {
             //load the model.
@@ -631,6 +682,8 @@ export const useAlignmentSuggestions = ({
             if (!trainingComplete) {
                 console.log('no alignmentPredictor found in local storage');
                 setFailedToLoadCachedTraining(true);
+            } else {
+                success = true;
             }
             handleSetTrainingState?.({training: false, trainingComplete});
 
@@ -655,17 +708,29 @@ export const useAlignmentSuggestions = ({
                 console.log(`maxComplexity not found in local storage, using default ${maxComplexity_}`);
             }
         }
+        return success;
     }, [handleSetTrainingState]);
 
     /**
-     * Effect hook that handles loading settings and model data from storage when modelKey changes.
+     * Effect hook that loads model settings and data from IndexedDB storage.
      *
-     * Initializes IndexedDBStorage if needed and loads saved settings. Updates dbStorageRef only
-     * after loading completes to prevent stale data overwrites.
+     * Initializes IndexedDB storage if not already done and loads saved alignment model
+     * and settings when the modelKey changes or component becomes visible.
+     *
+     * Requirements:
+     * - IndexedDBStorage class must be available
+     * - loadSettingsFromStorage() function must be defined
+     * - modelKey must be a valid string
+     * - shown flag must be true
+     *
+     * Parameters tracked:
+     * @param modelKey - String identifying the model to load
+     * @param shown - Boolean flag indicating if component is visible
      */
     useEffect(() => {
         (async () => {
             if (shown && modelKey && !loadingTrainingData) {
+                let cachedDataLoaded = false;
                 console.log(`modelKey changed to ${modelKey}`);
                 setLoadingTrainingData(true)
                 if (!dbStorageRef.current) { // if not initialized
@@ -673,21 +738,37 @@ export const useAlignmentSuggestions = ({
                     await dbStorage.initialize();
                     console.log(`IndexedDBStorage initialized ${dbStorage.isReady()}`);
 
-                    await loadSettingsFromStorage(dbStorage, modelKey);
+                    cachedDataLoaded = await loadSettingsFromStorage(dbStorage, modelKey);
 
                     //don't set the reference to the dbStorage for setting until after
                     //we have finished loading so that data which is stale doesn't overwrite
                     //the data we are wanting to load.
                     dbStorageRef.current = dbStorage;
                 } else {
-                    await loadSettingsFromStorage(dbStorageRef.current, modelKey);
+                    cachedDataLoaded = await loadSettingsFromStorage(dbStorageRef.current, modelKey);
                 }
+                console.log(`cachedDataLoaded: ${cachedDataLoaded}`);
                 setLoadingTrainingData(false)
+                prepareForTraining()
             }
         })();
     }, [modelKey, shown]);
-    
-    useEffect(() => {
+
+    /**
+     * Prepares the application context and state for initiating a training workflow.
+     *
+     * This function performs the following:
+     * - Checks if a book is referenced in the current context and updates the current book name accordingly.
+     * - Updates the current selection based on the context.
+     * - Clones the current context (`contextId`) for safe manipulation.
+     * - Compares the cloned context with the previous context reference to detect changes.
+     * - If the context has changed, it:
+     *   - Retrieves a new model key based on the updated context.
+     *   - Logs a change in the context ID to the console for debugging.
+     *   - Handles cases where no book is selected by resetting the training state to default values and stopping relevant background operations.
+     * - Updates the reference to the latest context and current book name accordingly.
+     */
+    const prepareForTraining = () => {
         const haveBook = contextId?.reference?.bookId;
         if (!!haveBook) {
             setCurrentBookName(contextId?.reference?.bookId || '');
@@ -707,13 +788,13 @@ export const useAlignmentSuggestions = ({
             contextIdRef.current = newContextId;
             setCurrentBookName(contextId?.reference?.bookId || '');
         }
-    }, [contextId]);
+    }
 
     useEffect(() => {
-        console.log('useAlignmentSubscriptions hook mounted')
+        console.log('useAlignmentSuggestions hook mounted')
         // Cleanup function that runs on unmount
         return () => {
-            console.log('useAlignmentSubscriptions hook unmounted')
+            console.log('useAlignmentSuggestions hook unmounted')
         };
     }, []);
 
@@ -723,6 +804,7 @@ export const useAlignmentSuggestions = ({
         areTrainingSameBook,
         cleanupWorker,
         failedToLoadCachedTraining,
+        getTrainingContextId,
         loadTranslationMemory,
         maxComplexity,
         trainingState,
