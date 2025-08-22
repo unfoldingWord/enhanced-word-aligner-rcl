@@ -139,7 +139,7 @@ export const getModelKey = (contextId: ContextId): string => {
  */
 async function storeLanguagePreferences(sourceLanguageId: string, targetLanguageId: string, maxComplexity: number, dbStorageRef: React.RefObject<IndexedDBStorage | null>) {
     if (!dbStorageRef?.current?.isReady()) {
-        console.log("saveModelAndSettings() - storage not ready");
+        console.log("storeLanguagePreferences() - storage not ready");
         return
     };
 
@@ -258,11 +258,11 @@ export const useAlignmentSuggestions = ({
     const loadTranslationMemory = useCallback(async (translationMemory: translationMemoryType) => {
         //ask the user to make a selection if no resources are selected.
         if (currentSelection.length == 0) {
-            throw new Error("No resources selected to add to.");
+            throw new Error("loadTranslationMemory - No resources selected to add to.");
         }
 
         if (!translationMemory?.targetUsfms) {
-            throw new Error("No USFM source content to add");
+            throw new Error("loadTranslationMemory - No USFM source content to add");
         }
 
         let newGroupCollection_ = stateRef.current.groupCollection;
@@ -271,6 +271,7 @@ export const useAlignmentSuggestions = ({
 
         // if group doesn't exist, then add
         if (!newGroupCollection_.groups?.[group_name]) {
+            console.log(`loadTranslationMemory - group ${group_name} doesn't exist, creating`);
             const newBooks: { [key: string]: Book } = {};
             // need to get the books
             Object.entries(translationMemory?.targetUsfms).forEach(([bookId, usfm_book]) => {
@@ -292,6 +293,7 @@ export const useAlignmentSuggestions = ({
             newGroupCollection_ = newGroupCollection;
             setCurrentBookName(currentBookName_);
         }
+        console.log(`loadTranslationMemory - new groups:`, Object.keys(newGroupCollection_.groups));
 
         // #######################################################
         // load the source usfms.
@@ -623,7 +625,7 @@ export const useAlignmentSuggestions = ({
      */
     useEffect(() => {
         const doTraining_ = doTraining || kickOffTraining;
-        console.log(`doTraining_ changed to ${doTraining_}, trainingRunning currently ${trainingRunning}`);
+        console.log(`useAlignmentSuggestions - doTraining_ changed to ${doTraining_}, trainingRunning currently ${trainingRunning}`);
         if (doTraining_ !== trainingRunning) { // check if training change
             delay(500).then(() => { // run async
                 if (kickOffTraining) {
@@ -729,14 +731,14 @@ export const useAlignmentSuggestions = ({
      */
     useEffect(() => {
         (async () => {
-            if (shown && modelKey && !loadingTrainingData) {
+            if (shown && modelKey) {
                 let cachedDataLoaded = false;
-                console.log(`modelKey changed to ${modelKey}`);
+                console.log(`useAlignmentSuggestions - modelKey changed to ${modelKey}`);
                 setLoadingTrainingData(true)
                 if (!dbStorageRef.current) { // if not initialized
                     const dbStorage = new IndexedDBStorage('app-state', 'dataStore');
                     await dbStorage.initialize();
-                    console.log(`IndexedDBStorage initialized ${dbStorage.isReady()}`);
+                    console.log(`useAlignmentSuggestions - IndexedDBStorage initialized ${dbStorage.isReady()}`);
 
                     cachedDataLoaded = await loadSettingsFromStorage(dbStorage, modelKey);
 
@@ -747,10 +749,10 @@ export const useAlignmentSuggestions = ({
                 } else {
                     cachedDataLoaded = await loadSettingsFromStorage(dbStorageRef.current, modelKey);
                 }
-                console.log(`cachedDataLoaded: ${cachedDataLoaded}`);
+                console.log(`useAlignmentSuggestions - cachedDataLoaded: ${cachedDataLoaded}`);
                 setLoadingTrainingData(false)
-                prepareForTraining()
             }
+            prepareForNewContext()
         })();
     }, [modelKey, shown]);
 
@@ -768,7 +770,8 @@ export const useAlignmentSuggestions = ({
      *   - Handles cases where no book is selected by resetting the training state to default values and stopping relevant background operations.
      * - Updates the reference to the latest context and current book name accordingly.
      */
-    const prepareForTraining = () => {
+    const prepareForNewContext = () => {
+        console.log(`prepareForNewContext - contextId ${contextId}`);
         const haveBook = contextId?.reference?.bookId;
         if (!!haveBook) {
             setCurrentBookName(contextId?.reference?.bookId || '');
@@ -777,9 +780,9 @@ export const useAlignmentSuggestions = ({
         const newContextId = cloneDeep(contextId);
         if (!isEqual(contextId, contextIdRef.current)) {
             const newModelKey = getModelKey(newContextId)
-            console.log(`contextId changed to ${JSON.stringify(contextId)}`);
+            console.log(`prepareForNewContext - contextId changed to ${JSON.stringify(contextId)}`);
             if (!newModelKey) {
-                console.log(`no book selected`);
+                console.log(`prepareForNewContext - no book selected`);
                 setTrainingState(defaultTrainingState(newContextId));
                 setLoadingTrainingData(false)
                 setKickOffTraining(false);
@@ -789,14 +792,6 @@ export const useAlignmentSuggestions = ({
             setCurrentBookName(contextId?.reference?.bookId || '');
         }
     }
-
-    useEffect(() => {
-        console.log('useAlignmentSuggestions hook mounted')
-        // Cleanup function that runs on unmount
-        return () => {
-            console.log('useAlignmentSuggestions hook unmounted')
-        };
-    }, []);
 
     const suggester = alignmentPredictor.current?.predict.bind(alignmentPredictor.current) || null
 

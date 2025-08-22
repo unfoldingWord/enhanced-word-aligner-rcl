@@ -51,6 +51,7 @@ export function removeComplexity(alignedComplexityCount: number, maxComplexity, 
     const bookId = contextId?.reference?.bookId;
     if (reduceType === ReduceType.otherBook) {
         toKeep = `[${contextId?.bibleId}] ${bookId} `;
+        console.log(`removeComplexity - book toKeep: ${toKeep}`);
     } else if (reduceType === ReduceType.otherChapter) {
         toKeep = `[${contextId?.bibleId}] ${bookId} ${contextId?.reference?.chapter}:`;
     }
@@ -146,6 +147,16 @@ export function addAlignmentCorpus(alignedComplexityCount: number, unalignedComp
             alignments, trimmedVerses, contextId, ReduceType.anything);
         alignedComplexityCount = __ret.alignedComplexityCount;
         trimmedVerses = __ret.trimmedVerses;
+        
+        const shown: string[] = []
+        const targetKeys = Object.keys(targetVersesTokenized)
+        targetKeys.forEach(key => {
+            const book_chapter = key.split(':')[1];
+            if (!shown.includes(book_chapter)) {
+                shown.push(book_chapter);
+                console.log(`Training data includes ${book_chapter}`)
+            }
+        })
 
         console.log(`Trimmed ${trimmedVerses} verses, complexity now ${alignedComplexityCount}`);
 
