@@ -361,10 +361,10 @@ export const useAlignmentSuggestions = ({
      * @param {number} reductionFactor - Multiplier between 0 and 1 to reduce the maximum complexity
      * @returns {number} The adjusted and constrained maximum complexity value
      */
-    const adjustMaxComplexity = (reductionFactor: number) => {
-        let newMaxComplexity = Math.ceil(maxComplexity * reductionFactor);
+    const adjustMaxComplexity = (reductionFactor: number, maxComplexity_ = maxComplexity) => {
+        let newMaxComplexity = Math.ceil(maxComplexity_ * reductionFactor);
         newMaxComplexity = limitRangeOfComplexity(newMaxComplexity);
-        console.log(`Adjusting maxComplexity from ${maxComplexity} to ${newMaxComplexity}`);
+        console.log(`Adjusting maxComplexity from ${maxComplexity_} to ${newMaxComplexity}`);
         setMaxComplexity(newMaxComplexity);
         return newMaxComplexity;
     }
@@ -459,18 +459,19 @@ export const useAlignmentSuggestions = ({
                             
                             // Clear timeout since worker completed successfully
                             cleanupWorker();
-
+                            
+                            let newMaxComplexity = maxComplexity
                             //Load the trained model and put it somewhere it can be used.
                             const elapsedMinutes = getElapsedMinutes(trainingStartTime);
                             console.log(`startTraining() - Training completed in ${elapsedMinutes} minutes`);
                             if (elapsedMinutes > THRESHOLD_TRAINING_MINUTES) {
                                 console.log(`startTraining() - Worker took over ${THRESHOLD_TRAINING_MINUTES} minutes, adjusting down`);
-                                adjustMaxComplexity(THRESHOLD_TRAINING_MINUTES / elapsedMinutes);
+                                newMaxComplexity = adjustMaxComplexity(THRESHOLD_TRAINING_MINUTES / elapsedMinutes, workerResults.maxComplexity);
                             } else if (workerResults.trimmedVerses && elapsedMinutes < MIN_THRESHOLD_TRAINING_MINUTES) { // if we have trimmed verses, but time is below threshold, bump up complexity limit so we can train with more data
                                 const targetTime = (THRESHOLD_TRAINING_MINUTES + MIN_THRESHOLD_TRAINING_MINUTES) / 2;
                                 const adjustComplexity = (targetTime / elapsedMinutes);
                                 console.log(`startTraining() - Worker took under ${MIN_THRESHOLD_TRAINING_MINUTES} minutes, adjusting complexity by ${adjustComplexity}`);
-                                adjustMaxComplexity(adjustComplexity);
+                                newMaxComplexity = adjustMaxComplexity(adjustComplexity, workerResults.maxComplexity);
                             }
 
                             let abstractWordMapWrapper;
@@ -508,7 +509,7 @@ export const useAlignmentSuggestions = ({
                                 model: abstractWordMapWrapper,
                                 sourceLanguageId,
                                 targetLanguageId,
-                                maxComplexity,
+                                maxComplexity: newMaxComplexity,
                             }
                             saveModelAndSettings(
                                 dbStorageRef,
