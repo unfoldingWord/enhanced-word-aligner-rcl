@@ -269,31 +269,42 @@ export const useAlignmentSuggestions = ({
         const group_name = contextId?.bibleId || ''
         let currentBookName_ = contextId?.reference?.bookId || '';
 
+        // need to get the books from targetUsfms
+        const newBooks: { [key: string]: Book } = {};
+        Object.entries(translationMemory?.targetUsfms).forEach(([bookId, usfm_book]) => {
+            const usfm_json = usfm.toJSON(usfm_book, { convertToInt: ['occurrence', 'occurrences'] });
+
+            const usfmHeaders = parseUsfmHeaders(usfm_json.headers);
+            const toc3Name = usfmHeaders.toc3; //label to use
+            const currentBookId = contextId?.reference?.bookId;
+            if (bookId === currentBookId) {
+                currentBookName_ = usfmHeaders.h;
+            }
+            const newBook = new Book({ chapters: {}, filename: bookId, toc3Name, targetUsfmBook: null, sourceUsfmBook: null });
+            newBooks[bookId] = newBook.addTargetUsfm({ filename: bookId, usfm_book: usfm_json, toc3Name });
+        });
+        
         // if group doesn't exist, then add
         if (!newGroupCollection_.groups?.[group_name]) {
             console.log(`loadTranslationMemory - group ${group_name} doesn't exist, creating`);
-            const newBooks: { [key: string]: Book } = {};
-            // need to get the books
-            Object.entries(translationMemory?.targetUsfms).forEach(([bookId, usfm_book]) => {
-                const usfm_json = usfm.toJSON(usfm_book, { convertToInt: ['occurrence', 'occurrences'] });
-
-                const usfmHeaders = parseUsfmHeaders(usfm_json.headers);
-                const toc3Name = usfmHeaders.toc3; //label to use
-                const currentBookId = contextId?.reference?.bookId;
-                if (bookId === currentBookId) {
-                    currentBookName_ = usfmHeaders.h;
-                }
-                const newBook = new Book({ chapters: {}, filename: bookId, toc3Name, targetUsfmBook: null, sourceUsfmBook: null });
-                newBooks[bookId] = newBook.addTargetUsfm({ filename: bookId, usfm_book: usfm_json, toc3Name });
-            });
-
             const newGroup: Group = newGroupCollection_.groups[group_name] || new Group(newBooks);
             const newGroups = { ...newGroupCollection_.groups, [group_name]: newGroup };
-            const newGroupCollection = new GroupCollection(newGroups, newGroupCollection_.instanceCount + 1);
-            newGroupCollection_ = newGroupCollection;
-            setCurrentBookName(currentBookName_);
+            newGroupCollection_ = new GroupCollection(newGroups, newGroupCollection_.instanceCount + 1);
+        } else { // if group exists, then update
+            console.log(`loadTranslationMemory - group ${group_name} exists, updating`);
+            const newGroup = newGroupCollection_.groups[group_name];
+            const newBooks_ = { ...newGroup.books, ...newBooks };
+            const newGroup_ = new Group(newBooks_);
+            const newGroups = { ...newGroupCollection_.groups, [group_name]: newGroup_ };
+            newGroupCollection_ = new GroupCollection(newGroups, newGroupCollection_.instanceCount);
         }
-        console.log(`loadTranslationMemory - new groups:`, Object.keys(newGroupCollection_.groups));
+
+        setCurrentBookName(currentBookName_);
+        
+        Object.keys(newGroupCollection_.groups).forEach((groupName) => {
+            const group = newGroupCollection_.groups[groupName];
+            console.log(`loadTranslationMemory - new group ${groupName}:`, Object.keys(group?.books));
+        })
 
         // #######################################################
         // load the source usfms.
