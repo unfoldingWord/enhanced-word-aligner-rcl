@@ -129,36 +129,45 @@ export function addAlignmentCorpus(alignedComplexityCount: number, unalignedComp
         console.warn("The corpus is too complex to train the word map.  Trimming.  The corpus complexity is:", alignedComplexityCount);
         const keys = Object.keys(targetVersesTokenized)
         let keyCount = keys.length;
+        let removedVersesFromBook = 0;
 
         // first remove from other books
         let __ret = removeComplexity(alignedComplexityCount, maxComplexity, keyCount, keys, sourceVersesTokenized, targetVersesTokenized,
             alignments, trimmedVerses, contextId, ReduceType.otherBook);
         alignedComplexityCount = __ret.alignedComplexityCount;
+        let changed = __ret.trimmedVerses - trimmedVerses;
+        console.log(`Removed ${changed} verses from other books, complexity now ${alignedComplexityCount}`);
         trimmedVerses = __ret.trimmedVerses;
 
         // second remove from other chapters
         __ret = removeComplexity(alignedComplexityCount, maxComplexity, keyCount, keys, sourceVersesTokenized, targetVersesTokenized,
             alignments, trimmedVerses, contextId, ReduceType.otherChapter);
         alignedComplexityCount = __ret.alignedComplexityCount;
+        changed = __ret.trimmedVerses - trimmedVerses;
+        removedVersesFromBook = changed;
+        console.log(`Removed ${changed} verses from other chapters, complexity now ${alignedComplexityCount}`);
         trimmedVerses = __ret.trimmedVerses;
 
         // finally just remove random
         __ret = removeComplexity(alignedComplexityCount, maxComplexity, keyCount, keys, sourceVersesTokenized, targetVersesTokenized,
             alignments, trimmedVerses, contextId, ReduceType.anything);
         alignedComplexityCount = __ret.alignedComplexityCount;
+        changed = __ret.trimmedVerses - trimmedVerses;
+        console.log(`Removed ${changed} verses at random, complexity now ${alignedComplexityCount}`);
         trimmedVerses = __ret.trimmedVerses;
+
+        console.log(`Trimmed ${trimmedVerses} verses, complexity now ${alignedComplexityCount}`);
+        console.log( `Removed verses from this Books: ${removedVersesFromBook}`)
         
         const shown: string[] = []
         const targetKeys = Object.keys(targetVersesTokenized)
         targetKeys.forEach(key => {
-            const book_chapter = key.split(':')[1];
+            const book_chapter = key.split(':')[0];
             if (!shown.includes(book_chapter)) {
                 shown.push(book_chapter);
                 console.log(`Training data includes ${book_chapter}`)
             }
         })
-
-        console.log(`Trimmed ${trimmedVerses} verses, complexity now ${alignedComplexityCount}`);
 
         wordAlignerModel.appendKeyedCorpusTokens(sourceVersesTokenized, targetVersesTokenized);
     }
