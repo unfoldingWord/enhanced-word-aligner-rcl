@@ -236,6 +236,7 @@ export async function createTrainedWordAlignerModel(data: TTrainingAndTestingDat
   console.log(`createTrainedWordAlignerModel: unaligned verses: ${unalignedVerseCount}`);
   console.log(`createTrainedWordAlignerModel: aligned verses complexity: ${alignedComplexityCount}`);
   console.log(`createTrainedWordAlignerModel: unaligned verses complexity: ${unalignedComplexityCount}`);
+  console.log(`createTrainedWordAlignerModel: max complexity: ${maxComplexity}`);
     
   // Create the training object.
   // There are several different word map classes,

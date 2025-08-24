@@ -179,6 +179,9 @@ async function saveModelAndSettings(dbStorageRef: React.RefObject<IndexedDBStora
 
     await storeLanguagePreferences(alignmentCompletedInfo.sourceLanguageId, alignmentCompletedInfo.targetLanguageId, alignmentCompletedInfo.maxComplexity, dbStorageRef);
 
+    console.log(`saveModelAndSettings() - setting maxComplexity to ${alignmentCompletedInfo.maxComplexity}`);
+    
+
     handleTrainingCompleted?.(alignmentCompletedInfo); 
 }
 
@@ -460,18 +463,20 @@ export const useAlignmentSuggestions = ({
                             // Clear timeout since worker completed successfully
                             cleanupWorker();
                             
-                            let newMaxComplexity = maxComplexity
+                            let newMaxComplexity = workerResults.maxComplexity
                             //Load the trained model and put it somewhere it can be used.
                             const elapsedMinutes = getElapsedMinutes(trainingStartTime);
                             console.log(`startTraining() - Training completed in ${elapsedMinutes} minutes`);
                             if (elapsedMinutes > THRESHOLD_TRAINING_MINUTES) {
                                 console.log(`startTraining() - Worker took over ${THRESHOLD_TRAINING_MINUTES} minutes, adjusting down`);
                                 newMaxComplexity = adjustMaxComplexity(THRESHOLD_TRAINING_MINUTES / elapsedMinutes, workerResults.maxComplexity);
+                                setMaxComplexity(newMaxComplexity);
                             } else if (workerResults.trimmedVerses && elapsedMinutes < MIN_THRESHOLD_TRAINING_MINUTES) { // if we have trimmed verses, but time is below threshold, bump up complexity limit so we can train with more data
                                 const targetTime = (THRESHOLD_TRAINING_MINUTES + MIN_THRESHOLD_TRAINING_MINUTES) / 2;
                                 const adjustComplexity = (targetTime / elapsedMinutes);
                                 console.log(`startTraining() - Worker took under ${MIN_THRESHOLD_TRAINING_MINUTES} minutes, adjusting complexity by ${adjustComplexity}`);
                                 newMaxComplexity = adjustMaxComplexity(adjustComplexity, workerResults.maxComplexity);
+                                setMaxComplexity(newMaxComplexity);
                             }
 
                             let abstractWordMapWrapper;
@@ -645,6 +650,9 @@ export const useAlignmentSuggestions = ({
                 }
 
                 if (doTraining_) {
+                    if (stateRef?.current?.groupCollection) { // make training runs
+                        stateRef.current.groupCollection.instanceCount++
+                    }
                     startTraining();
                 } else {
                     stopTraining();
