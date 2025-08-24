@@ -25,6 +25,7 @@ import {
     WORKER_TIMEOUT
 } from "@/common/constants";
 import {TAlignmentTrainingWorkerData, TTrainedWordAlignerModelWorkerResults} from "@/workers/WorkerComTypes";
+import {makeTranslationMemory} from "@/workers/utils/AlignmentTrainerUtils";
 
 // console.log("useAlignmentSuggestions.ts AlignmentWorker", AlignmentWorker);
 
@@ -47,6 +48,8 @@ interface useAlignmentSuggestionsProps {
     shown: boolean;
     sourceLanguageId: string;
     targetLanguageId: string;
+    targetUsfm?: string;
+    sourceUsfm?: string;
 }
 
 interface useAlignmentSuggestionsReturn {
@@ -55,6 +58,7 @@ interface useAlignmentSuggestionsReturn {
     failedToLoadCachedTraining: boolean;
     getTrainingContextId: () => ContextId;
     loadTranslationMemory: (translationMemory: translationMemoryType) => Promise<void>;
+    loadTranslationMemoryWithBook: (bookId: string, originalBibleBookUsfm: string, targetBibleBookUsfm: string) => void;
     maxComplexity: number;
     suggester: ((sourceSentence: any, targetSentence: any, maxSuggestions?: number, manuallyAligned?: any[]) => any[]) | null;
     trainingState: TrainingState;
@@ -213,6 +217,8 @@ export const useAlignmentSuggestions = ({
     shown,
     sourceLanguageId,
     targetLanguageId,
+    targetUsfm,
+    sourceUsfm,
 }: useAlignmentSuggestionsProps): useAlignmentSuggestionsReturn => {
     const dbStorageRef = useRef<IndexedDBStorage | null>(null);
 
@@ -260,10 +266,6 @@ export const useAlignmentSuggestions = ({
      */
     const loadTranslationMemory = useCallback(async (translationMemory: translationMemoryType) => {
         //ask the user to make a selection if no resources are selected.
-        if (currentSelection.length == 0) {
-            throw new Error("loadTranslationMemory - No resources selected to add to.");
-        }
-
         if (!translationMemory?.targetUsfms) {
             throw new Error("loadTranslationMemory - No USFM source content to add");
         }
@@ -336,7 +338,25 @@ export const useAlignmentSuggestions = ({
             console.error(`error importing ${error}`);
             throw new Error("Failed to load source data");
         }
-    }, [contextId, currentSelection, stateRef, setGroupCollection, setCurrentBookName]);
+    }, [contextId, stateRef]);
+
+    /**
+     * Loads the translation memory associated with a specific book.
+     *
+     * This function retrieves and initializes the translation memory data
+     * required for processing translations of the given book. It ensures that
+     * the relevant linguistic data and configurations are prepared for
+     * translation tasks.
+     *
+     * @param {string} bookId - The identifier of the book (e.g., 'mat', 'mrk', 'luk')
+     * @param {string} originalBibleBookUsfm - The USFM content of the original language Bible book
+     * @param {string} targetBibleBookUsfm - The USFM content of the target language Bible book
+     * @returns {translationMemoryType} A structured object containing source and target USFM data
+     */
+    const loadTranslationMemoryWithBook = (bookId: string, originalBibleBookUsfm: string, targetBibleBookUsfm: string): void => {
+        const translationMemory = makeTranslationMemory(bookId, originalBibleBookUsfm, targetBibleBookUsfm)
+        loadTranslationMemory(translationMemory)
+    }
 
     const trainingRunning = !!alignmentTrainingWorkerRef.current
 
@@ -650,9 +670,6 @@ export const useAlignmentSuggestions = ({
                 }
 
                 if (doTraining_) {
-                    if (stateRef?.current?.groupCollection) { // make training runs
-                        stateRef.current.groupCollection.instanceCount++
-                    }
                     startTraining();
                 } else {
                     stopTraining();
@@ -771,6 +788,12 @@ export const useAlignmentSuggestions = ({
                 }
                 console.log(`useAlignmentSuggestions - cachedDataLoaded: ${cachedDataLoaded}`);
                 setLoadingTrainingData(false)
+                
+                // add the usfm for current book to training memory
+                const bookId = contextId?.reference?.bookId;
+                if (cachedDataLoaded && bookId && sourceUsfm && targetUsfm) {
+                    loadTranslationMemoryWithBook(bookId, sourceUsfm, targetUsfm);
+                }
             }
             prepareForNewContext()
         })();
@@ -821,6 +844,7 @@ export const useAlignmentSuggestions = ({
         failedToLoadCachedTraining,
         getTrainingContextId,
         loadTranslationMemory,
+        loadTranslationMemoryWithBook,
         maxComplexity,
         trainingState,
         trainingRunning,
