@@ -260,12 +260,12 @@ export default class GroupCollection {
      * @param {boolean} forTesting - true if this is for testing
      * @return the alignment training data, with targetVerse, sourceVerse as strings and the alignments as TSourceTargetAlignment[]
      */
-    getAlignmentDataAndCorpusForTrainingOrTesting( { forTesting, getCorpus }: { forTesting:boolean, getCorpus: boolean } ): TTrainingAndTestingData {
+    getAlignmentDataAndCorpusForTrainingOrTesting( { forTesting, getCorpus, isNT }: { forTesting:boolean, getCorpus: boolean, isNT: boolean } ): TTrainingAndTestingData {
         const alignments: { [key: string]: { targetVerse: TWord[], sourceVerse: TWord[], alignments:TSourceTargetAlignment[] }} = {};
         const corpus: { [key: string]: { sourceTokens: TWord[], targetTokens: TWord[] }} = {};
         
         Object.entries(this.groups).forEach( ([group_name,group]: [string,Group])=>{
-            const subResults = group.getAlignmentDataAndCorpusForTrainingOrTesting( {forTesting,getCorpus} );
+            const subResults = group.getAlignmentDataAndCorpusForTrainingOrTesting( {forTesting, getCorpus, isNT} );
             Object.entries(subResults.alignments).forEach(([reference,alignment])=>{
                 alignments[`[${group_name}] ${reference}`] = alignment;
             });

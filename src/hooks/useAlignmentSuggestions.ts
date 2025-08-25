@@ -420,7 +420,9 @@ export const useAlignmentSuggestions = ({
 
                 //before creating the worker, check to see if there is any data to train on.
                 //get the information for the alignment to training.
-                const alignmentTrainingData_ = stateRef.current.groupCollection.getAlignmentDataAndCorpusForTrainingOrTesting({ forTesting: false, getCorpus: true });
+                const bookId = contextId?.reference?.bookId;
+                const isNT = bibleHelpers.isNewTestament(bookId)
+                const alignmentTrainingData_ = stateRef.current.groupCollection.getAlignmentDataAndCorpusForTrainingOrTesting({ forTesting: false, getCorpus: true, isNT: isNT });
 
                 const contextId_ = {
                     ...contextId,
