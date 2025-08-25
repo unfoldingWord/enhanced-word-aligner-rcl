@@ -72,29 +72,24 @@ function getSelectionFromContext(contextId: ContextId) {
     return currentSelection;
 }
 
-function defaultAppState(contextId: ContextId): AppState{
-    const currentSelection = getSelectionFromContext(contextId);
+function defaultAppState(contextId: ContextId): AppState {
     const newGroups : {[key:string]: Group} = {};
     const groupCollection = new GroupCollection(newGroups, 0);
     return {
-        alignerStatus: null,
-        currentSelection,
-        doubleClickedVerse: null,
         groupCollection,
-        scope: "Book",
+        maxComplexity: DEFAULT_MAX_COMPLEXITY,
+        currentBookName: contextId?.reference?.bookId || '',
+        trainingState: defaultTrainingState(contextId),
+        kickOffTraining: false,
+        failedToLoadCachedTraining: false,
     }
 }
 
-function defaultTrainingState(contextId_: ContextId): TrainingState {
+function defaultTrainingState(contextId: ContextId): TrainingState {
     return {
-        contextId: contextId_,
-        currentTestingInstanceCount: -1,
+        contextId,
         currentTrainingInstanceCount: -1,
-        isTrainingEnabled: false,
-        isTestingEnabled: false,
-        lastTestAlignedCount: -1,
         lastTrainedInstanceCount: -1,
-        testResults: null,
         trainingStatusOutput: "",
     }
 }
@@ -145,7 +140,7 @@ async function storeLanguagePreferences(sourceLanguageId: string, targetLanguage
     if (!dbStorageRef?.current?.isReady()) {
         console.log("storeLanguagePreferences() - storage not ready");
         return
-    };
+    }
 
     // save language-based settings to local storage
     const langSettingsPair = getLangPair(sourceLanguageId, targetLanguageId);
@@ -167,13 +162,13 @@ async function saveModelAndSettings(dbStorageRef: React.RefObject<IndexedDBStora
     if (!dbStorageRef?.current?.isReady()) {
         console.log("saveModelAndSettings() - storage not ready");
         return
-    };
+    }
 
     const modelKey_ = alignmentCompletedInfo.modelKey;
     if (!modelKey_) {
         console.log("saveModelAndSettings() - modelKey not defined");
         return
-    };
+    }
 
     console.log(`saveModelAndSettings() - saving model for ${modelKey_}`);
 
@@ -231,32 +226,40 @@ export const useAlignmentSuggestions = ({
         _setState( newState );
     }
     
-    const [maxComplexity, setMaxComplexity] = useState<number>(DEFAULT_MAX_COMPLEXITY);
-    const [currentBookName, setCurrentBookName]  = useState<string>(contextId?.reference?.bookId || '');
-    const [trainingState, _setTrainingState] = useState<TrainingState>(defaultTrainingState(contextId))
-    const [loadingTrainingData, setLoadingTrainingData] = useState<boolean>(false)
-    const [kickOffTraining, setKickOffTraining] = useState<boolean>(false)
-    const trainingStateRef = useRef<TrainingState>(trainingState);
+    // Remove individual state variables - they're now part of consolidated state
+    const trainingStateRef = useRef<TrainingState>(state.trainingState);
     const contextIdRef = useRef<ContextId>(contextId);
-    const [failedToLoadCachedTraining, setFailedToLoadCachedTraining] = useState<boolean>(false)
 
-    function setTrainingState(newState: TrainingState) {
-        trainingStateRef.current = newState;
-        _setTrainingState(newState);
+    function setTrainingState(newTrainingState: TrainingState) {
+        trainingStateRef.current = newTrainingState;
+        setState({ ...stateRef.current, trainingState: newTrainingState });
+    }
+
+    function setMaxComplexity(newMaxComplexity: number) {
+        setState({ ...stateRef.current, maxComplexity: newMaxComplexity });
+    }
+
+    function setCurrentBookName(newCurrentBookName: string) {
+        setState({ ...stateRef.current, currentBookName: newCurrentBookName });
+    }
+
+    function setKickOffTraining(newKickOffTraining: boolean) {
+        setState({ ...stateRef.current, kickOffTraining: newKickOffTraining });
+    }
+
+    function setFailedToLoadCachedTraining(newFailedToLoadCachedTraining: boolean) {
+        setState({ ...stateRef.current, failedToLoadCachedTraining: newFailedToLoadCachedTraining });
     }
 
     const alignmentTrainingWorkerRef = useRef<TAlignmentTrainingWorkerData | null>(null);
     const workerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    const {groupCollection, scope, currentSelection, doubleClickedVerse, alignerStatus } = state;
+    const {groupCollection, maxComplexity, currentBookName, trainingState, kickOffTraining, failedToLoadCachedTraining} = state;
 
     const alignmentPredictor = useRef<AbstractWordMapWrapper | null>(null);
 
     const setGroupCollection = (newGroupCollection: GroupCollection ) => {
         setState( { ...stateRef.current, groupCollection: newGroupCollection } );
-    }
-    const setCurrentSelection = (newCurrentSelection: string[][] ) => {
-        setState( { ...stateRef.current, currentSelection: newCurrentSelection } );
     }
 
     /**
@@ -771,7 +774,6 @@ export const useAlignmentSuggestions = ({
             if (shown && modelKey) {
                 let cachedDataLoaded = false;
                 console.log(`useAlignmentSuggestions - modelKey changed to ${modelKey}`);
-                setLoadingTrainingData(true)
                 if (!dbStorageRef.current) { // if not initialized
                     const dbStorage = new IndexedDBStorage('app-state', 'dataStore');
                     await dbStorage.initialize();
@@ -787,7 +789,6 @@ export const useAlignmentSuggestions = ({
                     cachedDataLoaded = await loadSettingsFromStorage(dbStorageRef.current, modelKey);
                 }
                 console.log(`useAlignmentSuggestions - cachedDataLoaded: ${cachedDataLoaded}`);
-                setLoadingTrainingData(false)
                 
                 // add the usfm for current book to training memory
                 const bookId = contextId?.reference?.bookId;
@@ -819,7 +820,6 @@ export const useAlignmentSuggestions = ({
         if (!!haveBook) {
             setCurrentBookName(contextId?.reference?.bookId || '');
         }
-        setCurrentSelection( getSelectionFromContext(contextId) );
         const newContextId = cloneDeep(contextId);
         if (!isEqual(contextId, contextIdRef.current)) {
             const newModelKey = getModelKey(newContextId)
@@ -827,7 +827,6 @@ export const useAlignmentSuggestions = ({
             if (!newModelKey) {
                 console.log(`prepareForNewContext - no book selected`);
                 setTrainingState(defaultTrainingState(newContextId));
-                setLoadingTrainingData(false)
                 setKickOffTraining(false);
                 setFailedToLoadCachedTraining(false);
             }

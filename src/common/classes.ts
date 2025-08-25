@@ -53,22 +53,18 @@ interface WordAlignerDialogProps{
 
 export interface AppState {
     groupCollection: GroupCollection; //This contains all the verse data loaded in a hierarchical structure of Groups->Books->Chapter->Verses
-    scope: string;  //This is Book, Group, Chapter or Verse.  It changes how the list is shown.
-    currentSelection: string[][]; //This contains a collection of the references to all the things selected in the list.
-    doubleClickedVerse: string[] | null; //This gets set when a verse is double clicked.
-    alignerStatus: TAlignerStatus | null; //This gets set to pop up the word aligner dialog.
+    maxComplexity: number;
+    currentBookName: string;
+    trainingState: TrainingState;
+    kickOffTraining: boolean;
+    failedToLoadCachedTraining: boolean;
 }
 
 export interface TrainingState{
-    isTrainingEnabled: boolean; //This is true when the training checkbox is checked
-    isTestingEnabled: boolean; //This is true when the testing is enabled
-    trainingStatusOutput: string; //Setting this shows up on the toolbar and lets the training have a place to give live output status.
-    lastTrainedInstanceCount: number; //This lets us know if something has changed since last training by comparing it to groupCollection.instanceCount
-    currentTrainingInstanceCount: number; //This keeps track of what is currently training so that when it finishes lastTrainedInstanceCount can be set.
-    lastTestAlignedCount: number; //This count keeps track of which alignment model count was last used to update test alignments.
-    currentTestingInstanceCount: number; //This keeps track of what is currently testing so that when it finishes lastTestAlignedCount can be set.
-    testResults: TWordAlignmentTestResults | null; //This holds the last results which were returned from the testing thread.
     contextId: ContextId | null;
+    currentTrainingInstanceCount: number; //This keeps track of what is currently training so that when it finishes lastTrainedInstanceCount can be set.
+    lastTrainedInstanceCount: number; //This lets us know if something has changed since last training by comparing it to groupCollection.instanceCount
+    trainingStatusOutput: string; //Setting this shows up on the toolbar and lets the training have a place to give live output status.
 }
 
 export interface ContextId {

@@ -91,6 +91,8 @@ const WordAlignerPanel = ({
   const [doingTraining, setDoingTraining] = useState(false);
   const [trained, setTrained] = useState(false);
   const [training, setTraining] = useState(false);
+  const [message, setMessage] = useState('');
+  const [trainingButtonStr, setTrainingButtonStr] = useState('');
 
   // Handler for the load translation memory button
   const handleLoadTranslationMemory = () => {
@@ -129,11 +131,14 @@ const WordAlignerPanel = ({
       if (trainingComplete !== trained) {
         setTrained(trainingComplete);
       }
+
+      const trainingButtonStr = _training ? "Stop Training" : "Start Training"
+      setTrainingButtonStr(trainingButtonStr);
+      const message = _training ? "Training in progress..." : trainingComplete ? "Trained" : "Not Trained";
+      setMessage(message);
     })
   };
 
-  const trainingButtonStr = training ? "Stop Training" : "Start Training"
-  const message = training ? "Training in progress..." : trained ? "Trained" : "Not Trained";
   const enableLoadTranslationMemory = !doingTraining;
   const enableTrainingToggle = trained || (translationMemoryLoaded && !doingTraining);
 
