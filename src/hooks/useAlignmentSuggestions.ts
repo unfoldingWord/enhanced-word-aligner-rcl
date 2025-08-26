@@ -63,6 +63,7 @@ interface useAlignmentSuggestionsReturn {
     suggester: ((sourceSentence: any, targetSentence: any, maxSuggestions?: number, manuallyAligned?: any[]) => any[]) | null;
     trainingState: TrainingState;
     trainingRunning: boolean;
+    stopTraining: () => void;
 }
 
 function getSelectionFromContext(contextId: ContextId) {
@@ -691,8 +692,6 @@ export const useAlignmentSuggestions = ({
 
                 if (doTraining_) {
                     startTraining();
-                } else {
-                    stopTraining();
                 }
             })
         }
@@ -862,8 +861,9 @@ export const useAlignmentSuggestions = ({
         loadTranslationMemory,
         loadTranslationMemoryWithBook,
         maxComplexity,
+        stopTraining,
+        suggester,
         trainingState,
         trainingRunning,
-        suggester
     };
 };
