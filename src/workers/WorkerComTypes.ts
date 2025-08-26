@@ -34,6 +34,7 @@ export interface TTrainedWordAlignerModelResults {
     targetLanguageId: string;
     trimmedVerses: number;
     wordAlignerModel: MorphJLBoostWordMap;
+    wordMapOptions?: object;
 }
 
 export interface TAlignmentTrainingWorkerData {

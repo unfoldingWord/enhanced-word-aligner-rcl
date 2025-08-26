@@ -222,7 +222,9 @@ export default class Group {
         const corpus: { [key: string]: { sourceTokens: TWord[], targetTokens: TWord[] }} = {};
         Object.entries(this.books).forEach( ([book_name,book]: [string,Book])=>{
             const isNT_ = bibleHelpers.isNewTestament(book_name)
-            if ( isNT_ != isNT ) return;
+            if ( isNT_ != isNT ) {
+                return // skip this book when it's not the right testament
+            };
             const subResults = book.getAlignmentDataAndCorpusForTrainingOrTesting( {forTesting,getCorpus} );
             Object.entries(subResults.alignments).forEach(([reference,alignment])=>{
                 alignments[`${book_name} ${reference}`] = alignment;

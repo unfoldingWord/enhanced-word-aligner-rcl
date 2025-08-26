@@ -2,6 +2,8 @@ import {TTrainedWordAlignerModelWorkerResults, TTrainingAndTestingData} from "./
 import {createTrainedWordAlignerModel} from "./utils/AlignmentTrainerUtils";
 
 const TRAINING_RESULTS = 'trainingResults';
+const TRAINING_STATUS = 'trainingStatus';
+let lastProgress = 0;
 
 /**
  * Processes the training data and performs word alignment training sending results back to main thread
@@ -10,8 +12,28 @@ const TRAINING_RESULTS = 'trainingResults';
 async function processTrainingData(data: TTrainingAndTestingData) {
   console.log("Training worker has started");
 
-  try {
-    const trainingModelResults = await createTrainedWordAlignerModel(data);
+    function progress_callback(step: number, trainingSteps, current_loss: number) {
+        try {
+            const percent_complete = Math.round(step / trainingSteps * 100);
+            if (percent_complete !== lastProgress) {
+                console.log(`progress_callback: step ${step} of ${trainingSteps}, loss ${current_loss}, percent_complete ${percent_complete}%`);
+                lastProgress = percent_complete;
+                const workerStatus = {
+                    type: TRAINING_STATUS,
+                    current_loss,
+                    percent_complete,
+                    step,
+                    trainingSteps
+                }
+                self.postMessage(workerStatus);
+            }
+        } catch (error) {
+            console.log(error);
+        }
+    }
+
+    try {
+    const trainingModelResults = await createTrainedWordAlignerModel(data, progress_callback);
     const trainedModel = trainingModelResults.wordAlignerModel.save();
     delete trainingModelResults.wordAlignerModel; // trim the model to save memory
     const workerResults: TTrainedWordAlignerModelWorkerResults = {

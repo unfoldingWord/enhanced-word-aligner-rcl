@@ -250,9 +250,10 @@ export function addAlignmentCorpus(alignedComplexityCount: number, unalignedComp
  * Processes alignment and corpus data, applies complexity limitations, and trains the model.
  *
  * @param {TTrainingAndTestingData} data - The training and testing data containing alignments, corpus, contextId, and maxComplexity options.
+ * @param {function} progress_callback - A callback function to track the progress of the training process.
  * @returns {Promise<{trimmedVerses: number, wordAlignerModel: MorphJLBoostWordMap}>} Promise that resolves to an object containing the number of trimmed verses and the trained word alignment model.
  */
-export async function createTrainedWordAlignerModel(data: TTrainingAndTestingData): Promise<TTrainedWordAlignerModelResults> {
+export async function createTrainedWordAlignerModel(data: TTrainingAndTestingData, progress_callback: (step: number, trainingSteps, current_loss: number) => void): Promise<TTrainedWordAlignerModelResults> {
   const maxComplexity = data.maxComplexity || DEFAULT_MAX_COMPLEXITY;
   // Convert the data into the structure which the training model expects.
   const sourceVersesTokenized: { [reference: string]: Token[] } = {};
@@ -309,12 +310,15 @@ export async function createTrainedWordAlignerModel(data: TTrainingAndTestingDat
   // Create the training object.
   // There are several different word map classes,
   // and there are different hyper parameters which can be passed into it as well.
-  const wordAlignerModel = new MorphJLBoostWordMap({ 
-    targetNgramLength: 5, 
-    warnings: false, 
-    forceOccurrenceOrder: false, 
-    train_steps: 1000 
-  });
+    const wordMapOptions = {
+        targetNgramLength: 5,
+        warnings: false,
+        forceOccurrenceOrder: false,
+        train_steps: 1000,
+        progress_callback,
+        verbose_training: false
+    };
+    const wordAlignerModel = new MorphJLBoostWordMap(wordMapOptions);
   
   const {
       trimmedVerseCount,
@@ -327,13 +331,15 @@ export async function createTrainedWordAlignerModel(data: TTrainingAndTestingDat
   // Train the model and return it
   await wordAlignerModel.add_alignments_2(sourceVersesTokenized, targetVersesTokenized, alignments);
   
+  delete wordMapOptions.progress_callback; // remove the progress callback since it will not pass well.
   return {
       contextId: data.contextId,
       maxComplexity,
       sourceLanguageId: data.sourceLanguageId,
       targetLanguageId: data.targetLanguageId,
       trimmedVerses: trimmedVerseCount,
-      wordAlignerModel
+      wordAlignerModel,
+      wordMapOptions,
   };
 }
 

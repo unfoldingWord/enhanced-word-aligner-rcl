@@ -476,7 +476,16 @@ export const useAlignmentSuggestions = ({
                         alignmentTrainingWorkerRef.current.worker.addEventListener('message', (event) => {
                             const workerResults: TTrainedWordAlignerModelWorkerResults = event.data;
                             console.log(`startTraining() - alignment training worker message:`, workerResults?.type);
-                            
+
+                            if ('trainingStatus' === workerResults?.type) {
+                                const percentComplete = event.data?.percent_complete;
+                                console.log(`startTraining() - trainingStatus received: ${percentComplete}%`)
+                                if (typeof percentComplete === 'number') {
+                                    handleSetTrainingState?.({ percentComplete })
+                                }
+                                return
+                            }
+
                             if ('trainingResults' !== workerResults?.type) {
                                 console.log(`startTraining() - not training results - ignoring`)
                                 return
