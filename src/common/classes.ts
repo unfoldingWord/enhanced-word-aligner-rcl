@@ -15,7 +15,8 @@ export type translationMemoryType = {
 
 export interface TTrainingStateChange {
     training?: boolean,
-    trainingComplete?: boolean
+    trainingComplete?: boolean,
+    trainingFailed?: string,
 }
 
 export type THandleSetTrainingState = (state: TTrainingStateChange) => void;

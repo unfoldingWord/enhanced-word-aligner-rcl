@@ -437,7 +437,7 @@ export const useAlignmentSuggestions = ({
                 }
                 //check if there are enough entries in the alignment training data dictionary
                 if (Object.values(alignmentTrainingData.alignments).length > 4) {
-                    handleSetTrainingState?.({training: true});
+                    handleSetTrainingState?.({training: true, trainingFailed: ''});
 
                     const trainingStartTime = Date.now(); // Capture start time
 
@@ -457,14 +457,14 @@ export const useAlignmentSuggestions = ({
                         // Set up a worker timeout
                         workerTimeoutRef.current = setTimeout(() => {
                             const elapsedMinutes1 = getElapsedMinutes(trainingStartTime);
-                            console.log(`Training Worker timeout after ${elapsedMinutes1} minutes`);
+                            console.log(`startTraining() -Training Worker timeout after ${elapsedMinutes1} minutes`);
 
                             const newMaxComplexity = adjustMaxComplexity(0.75);
 
                             cleanupWorker();
 
                             setTrainingState({ ...trainingStateRef.current, lastTrainedInstanceCount: trainingStateRef.current.currentTrainingInstanceCount });
-                            handleSetTrainingState?.({training: false});
+                            handleSetTrainingState?.({training: false, trainingFailed: 'Timeout'});
 
                             storeLanguagePreferences(sourceLanguageId, targetLanguageId, newMaxComplexity, dbStorageRef).then(() => {
                                 // Restart training if needed
@@ -528,7 +528,7 @@ export const useAlignmentSuggestions = ({
                                     ...trainingStateRef.current,
                                     lastTrainedInstanceCount: trainingStateRef.current.currentTrainingInstanceCount
                                 });
-                                handleSetTrainingState?.({training: false, trainingComplete: true});
+                                handleSetTrainingState?.({training: false, trainingComplete: true, trainingFailed: ''});
                             } else {
                                 console.log(`startTraining() - currentModelKey: ${currentModelKey} != ${modelKey} - so not replacing current model`)
                             }
@@ -546,12 +546,16 @@ export const useAlignmentSuggestions = ({
                                 alignmentCompletedInfo,
                                 handleTrainingCompleted,
                             ).then(() => {
-                                if (forCurrentModel) {
-                                    delay(1000).then(() => { // run async
-                                        //start the training again.  It won't run again if the instanceCount hasn't changed
-                                        setKickOffTraining(true);
-                                    })
-                                }
+                                console.log(`startTraining() - Saved model and settings`);
+                                
+                                // *** disabled training auto-repeat - seems data has not been changed enough to justify a full retraining.
+                                
+                                // if (forCurrentModel) {
+                                //     delay(1000).then(() => { // run async
+                                //         //start the training again.  It won't run again if the instanceCount hasn't changed
+                                //         setKickOffTraining(true);
+                                //     })
+                                // }
                             })
                         });
 
@@ -564,19 +568,21 @@ export const useAlignmentSuggestions = ({
                         console.error("startTraining() - Error during alignment training setup:", error);
                         console.log(`startTraining() - Training failed after ${getElapsedMinutes(trainingStartTime)} minutes`);
                         cleanupWorker();
-                        handleSetTrainingState?.({training: false});
+                        handleSetTrainingState?.({training: false, trainingFailed: 'Training Error'});
                     }
 
                 } else {
-                    console.log("Not enough training data");
-                    handleSetTrainingState?.({training: false});
+                    console.log("startTraining() -Not enough training data");
+                    handleSetTrainingState?.({training: false, trainingFailed: 'Insufficient Training Data'});
                 }
 
             } else {
                 console.log("startTraining() - Alignment training already running");
+                handleSetTrainingState?.({trainingFailed: 'Insufficient Training Data'});
             }
         } else {
             console.log("startTraining() - information not changed");
+            handleSetTrainingState?.({trainingFailed: 'Information not changed'});
         }
     };
 
@@ -599,7 +605,7 @@ export const useAlignmentSuggestions = ({
     const stopTraining = () => {
         console.log("stopTraining() clicked");
         if (alignmentTrainingWorkerRef.current !== null) {
-            handleSetTrainingState?.({training: false});
+            handleSetTrainingState?.({training: false, trainingFailed: 'Cancelled'});
             cleanupWorker();
             console.log("Alignment training stopped");
         }
@@ -729,7 +735,7 @@ export const useAlignmentSuggestions = ({
             } else {
                 success = true;
             }
-            handleSetTrainingState?.({training: false, trainingComplete});
+            handleSetTrainingState?.({training: false, trainingComplete, trainingFailed: ''});
 
             // load language based settings
             const langSettingsPair = getLangPair(sourceLanguageId, targetLanguageId);
