@@ -229,7 +229,7 @@ export const useAlignmentSuggestions = ({
     
     // Remove individual state variables - they're now part of consolidated state
     const trainingStateRef = useRef<TrainingState>(state.trainingState);
-    const contextIdRef = useRef<ContextId>(contextId);
+    const contextIdRef = useRef<ContextId>(null);
 
     function setTrainingState(newTrainingState: TrainingState) {
         trainingStateRef.current = newTrainingState;
@@ -786,8 +786,8 @@ export const useAlignmentSuggestions = ({
      */
     useEffect(() => {
         (async () => {
+            let cachedDataLoaded = false;
             if (shown && modelKey) {
-                let cachedDataLoaded = false;
                 console.log(`useAlignmentSuggestions - modelKey changed to ${modelKey}`);
                 if (!dbStorageRef.current) { // if not initialized
                     const dbStorage = new IndexedDBStorage('app-state', 'dataStore');
@@ -830,7 +830,7 @@ export const useAlignmentSuggestions = ({
      * - Updates the reference to the latest context and current book name accordingly.
      */
     const prepareForNewContext = () => {
-        console.log(`prepareForNewContext - contextId ${contextId}`);
+        console.log(`prepareForNewContext - contextId:`, contextId);
         const haveBook = contextId?.reference?.bookId;
         if (!!haveBook) {
             setCurrentBookName(contextId?.reference?.bookId || '');
