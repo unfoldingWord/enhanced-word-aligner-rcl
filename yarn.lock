@@ -10765,6 +10765,15 @@ uuid@^8.3.2:
   resolved "https://registry.yarnpkg.com/uuid/-/uuid-8.3.2.tgz#80d5b5ced271bb9af6c445f21a1a04c606cefbe2"
   integrity sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==
 
+uw-wordmapbooster@1.0.3-beta.13:
+  version "1.0.3-beta.13"
+  resolved "https://registry.yarnpkg.com/uw-wordmapbooster/-/uw-wordmapbooster-1.0.3-beta.13.tgz#5544945c4929091f08287767fcfe907091308698"
+  integrity sha512-j6OcUaURLyLsRBhtu2jqwY17knF25QGELqdPewWjBHeoW/e3EkM9jfMIOtGv/bAkqlqUR/12rnaY8Ys+JUKdNw==
+  dependencies:
+    usfm-js "^3.4.2"
+    wordmap "0.6.1-beta.10"
+    wordmap-lexer "^0.3.6"
+
 v8-compile-cache@^2.0.3:
   version "2.4.0"
   resolved "https://registry.yarnpkg.com/v8-compile-cache/-/v8-compile-cache-2.4.0.tgz#cdada8bec61e15865f05d097c5f4fd30e94dc128"
@@ -11184,14 +11193,6 @@ wordmap@^0.6.0:
   dependencies:
     "@types/yargs" "^11.0.0"
     yargs "^11.0.0"
-
-wordmapbooster@./wordmapbooster-v1.0.3-beta.13.tgz:
-  version "1.0.3-beta.13"
-  resolved "./wordmapbooster-v1.0.3-beta.13.tgz#4ce2c92380096002eaff8a073e1d4b3ae7d1c573"
-  dependencies:
-    usfm-js "^3.4.2"
-    wordmap "0.6.1-beta.10"
-    wordmap-lexer "^0.3.6"
 
 worker-loader@3.0.8:
   version "3.0.8"

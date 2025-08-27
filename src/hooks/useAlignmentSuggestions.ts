@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { AbstractWordMapWrapper } from 'wordmapbooster';
+import { AbstractWordMapWrapper } from 'uw-wordmapbooster';
 import { bibleHelpers } from 'word-aligner-rcl';
 import usfm from 'usfm-js';
 import cloneDeep from "lodash.clonedeep";
@@ -476,13 +476,12 @@ export const useAlignmentSuggestions = ({
                         //Define the callback which will be called after the alignment trainer has finished
                         alignmentTrainingWorkerRef.current.worker.addEventListener('message', (event) => {
                             const workerResults: TTrainedWordAlignerModelWorkerResults = event.data;
-                            console.log(`startTraining() - alignment training worker message:`, workerResults?.type);
 
                             if ('trainingStatus' === workerResults?.type) {
                                 const percentComplete = event.data?.percent_complete;
                                 console.log(`startTraining() - trainingStatus received: ${percentComplete}%`)
                                 if (typeof percentComplete === 'number') {
-                                    handleSetTrainingState?.({ percentComplete })
+                                    handleSetTrainingState?.({ percentComplete, training: true });
                                 }
                                 return
                             }

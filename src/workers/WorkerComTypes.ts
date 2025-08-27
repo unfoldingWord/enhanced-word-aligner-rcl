@@ -1,6 +1,6 @@
 import { TSourceTargetAlignment, TWord } from "word-aligner-rcl";
 import {ContextId} from "@/common/classes";
-import {MorphJLBoostWordMap} from "wordmapbooster";
+import {MorphJLBoostWordMap} from "uw-wordmapbooster";
 
 export interface TTrainingAndTestingData {
     alignments: {

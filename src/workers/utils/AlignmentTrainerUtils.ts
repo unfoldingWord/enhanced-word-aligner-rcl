@@ -1,7 +1,11 @@
-import { MorphJLBoostWordMap, updateTokenLocations } from "wordmapbooster";
+import { MorphJLBoostWordMap, updateTokenLocations } from "uw-wordmapbooster";
 import { Token } from "wordmap-lexer";
 import { Alignment, Ngram } from "wordmap";
-import {TTrainedWordAlignerModelResults, TTrainingAndTestingData} from "../WorkerComTypes";
+import {
+    TTrainedWordAlignerModelResults,
+    TTrainedWordAlignerModelWorkerResults,
+    TTrainingAndTestingData
+} from "../WorkerComTypes";
 import {ContextId, translationMemoryType} from "@/common/classes";
 import {DEFAULT_MAX_COMPLEXITY} from "@/common/constants";
 
@@ -10,6 +14,12 @@ enum ReduceType {
     otherBook,
     otherChapter,
 }
+
+export const TRAINING_RESULTS = 'trainingResults';
+export const TRAINING_STATUS = 'trainingStatus';
+export const START_TRAINING = 'startTraining';
+
+let lastProgress = 0;
 
 /**
  * Calculates the complexity of a verse based on the lengths of the source and target text.
@@ -246,14 +256,15 @@ export function addAlignmentCorpus(alignedComplexityCount: number, unalignedComp
 }
 
 /**
- * Creates and trains a word alignment model using the provided training data.
+ * runs within a worker, creates and trains a word aligner model using the provided data and parameters.
  * Processes alignment and corpus data, applies complexity limitations, and trains the model.
  *
- * @param {TTrainingAndTestingData} data - The training and testing data containing alignments, corpus, contextId, and maxComplexity options.
- * @param {function} progress_callback - A callback function to track the progress of the training process.
- * @returns {Promise<{trimmedVerses: number, wordAlignerModel: MorphJLBoostWordMap}>} Promise that resolves to an object containing the number of trimmed verses and the trained word alignment model.
+ * @param {Worker} worker - A worker instance used for processing the training task.
+ * @param {TTrainingAndTestingData} data - The training and testing data including alignments, corpus, and context details.
+ * @param {(step: number, trainingSteps: number, current_loss: number) => void} progress_callback - A callback function invoked during training to report progress, training steps, and current loss.
+ * @return {Promise<TTrainedWordAlignerModelResults>} A promise that resolves to the results of the trained word aligner model, including context ID, training details, and the trained model instance.
  */
-export async function createTrainedWordAlignerModel(data: TTrainingAndTestingData, progress_callback: (step: number, trainingSteps, current_loss: number) => void): Promise<TTrainedWordAlignerModelResults> {
+export async function createTrainedWordAlignerModel(worker: Worker, data: TTrainingAndTestingData, progress_callback: (step: number, trainingSteps, current_loss: number) => void): Promise<TTrainedWordAlignerModelResults> {
   const maxComplexity = data.maxComplexity || DEFAULT_MAX_COMPLEXITY;
   // Convert the data into the structure which the training model expects.
   const sourceVersesTokenized: { [reference: string]: Token[] } = {};
@@ -371,4 +382,69 @@ export function makeTranslationMemory(bookId: string, originalBibleBookUsfm: str
     }
 
     return memory;
+}
+
+/**
+ * Business Logic to processes training data within a worker thread. Sends training progress
+ * updates and communicates results or errors back to the worker.
+ *
+ * @param {Worker} worker - The worker instance responsible for handling the training process.
+ * @param {TTrainingAndTestingData} data - The training and testing data to be processed.
+ * @return {Promise<void>} A promise that resolves when the training process completes.
+ */
+export async function processTrainingData(worker: Worker, data: TTrainingAndTestingData) {
+    console.log("Training worker has started");
+    worker.postMessage({ type: 'log', message: 'Training worker has started' });
+
+    /**
+     * Callback for training:
+     * Tracks and reports the progress of a training process by calculating the percentage completed, then sends this data for further handling.
+     *
+     * @param {number} step - The current step in the training process.
+     * @param {number} trainingSteps - The total number of steps in the training process.
+     * @param {number} current_loss - The current loss value at the given step.
+     * @return {void} This method does not return a value.
+     */
+    function progress_callback(step: number, trainingSteps, current_loss: number) {
+        try {
+            const percent_complete = Math.round(step / trainingSteps * 100); // calculate the percent complete as integer
+            if (percent_complete !== lastProgress) { // only send the message if the rounded percent has changed
+                // console.log(`progress_callback: step ${step} of ${trainingSteps}, loss ${current_loss}, percent_complete ${percent_complete}%`);
+                lastProgress = percent_complete;
+                const workerStatus = {
+                    type: TRAINING_STATUS,
+                    current_loss,
+                    percent_complete,
+                    step,
+                    trainingSteps
+                }
+                worker.postMessage(workerStatus);
+            }
+        } catch (error) {
+            console.log(error);
+        }
+    }
+
+
+    try {
+        const trainingModelResults = await createTrainedWordAlignerModel(worker, data, progress_callback);
+        const trainedModel = trainingModelResults.wordAlignerModel.save();
+        delete trainingModelResults.wordAlignerModel; // trim the model to save memory
+        const workerResults: TTrainedWordAlignerModelWorkerResults = {
+            type: TRAINING_RESULTS,
+            message: 'Worker has finished',
+            trainedModel,
+            ...trainingModelResults,
+        }
+
+        worker.postMessage(workerResults);
+    } catch (error) {
+        console.log(error);
+        //TODO, need to communicate error back to the other side.
+        worker.postMessage({
+            type: TRAINING_RESULTS,
+            message: 'There was an error while training the word map.',
+            error: error.toString()
+        });
+    }
 }

@@ -2,7 +2,7 @@ import {
   AbstractWordMapWrapper,
   is_correct_prediction,
   updateTokenLocations,
-} from "wordmapbooster";
+} from "uw-wordmapbooster";
 import { Token } from "wordmap-lexer";
 import { Alignment, Ngram, Suggestion } from "wordmap";
 import { TTestingWorkerData } from "./WorkerComTypes";
