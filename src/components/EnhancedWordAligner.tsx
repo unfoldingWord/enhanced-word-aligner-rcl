@@ -101,6 +101,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
         actions: {
             areTrainingSameBook,
             cleanupWorker,
+            isTraining,
             loadTranslationMemory,
             suggester,
             startTraining,
@@ -137,6 +138,8 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     },[]);
 
     useEffect(() => {
+        const training = isTraining()
+        console.log(`doTraining changed state to ${doTraining} but training is now ${training}`)
         if(doTraining) {
             startTraining()
         } else {

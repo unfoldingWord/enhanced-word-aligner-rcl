@@ -62,6 +62,7 @@ interface useAlignmentSuggestionsReturn {
         areTrainingSameBook: (contextId: ContextId) => boolean;
         cleanupWorker: () => void;
         getTrainingContextId: () => ContextId;
+        isTraining: () => boolean;
         loadTranslationMemory: (translationMemory: translationMemoryType) => Promise<void>;
         loadTranslationMemoryWithBook: (bookId: string, originalBibleBookUsfm: string, targetBibleBookUsfm: string) => void;
         suggester: ((sourceSentence: any, targetSentence: any, maxSuggestions?: number, manuallyAligned?: any[]) => any[]) | null;
@@ -597,7 +598,7 @@ export const useAlignmentSuggestions = ({
      */
     const _stopTraining = useCallback(() => {
         console.log("stopTraining()");
-        if (trainingRunning) {
+        if (!!alignmentTrainingWorkerRef.current) {
             handleSetTrainingState?.({training: false, trainingFailed: 'Cancelled'});
             cleanupWorker();
             console.log("useAlignmentSuggestions - stopTraining() - Alignment training stopped");
@@ -656,9 +657,9 @@ export const useAlignmentSuggestions = ({
      * - Calls `_startTraining` asynchronously when conditions are met.
      */
     const startTraining = useCallback(() => {
-        const readyToStart = !trainingRunning
-        console.log(`useAlignmentSuggestions - startTraining() - Starting Training: ${readyToStart}`);
-        if (readyToStart) {
+        const trainingRunning = !!alignmentTrainingWorkerRef.current
+        console.log(`useAlignmentSuggestions - startTraining() - Starting, already running is: ${trainingRunning}`);
+        if (!trainingRunning) {
             delay(500).then(() => { // run async
                 _startTraining().then(() => {
                     console.log(`useAlignmentSuggestions - startTraining() - Training finished`);
@@ -666,31 +667,20 @@ export const useAlignmentSuggestions = ({
             });
         }
     }, [handleSetTrainingState])
-
+    
     /**
-     * Toggles the training state by starting or stopping the training process
-     * based on the current state.
+     * Determines whether the alignment training process is currently running.
      *
-     * This function logs the current training state for debugging purposes.
-     * If training is currently running, it invokes the _stopTraining function
-     * to halt the process. If training is not running, it starts the training
-     * process by calling the startTraining function.
+     * This is a callback function that checks if the `alignmentTrainingWorkerRef` has an active reference,
+     * indicating that the training process is ongoing. It also logs the current status to the console.
      *
-     * The function is memoized using useCallback to prevent unnecessary
-     * re-creations and optimize performance.
-     *
-     * Dependencies:
-     * - handleSetTrainingState: Used as a dependency to ensure the callback
-     *   is updated whenever this dependency changes.
+     * @returns {boolean} Returns `true` if the training process is running, otherwise `false`.
      */
-    const toggleTraining = useCallback(() => {
-        console.log(`useAlignmentSuggestions - toggleTraining() - Currently Training: ${trainingRunning}`);
-        if (trainingRunning) {
-            _stopTraining()
-        } else {
-            startTraining()
-        }
-    }, [handleSetTrainingState])
+    const isTraining = useCallback(() => {
+        const trainingRunning = !!alignmentTrainingWorkerRef.current
+        console.log(`useAlignmentSuggestions - isTraining() - Currently Training: ${trainingRunning}`);
+        return trainingRunning;
+    }, [])
 
     const modelKey = getModelKey(contextId)
 
@@ -862,6 +852,7 @@ export const useAlignmentSuggestions = ({
             areTrainingSameBook,
             cleanupWorker,
             getTrainingContextId,
+            isTraining,
             loadTranslationMemory,
             loadTranslationMemoryWithBook,
             startTraining,
