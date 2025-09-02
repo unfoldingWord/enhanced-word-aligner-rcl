@@ -86,6 +86,7 @@ function defaultAppState(contextId: ContextId): AppState {
         maxComplexity: DEFAULT_MAX_COMPLEXITY,
         currentBookName: contextId?.reference?.bookId || '',
         trainingState: defaultTrainingState(contextId),
+        kickOffTraining: false,
         failedToLoadCachedTraining: false,
     }
 }
@@ -234,7 +235,7 @@ export const useAlignmentSuggestions = ({
     const alignmentTrainingWorkerRef = useRef<TAlignmentTrainingWorkerData | null>(null);
     const workerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    const {groupCollection, maxComplexity, currentBookName, trainingState, failedToLoadCachedTraining} = state;
+    const {groupCollection, maxComplexity, currentBookName, trainingState, kickOffTraining, failedToLoadCachedTraining} = state;
 
     const alignmentPredictor = useRef<AbstractWordMapWrapper | null>(null);
 
@@ -547,7 +548,7 @@ export const useAlignmentSuggestions = ({
                                 // if (forCurrentModel) {
                                 //     delay(1000).then(() => { // run async
                                 //         //start the training again.  It won't run again if the instanceCount hasn't changed
-                                //         _startTraining();
+                                //         setKickOffTraining(true);
                                 //     })
                                 // }
                             })
@@ -598,7 +599,8 @@ export const useAlignmentSuggestions = ({
      */
     const _stopTraining = useCallback(() => {
         console.log("stopTraining()");
-        if (!!alignmentTrainingWorkerRef.current) {
+        const trainingContextId = !!alignmentTrainingWorkerRef.current
+        if (trainingContextId) {
             handleSetTrainingState?.({training: false, trainingFailed: 'Cancelled'});
             cleanupWorker();
             console.log("useAlignmentSuggestions - stopTraining() - Alignment training stopped");
@@ -681,6 +683,40 @@ export const useAlignmentSuggestions = ({
         console.log(`useAlignmentSuggestions - isTraining() - Currently Training: ${trainingRunning}`);
         return trainingRunning;
     }, [])
+
+    /**
+     * Effect hook that manages the training process based on training state changes.
+     *
+     * This hook monitors changes to the kickOffTraining flag to start
+     * the alignment training process. When flag changes, it introduces a small delay
+     * before taking action to prevent rapid state changes.
+     *
+     * Behavior:
+     * - uses kickOffTraining flag to determine if training should run
+     * - Adds 500ms delay before executing training state changes
+     * - Resets kickOffTraining flag when triggered
+     * - Starts training process if flag is true
+     *
+     * Requirements:
+     * - _startTraining() function must be defined
+     * - delay() utility must be available
+     * - trainingRunning state must track current training status
+     *
+     * @dependencies {boolean} kickOffTraining - Internal flag to restart training
+     */
+    useEffect(() => {
+        const trainingRunning = !!alignmentTrainingWorkerRef.current
+        console.log(`useAlignmentSuggestions - kickOffTraining changed to ${kickOffTraining}, trainingRunning currently ${trainingRunning}`);
+        if (kickOffTraining !== trainingRunning) { // check if training change
+            delay(500).then(() => { // run async
+                if (kickOffTraining) {
+                    console.log(`useAlignmentSuggestions - kickOffTraining true, started training`);
+                    setState( { ...stateRef.current, kickOffTraining: false});
+                    _startTraining();
+                }
+            })
+        }
+    }, [kickOffTraining]);
 
     const modelKey = getModelKey(contextId)
 
