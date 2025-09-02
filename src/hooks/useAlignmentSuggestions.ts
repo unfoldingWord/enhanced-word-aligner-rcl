@@ -234,38 +234,12 @@ export const useAlignmentSuggestions = ({
     // Remove individual state variables - they're now part of consolidated state
     const trainingStateRef = useRef<TrainingState>(state.trainingState);
     const contextIdRef = useRef<ContextId>(null);
-
-    function setTrainingState(newTrainingState: TrainingState) {
-        trainingStateRef.current = newTrainingState;
-        setState({ ...stateRef.current, trainingState: newTrainingState });
-    }
-
-    function setMaxComplexity(newMaxComplexity: number) {
-        setState({ ...stateRef.current, maxComplexity: newMaxComplexity });
-    }
-
-    function setCurrentBookName(newCurrentBookName: string) {
-        setState({ ...stateRef.current, currentBookName: newCurrentBookName });
-    }
-
-    function setKickOffTraining(newKickOffTraining: boolean) {
-        setState({ ...stateRef.current, kickOffTraining: newKickOffTraining });
-    }
-
-    function setFailedToLoadCachedTraining(newFailedToLoadCachedTraining: boolean) {
-        setState({ ...stateRef.current, failedToLoadCachedTraining: newFailedToLoadCachedTraining });
-    }
-
     const alignmentTrainingWorkerRef = useRef<TAlignmentTrainingWorkerData | null>(null);
     const workerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const {groupCollection, maxComplexity, currentBookName, trainingState, kickOffTraining, failedToLoadCachedTraining} = state;
 
     const alignmentPredictor = useRef<AbstractWordMapWrapper | null>(null);
-
-    const setGroupCollection = (newGroupCollection: GroupCollection ) => {
-        setState( { ...stateRef.current, groupCollection: newGroupCollection } );
-    }
 
     /**
      * Loads translation memory data into the component state
@@ -312,7 +286,7 @@ export const useAlignmentSuggestions = ({
             newGroupCollection_ = new GroupCollection(newGroups, newGroupCollection_.instanceCount);
         }
 
-        setCurrentBookName(currentBookName_);
+        setState( { ...stateRef.current, currentBookName: currentBookName_});
         
         Object.keys(newGroupCollection_.groups).forEach((groupName) => {
             const group = newGroupCollection_.groups[groupName];
@@ -338,7 +312,7 @@ export const useAlignmentSuggestions = ({
 
             const { newGroupCollection, addedVerseCount, droppedVerseCount } = newGroupCollection_.addSourceUsfm({ usfm_json, isResourceSelected: isResourceSelected_ });
             newGroupCollection_ = newGroupCollection;
-            setGroupCollection(newGroupCollection_);
+            setState( { ...stateRef.current, groupCollection: newGroupCollection_ });
 
             console.log(`${addedVerseCount} connections added.`);
 
@@ -390,13 +364,14 @@ export const useAlignmentSuggestions = ({
      * predefined limits. The adjusted value is then set as the new maximum complexity.
      *
      * @param {number} reductionFactor - Multiplier between 0 and 1 to reduce the maximum complexity
+     * @param {number} maxComplexity_ - new value for maxComplexity
      * @returns {number} The adjusted and constrained maximum complexity value
      */
     const adjustMaxComplexity = (reductionFactor: number, maxComplexity_ = maxComplexity) => {
         let newMaxComplexity = Math.ceil(maxComplexity_ * reductionFactor);
         newMaxComplexity = limitRangeOfComplexity(newMaxComplexity);
         console.log(`Adjusting maxComplexity from ${maxComplexity_} to ${newMaxComplexity}`);
-        setMaxComplexity(newMaxComplexity);
+        setState( { ...stateRef.current, maxComplexity: newMaxComplexity });
         return newMaxComplexity;
     }
 
@@ -449,7 +424,11 @@ export const useAlignmentSuggestions = ({
                     try { // background processing
                         console.log(`startTraining() - start training for ${stateRef.current.groupCollection.instanceCount}`);
 
-                        setTrainingState({ ...trainingStateRef.current, currentTrainingInstanceCount: stateRef.current.groupCollection.instanceCount });
+                        const newTrainingState = {
+                            ...trainingStateRef.current,
+                            currentTrainingInstanceCount: stateRef.current.groupCollection.instanceCount
+                        };
+                        setState( { ...stateRef.current, trainingState: newTrainingState});
 
                         // Create worker using dynamic import
                         const worker = await createAlignmentTrainingWorker();
@@ -468,7 +447,10 @@ export const useAlignmentSuggestions = ({
 
                             cleanupWorker();
 
-                            setTrainingState({ ...trainingStateRef.current, lastTrainedInstanceCount: trainingStateRef.current.currentTrainingInstanceCount });
+                            const newTrainingState = { ...trainingStateRef.current,
+                                lastTrainedInstanceCount: trainingStateRef.current.currentTrainingInstanceCount
+                            };
+                            setState( { ...stateRef.current, trainingState: newTrainingState });
                             handleSetTrainingState?.({training: false, trainingFailed: 'Timeout'});
 
                             storeLanguagePreferences(sourceLanguageId, targetLanguageId, newMaxComplexity, dbStorageRef).then(() => {
@@ -509,13 +491,13 @@ export const useAlignmentSuggestions = ({
                             if (elapsedMinutes > THRESHOLD_TRAINING_MINUTES) {
                                 console.log(`startTraining() - Worker took over ${THRESHOLD_TRAINING_MINUTES} minutes, adjusting down`);
                                 newMaxComplexity = adjustMaxComplexity(THRESHOLD_TRAINING_MINUTES / elapsedMinutes, workerResults.maxComplexity);
-                                setMaxComplexity(newMaxComplexity);
+                                setState( { ...stateRef.current, maxComplexity: newMaxComplexity});
                             } else if (workerResults.trimmedVerses && elapsedMinutes < MIN_THRESHOLD_TRAINING_MINUTES) { // if we have trimmed verses, but time is below threshold, bump up complexity limit so we can train with more data
                                 const targetTime = (THRESHOLD_TRAINING_MINUTES + MIN_THRESHOLD_TRAINING_MINUTES) / 2;
                                 const adjustComplexity = (targetTime / elapsedMinutes);
                                 console.log(`startTraining() - Worker took under ${MIN_THRESHOLD_TRAINING_MINUTES} minutes, adjusting complexity by ${adjustComplexity}`);
                                 newMaxComplexity = adjustMaxComplexity(adjustComplexity, workerResults.maxComplexity);
-                                setMaxComplexity(newMaxComplexity);
+                                setState( { ...stateRef.current, maxComplexity: newMaxComplexity});
                             }
 
                             let abstractWordMapWrapper;
@@ -538,10 +520,11 @@ export const useAlignmentSuggestions = ({
                             const forCurrentModel = currentModelKey == modelKey;
                             if (forCurrentModel) { // check if the current model is the same as the one we are training
                                 alignmentPredictor.current = abstractWordMapWrapper;
-                                setTrainingState({
+                                const newTrainingState = {
                                     ...trainingStateRef.current,
                                     lastTrainedInstanceCount: trainingStateRef.current.currentTrainingInstanceCount
-                                });
+                                };
+                                setState( { ...stateRef.current, trainingState: newTrainingState });
                                 handleSetTrainingState?.({training: false, trainingComplete: true, trainingFailed: ''});
                             } else {
                                 console.log(`startTraining() - currentModelKey: ${currentModelKey} != ${modelKey} - so not replacing current model`)
@@ -691,7 +674,7 @@ export const useAlignmentSuggestions = ({
         if (doTraining_ !== trainingRunning) { // check if training change
             delay(500).then(() => { // run async
                 if (kickOffTraining) {
-                    setKickOffTraining(false);
+                    setState( { ...stateRef.current, kickOffTraining: false});
                 }
 
                 if (doTraining_) {
@@ -717,7 +700,7 @@ export const useAlignmentSuggestions = ({
      * @returns {Promise<boolean>} - A promise that resolves to true if the model was successfully loaded; otherwise, false.
      */
     const loadSettingsFromStorage = useCallback(async (dbStorage: IndexedDBStorage, modelKey: string) => {
-        setFailedToLoadCachedTraining(false);
+        setState( { ...stateRef.current, failedToLoadCachedTraining: false});
         let success = false;
         
         if (modelKey) {
@@ -743,7 +726,7 @@ export const useAlignmentSuggestions = ({
             const trainingComplete = !!predictorModel;
             if (!trainingComplete) {
                 console.log('no alignmentPredictor found in local storage');
-                setFailedToLoadCachedTraining(true);
+                setState( { ...stateRef.current, failedToLoadCachedTraining: true});
             } else {
                 success = true;
             }
@@ -765,7 +748,7 @@ export const useAlignmentSuggestions = ({
                     }
                 }
             }
-            setMaxComplexity(maxComplexity_);
+            setState( { ...stateRef.current, maxComplexity: maxComplexity_});
             if (maxComplexity_ === DEFAULT_MAX_COMPLEXITY) {
                 console.log(`maxComplexity not found in local storage, using default ${maxComplexity_}`);
             }
@@ -838,7 +821,7 @@ export const useAlignmentSuggestions = ({
         console.log(`prepareForNewContext - contextId:`, contextId);
         const haveBook = contextId?.reference?.bookId;
         if (!!haveBook) {
-            setCurrentBookName(contextId?.reference?.bookId || '');
+            setState( { ...stateRef.current, currentBookName: contextId?.reference?.bookId || ''});
         }
         const newContextId = cloneDeep(contextId);
         if (!isEqual(contextId, contextIdRef.current)) {
@@ -846,12 +829,16 @@ export const useAlignmentSuggestions = ({
             console.log(`prepareForNewContext - contextId changed to ${JSON.stringify(contextId)}`);
             if (!newModelKey) {
                 console.log(`prepareForNewContext - no book selected`);
-                setTrainingState(defaultTrainingState(newContextId));
-                setKickOffTraining(false);
-                setFailedToLoadCachedTraining(false);
+                const newTrainingState = {
+                    ...trainingStateRef.current,
+                    ...defaultTrainingState(newContextId),
+                    kickOffTraining: false,
+                    failedToLoadCachedTraining: false,
+                };
+                setState( { ...stateRef.current, trainingState: newTrainingState });
             }
             contextIdRef.current = newContextId;
-            setCurrentBookName(contextId?.reference?.bookId || '');
+            setState( { ...stateRef.current, currentBookName: contextId?.reference?.bookId || ''});
         }
     }
 

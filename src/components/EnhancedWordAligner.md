@@ -17,6 +17,9 @@ import {NT_ORIG_LANG} from "../common/constants";
 
 console.log('Loading WordAlignerComponent.md');
 
+const removeClear = false;  // set true to remove clear button
+
+
 // const alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1.json');
 // const alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1_partial.json');
 // const originalVerseJson = require('../__tests__/fixtures/alignments/grk_tit_1_1.json');
@@ -183,6 +186,7 @@ const WordAlignerPanel = ({
 
       </div>
       <EnhancedWordAligner
+        removeClear={removeClear}
         styles={{maxHeight: '450px', overflowY: 'auto', ...styles}}
         verseAlignments={verseAlignments}
         targetWords={targetWords}

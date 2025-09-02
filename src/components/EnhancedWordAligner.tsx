@@ -15,8 +15,17 @@ import {TAlignmentCompletedInfo, useAlignmentSuggestions} from '@/hooks/useAlign
 import {createAlignmentTrainingWorker} from "@/workers/utils/startAlignmentTrainer";
 
 interface EnhancedWordAlignerProps {
-    styles?: React.CSSProperties;
+    asyncSuggester?: (
+        sourceSentence: string | Token[],
+        targetSentence: string | Token[],
+        maxSuggestions?: number,
+        manuallyAligned?: Alignment[]
+    ) => Promise<Suggestion[]>;
+    addTranslationMemory?: translationMemoryType;
     contextId: ContextId;
+    doTraining: boolean;
+    handleSetTrainingState?: THandleSetTrainingState;
+    hasRenderedSuggestions?: boolean;
     lexiconCache?: Record<string, any>;
     loadLexiconEntry: (lexiconId: string, entryId: string) => void;
     onChange?: (details: {
@@ -27,6 +36,7 @@ interface EnhancedWordAlignerProps {
         targetWords: TargetWordBank[];
         contextId: ContextId;
     }) => void;
+    removeClear?: boolean;
     showPopover: (
         PopoverTitle: React.ReactNode,
         wordDetails: React.ReactNode,
@@ -39,51 +49,43 @@ interface EnhancedWordAlignerProps {
     sourceLanguageId: string;
     sourceLanguageFont?: string;
     sourceFontSizePercent?: number;
-    targetLanguageId: string;
-    targetLanguageFont?: string;
-    targetFontSizePercent?: number;
-    translate: (key: string) => void;
-    verseAlignments: Alignment[];
-    targetWords: TargetWordBank[];
-    hasRenderedSuggestions?: boolean;
+    styles?: React.CSSProperties;
     suggester?: (
         sourceSentence: string | Token[],
         targetSentence: string | Token[],
         maxSuggestions?: number,
         manuallyAligned?: Alignment[]
     ) => Suggestion[];
-    asyncSuggester?: (
-        sourceSentence: string | Token[],
-        targetSentence: string | Token[],
-        maxSuggestions?: number,
-        manuallyAligned?: Alignment[]
-    ) => Promise<Suggestion[]>;
-    addTranslationMemory?: translationMemoryType;
-    doTraining: boolean;
-    handleSetTrainingState?: THandleSetTrainingState;
+    targetLanguageId: string;
+    targetLanguageFont?: string;
+    targetFontSizePercent?: number;
+    targetWords: TargetWordBank[];
+    translate: (key: string) => void;
+    verseAlignments: Alignment[];
 }
 
 export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
 {
-   styles,
-   contextId,
-   lexiconCache,
-   loadLexiconEntry,
-   onChange,
-   showPopover,
-   sourceLanguageId,
-   sourceLanguageFont,
-   sourceFontSizePercent,
-   targetLanguageId,
-   targetLanguageFont,
-   targetFontSizePercent,
-   translate,
-   verseAlignments,
-   targetWords,
-   hasRenderedSuggestions,
-   addTranslationMemory,
-   doTraining, 
-   handleSetTrainingState,
+    addTranslationMemory,
+    contextId,
+    removeClear,
+    doTraining,
+    lexiconCache,
+    loadLexiconEntry,
+    handleSetTrainingState,
+    hasRenderedSuggestions,
+    onChange,
+    showPopover,
+    sourceLanguageId,
+    sourceLanguageFont,
+    sourceFontSizePercent,
+    styles,
+    targetLanguageId,
+    targetLanguageFont,
+    targetFontSizePercent,
+    targetWords,
+    translate,
+    verseAlignments,
 }) => {
     const handleTrainingCompleted = (info: TAlignmentCompletedInfo) => {
         console.log("handleTrainingCompleted", info);
@@ -96,10 +98,12 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     }
     
     const {
-        areTrainingSameBook,
-        cleanupWorker,
-        loadTranslationMemory,
-        suggester,
+        actions: {
+            areTrainingSameBook,
+            cleanupWorker,
+            loadTranslationMemory,
+            suggester,
+        }
     } = useAlignmentSuggestions({
         contextId,
         createAlignmentTrainingWorker,
@@ -133,11 +137,12 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
 
     return (
         <SuggestingWordAligner
+            contextId={contextId}
+            removeClear={removeClear}
+            hasRenderedSuggestions={hasRenderedSuggestions}
             styles={styles}
-            verseAlignments={verseAlignments}
             targetWords={targetWords}
             translate={translate}
-            contextId={contextId}
             targetLanguageFont={targetLanguageFont}
             sourceLanguage={sourceLanguageId}
             showPopover={showPopover}
@@ -147,8 +152,8 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             sourceLanguageFont={sourceLanguageFont}
             sourceFontSizePercent={sourceFontSizePercent}
             targetFontSizePercent={targetFontSizePercent}
-            hasRenderedSuggestions={hasRenderedSuggestions}
             suggester={suggester}
+            verseAlignments={verseAlignments}
         />
     )
 }
