@@ -53,17 +53,21 @@ interface useAlignmentSuggestionsProps {
 }
 
 interface useAlignmentSuggestionsReturn {
-    areTrainingSameBook: (contextId: ContextId) => boolean;
-    cleanupWorker: () => void;
-    failedToLoadCachedTraining: boolean;
-    getTrainingContextId: () => ContextId;
-    loadTranslationMemory: (translationMemory: translationMemoryType) => Promise<void>;
-    loadTranslationMemoryWithBook: (bookId: string, originalBibleBookUsfm: string, targetBibleBookUsfm: string) => void;
-    maxComplexity: number;
-    suggester: ((sourceSentence: any, targetSentence: any, maxSuggestions?: number, manuallyAligned?: any[]) => any[]) | null;
-    trainingState: TrainingState;
-    trainingRunning: boolean;
-    stopTraining: () => void;
+    state: {
+        failedToLoadCachedTraining: boolean;
+        maxComplexity: number;
+        trainingState: TrainingState;
+        trainingRunning: boolean;
+    },
+    actions: {
+        areTrainingSameBook: (contextId: ContextId) => boolean;
+        cleanupWorker: () => void;
+        getTrainingContextId: () => ContextId;
+        loadTranslationMemory: (translationMemory: translationMemoryType) => Promise<void>;
+        loadTranslationMemoryWithBook: (bookId: string, originalBibleBookUsfm: string, targetBibleBookUsfm: string) => void;
+        suggester: ((sourceSentence: any, targetSentence: any, maxSuggestions?: number, manuallyAligned?: any[]) => any[]) | null;
+        stopTraining: () => void;
+    };
 }
 
 function getSelectionFromContext(contextId: ContextId) {
@@ -479,9 +483,10 @@ export const useAlignmentSuggestions = ({
 
                             if ('trainingStatus' === workerResults?.type) {
                                 const percentComplete = event.data?.percent_complete;
+                                const contextId_ = event.data?.contextId;
                                 console.log(`startTraining() - trainingStatus received: ${percentComplete}%`)
                                 if (typeof percentComplete === 'number') {
-                                    handleSetTrainingState?.({ percentComplete, training: true });
+                                    handleSetTrainingState?.({ percentComplete, training: true, contextId: contextId_ });
                                 }
                                 return
                             }
@@ -853,16 +858,20 @@ export const useAlignmentSuggestions = ({
     const suggester = alignmentPredictor.current?.predict.bind(alignmentPredictor.current) || null
 
     return {
-        areTrainingSameBook,
-        cleanupWorker,
-        failedToLoadCachedTraining,
-        getTrainingContextId,
-        loadTranslationMemory,
-        loadTranslationMemoryWithBook,
-        maxComplexity,
-        stopTraining,
-        suggester,
-        trainingState,
-        trainingRunning,
+        state: {
+            failedToLoadCachedTraining,
+            maxComplexity,
+            trainingState,
+            trainingRunning,
+        },
+        actions: {
+            areTrainingSameBook,
+            cleanupWorker,
+            getTrainingContextId,
+            loadTranslationMemory,
+            loadTranslationMemoryWithBook,
+            stopTraining,
+            suggester,
+        }
     };
 };

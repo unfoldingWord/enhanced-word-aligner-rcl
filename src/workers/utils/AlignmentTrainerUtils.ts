@@ -393,7 +393,8 @@ export function makeTranslationMemory(bookId: string, originalBibleBookUsfm: str
  * @return {Promise<void>} A promise that resolves when the training process completes.
  */
 export async function processTrainingData(worker: Worker, data: TTrainingAndTestingData) {
-    console.log("Training worker has started");
+    const contextId = data.contextId;
+    console.log("Training worker has started, contextId", contextId);
     worker.postMessage({ type: 'log', message: 'Training worker has started' });
 
     /**
@@ -413,6 +414,7 @@ export async function processTrainingData(worker: Worker, data: TTrainingAndTest
                 lastProgress = percent_complete;
                 const workerStatus = {
                     type: TRAINING_STATUS,
+                    contextId,
                     current_loss,
                     percent_complete,
                     step,

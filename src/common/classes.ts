@@ -18,6 +18,7 @@ export interface TTrainingStateChange {
     trainingComplete?: boolean,
     trainingFailed?: string,
     percentComplete?: number,
+    contextId?: ContextId,
 }
 
 export type THandleSetTrainingState = (state: TTrainingStateChange) => void;

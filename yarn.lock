@@ -10765,13 +10765,13 @@ uuid@^8.3.2:
   resolved "https://registry.yarnpkg.com/uuid/-/uuid-8.3.2.tgz#80d5b5ced271bb9af6c445f21a1a04c606cefbe2"
   integrity sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==
 
-uw-wordmapbooster@1.0.3-beta.13:
-  version "1.0.3-beta.13"
-  resolved "https://registry.yarnpkg.com/uw-wordmapbooster/-/uw-wordmapbooster-1.0.3-beta.13.tgz#5544945c4929091f08287767fcfe907091308698"
-  integrity sha512-j6OcUaURLyLsRBhtu2jqwY17knF25QGELqdPewWjBHeoW/e3EkM9jfMIOtGv/bAkqlqUR/12rnaY8Ys+JUKdNw==
+uw-wordmapbooster@1.0.3-beta.14:
+  version "1.0.3-beta.14"
+  resolved "https://registry.yarnpkg.com/uw-wordmapbooster/-/uw-wordmapbooster-1.0.3-beta.14.tgz#e2b5a5f74d518c6c547e03e39b71b8bc64f48f61"
+  integrity sha512-4z9B76Y2hkXK2MUAgu+V8BjhGU6ZHGAXJT56Bognj3R2tK9pRj9FuboFthIaA1G+LJbvN99fn9lWjliaY5SKjA==
   dependencies:
     usfm-js "^3.4.2"
-    wordmap "0.6.1-beta.10"
+    wordmap "0.6.0"
     wordmap-lexer "^0.3.6"
 
 v8-compile-cache@^2.0.3:
@@ -11178,15 +11178,7 @@ wordmap-lexer@^0.3.6:
   dependencies:
     string-punctuation-tokenizer "2.0.0"
 
-wordmap@0.6.1-beta.10:
-  version "0.6.1-beta.10"
-  resolved "https://registry.yarnpkg.com/wordmap/-/wordmap-0.6.1-beta.10.tgz#9127fee1c9c9669c636d7663e67ca151f005e2c4"
-  integrity sha512-w2ChPkByKXyXmfouxs7JUISw1XeEQznBRIm7S18RI0G+B3nUoYtq2gXHX5NXIPWx7RwgZgkAUWS8FQiyGCPFuQ==
-  dependencies:
-    "@types/yargs" "^11.0.0"
-    yargs "^11.0.0"
-
-wordmap@^0.6.0:
+wordmap@0.6.0, wordmap@^0.6.0:
   version "0.6.0"
   resolved "https://registry.yarnpkg.com/wordmap/-/wordmap-0.6.0.tgz#505aae067e0b1a6a1b0f36c70169153fcaa3648a"
   integrity sha512-/oRhbY+q+hLeEZzWkBtt9GXx5P1R6WssM2+VrjYwe/ciC0msSZwG142aWc4miSUlxtGMB+cHgJXTKQEiW6GYcw==
