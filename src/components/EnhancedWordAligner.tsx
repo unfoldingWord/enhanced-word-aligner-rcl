@@ -103,11 +103,12 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             cleanupWorker,
             loadTranslationMemory,
             suggester,
+            startTraining,
+            stopTraining,
         }
     } = useAlignmentSuggestions({
         contextId,
         createAlignmentTrainingWorker,
-        doTraining,
         handleSetTrainingState: handleSetTrainingState_,
         handleTrainingCompleted,
         shown: true,
@@ -134,6 +135,14 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             cleanupWorker();
         };
     },[]);
+
+    useEffect(() => {
+        if(doTraining) {
+            startTraining()
+        } else {
+            stopTraining()
+        }
+    },[doTraining]);
 
     return (
         <SuggestingWordAligner

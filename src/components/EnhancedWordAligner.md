@@ -95,6 +95,7 @@ const WordAlignerPanel = ({
   const [trained, setTrained] = useState(false);
   const [training, setTraining] = useState(false);
   const [message, setMessage] = useState('');
+  const [trainingError, setTrainingError] = useState('')
   const [trainingButtonStr, setTrainingButtonStr] = useState('');
 
   // Handler for the load translation memory button
@@ -110,10 +111,19 @@ const WordAlignerPanel = ({
     setDoingTraining(newTrainingState);
   };
 
-  const handleSetTrainingState = ({
-                                    training: _training,
-                                    trainingComplete
-                                  }) => {
+  const handleSetTrainingState = (props) => {
+    if (!props) {
+      console.log('handleSetTrainingState: no props');
+      return;
+    }
+
+    let {
+      percentComplete,
+      training: _training,
+      trainingComplete,
+      trainingFailed,
+    } = props || {};
+
     if (_training === undefined) {
       _training = training;
     } else {
@@ -124,22 +134,37 @@ const WordAlignerPanel = ({
     } else {
       console.log('Updating trainingComplete state: ' + trainingComplete);
     }
-    delay(500).then(() => { // update async
-      if (_training !== training) {
-        setTraining(_training);
-      }
-      if (!_training && doingTraining) {
-        setDoingTraining(false);
-      }
-      if (trainingComplete !== trained) {
-        setTrained(trainingComplete);
-      }
 
-      const trainingButtonStr = _training ? "Stop Training" : "Start Training"
-      setTrainingButtonStr(trainingButtonStr);
-      const message = _training ? "Training in progress..." : trainingComplete ? "Trained" : "Not Trained";
-      setMessage(message);
-    })
+    if (_training !== training) {
+      setTraining(_training);
+    }
+    if (!_training && doingTraining) {
+      setDoingTraining(false);
+    }
+    if (trainingComplete !== trained) {
+      setTrained(trainingComplete);
+    }
+
+    let trainingErrorStr = ''
+    let currentTrainingError = trainingError;
+    if (typeof trainingFailed === 'string') {
+      currentTrainingError = trainingFailed;
+      setTrainingError(currentTrainingError)
+    }
+    if (currentTrainingError) {
+      trainingErrorStr = " - " + currentTrainingError;
+    }
+
+    const trainingButtonStr = _training ? "Stop Training" : "Start Training"
+    setTrainingButtonStr(trainingButtonStr);
+
+    let trainingStatusStr_ = (_training ? "Currently Training ..." : trainingComplete ? "Trained" : "Not Trained") + trainingErrorStr;
+
+    if (percentComplete !== undefined) {
+      trainingStatusStr_ += ` ${percentComplete}% complete`;
+    }
+
+    setMessage(trainingStatusStr_);
   };
 
   const enableLoadTranslationMemory = !doingTraining;

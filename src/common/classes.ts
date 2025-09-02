@@ -59,7 +59,6 @@ export interface AppState {
     maxComplexity: number;
     currentBookName: string;
     trainingState: TrainingState;
-    kickOffTraining: boolean;
     failedToLoadCachedTraining: boolean;
 }
 

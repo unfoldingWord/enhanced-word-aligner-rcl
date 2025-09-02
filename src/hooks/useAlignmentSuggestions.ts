@@ -42,7 +42,6 @@ type THandleTrainingCompleted = (info: TAlignmentCompletedInfo) => void;
 interface useAlignmentSuggestionsProps {
     contextId: ContextId;
     createAlignmentTrainingWorker?:() => Promise<Worker>; // needed to support alignment training in a web worker
-    doTraining: boolean; // triggers start of training when it changes from false to true
     handleSetTrainingState?: THandleSetTrainingState;
     handleTrainingCompleted?: THandleTrainingCompleted ;
     shown: boolean;
@@ -66,6 +65,7 @@ interface useAlignmentSuggestionsReturn {
         loadTranslationMemory: (translationMemory: translationMemoryType) => Promise<void>;
         loadTranslationMemoryWithBook: (bookId: string, originalBibleBookUsfm: string, targetBibleBookUsfm: string) => void;
         suggester: ((sourceSentence: any, targetSentence: any, maxSuggestions?: number, manuallyAligned?: any[]) => any[]) | null;
+        startTraining: () => void;
         stopTraining: () => void;
     };
 }
@@ -85,7 +85,6 @@ function defaultAppState(contextId: ContextId): AppState {
         maxComplexity: DEFAULT_MAX_COMPLEXITY,
         currentBookName: contextId?.reference?.bookId || '',
         trainingState: defaultTrainingState(contextId),
-        kickOffTraining: false,
         failedToLoadCachedTraining: false,
     }
 }
@@ -185,7 +184,6 @@ async function saveModelAndSettings(dbStorageRef: React.RefObject<IndexedDBStora
 
     console.log(`saveModelAndSettings() - setting maxComplexity to ${alignmentCompletedInfo.maxComplexity}`);
     
-
     handleTrainingCompleted?.(alignmentCompletedInfo); 
 }
 
@@ -201,7 +199,6 @@ async function saveModelAndSettings(dbStorageRef: React.RefObject<IndexedDBStora
  * @param {Object} useAlignmentSuggestionsProps - Object containing properties for alignment suggestions.
  * @param {string} useAlignmentSuggestionsProps.contextId - Identifier for the current alignment context.
  * @param {function} useAlignmentSuggestionsProps.createAlignmentTrainingWorker - Function to create a web worker for training.
- * @param {function} useAlignmentSuggestionsProps.doTraining - Function to trigger the actual training operation.
  * @param {function} useAlignmentSuggestionsProps.handleSetTrainingState - Callback to handle updates to the training state.
  * @param {boolean} useAlignmentSuggestionsProps.shown - Indicator whether the alignment suggestions are visible.
  * @param {string} useAlignmentSuggestionsProps.sourceLanguageId - Identifier for the source language.
@@ -211,7 +208,6 @@ async function saveModelAndSettings(dbStorageRef: React.RefObject<IndexedDBStora
 export const useAlignmentSuggestions = ({
     contextId,
     createAlignmentTrainingWorker,
-    doTraining,
     handleTrainingCompleted,
     handleSetTrainingState,
     shown,
@@ -237,7 +233,7 @@ export const useAlignmentSuggestions = ({
     const alignmentTrainingWorkerRef = useRef<TAlignmentTrainingWorkerData | null>(null);
     const workerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    const {groupCollection, maxComplexity, currentBookName, trainingState, kickOffTraining, failedToLoadCachedTraining} = state;
+    const {groupCollection, maxComplexity, currentBookName, trainingState, failedToLoadCachedTraining} = state;
 
     const alignmentPredictor = useRef<AbstractWordMapWrapper | null>(null);
 
@@ -381,7 +377,7 @@ export const useAlignmentSuggestions = ({
      * Updates training state and alignment predictor with trained model results
      * Includes a timeout that is cleared if worker completes sooner
      */
-    const startTraining = async () => {
+    const _startTraining = async () => {
         //Use the Refs such as trainingStateRef instead of trainingState
         //because in the callback the objects are stale because they were
         //captured from a previous invocation of the function and don't
@@ -455,7 +451,7 @@ export const useAlignmentSuggestions = ({
 
                             storeLanguagePreferences(sourceLanguageId, targetLanguageId, newMaxComplexity, dbStorageRef).then(() => {
                                 // Restart training if needed
-                                startTraining();
+                                _startTraining();
                             })
                         }, WORKER_TIMEOUT);
 
@@ -550,7 +546,7 @@ export const useAlignmentSuggestions = ({
                                 // if (forCurrentModel) {
                                 //     delay(1000).then(() => { // run async
                                 //         //start the training again.  It won't run again if the instanceCount hasn't changed
-                                //         setKickOffTraining(true);
+                                //         _startTraining();
                                 //     })
                                 // }
                             })
@@ -599,14 +595,16 @@ export const useAlignmentSuggestions = ({
      * - Cleans up resources related to the alignment training worker.
      * - Logs the successful stoppage of alignment training.
      */
-    const stopTraining = () => {
-        console.log("stopTraining() clicked");
-        if (alignmentTrainingWorkerRef.current !== null) {
+    const _stopTraining = useCallback(() => {
+        console.log("stopTraining()");
+        if (trainingRunning) {
             handleSetTrainingState?.({training: false, trainingFailed: 'Cancelled'});
             cleanupWorker();
-            console.log("Alignment training stopped");
+            console.log("useAlignmentSuggestions - stopTraining() - Alignment training stopped");
+        } else {
+            console.log("useAlignmentSuggestions - stopTraining() - training not running");
         }
-    };
+    }, [handleSetTrainingState]);
 
     /**
      * Retrieves the training context ID from the alignment training worker reference.
@@ -644,45 +642,55 @@ export const useAlignmentSuggestions = ({
         return false;
     };
 
+    /**
+     * Initiates the training process if it is not already running.
+     * Logs the current state of the training process to the console.
+     * When training is ready to start, invokes a private method `_startTraining`
+     * and logs a message upon completion of the training.
+     *
+     * Preconditions:
+     * - The `trainingRunning` variable must indicate that no training session is currently active.
+     *
+     * Side Effects:
+     * - Outputs log messages to the console for debugging purposes.
+     * - Calls `_startTraining` asynchronously when conditions are met.
+     */
+    const startTraining = useCallback(() => {
+        const readyToStart = !trainingRunning
+        console.log(`useAlignmentSuggestions - startTraining() - Starting Training: ${readyToStart}`);
+        if (readyToStart) {
+            delay(500).then(() => { // run async
+                _startTraining().then(() => {
+                    console.log(`useAlignmentSuggestions - startTraining() - Training finished`);
+                });
+            });
+        }
+    }, [handleSetTrainingState])
 
     /**
-     * Effect hook that manages the training process based on training state changes.
+     * Toggles the training state by starting or stopping the training process
+     * based on the current state.
      *
-     * This hook monitors changes to the doTraining and kickOffTraining flags to start or stop
-     * the alignment training process. When either flag changes, it introduces a small delay
-     * before taking action to prevent rapid state changes.
+     * This function logs the current training state for debugging purposes.
+     * If training is currently running, it invokes the _stopTraining function
+     * to halt the process. If training is not running, it starts the training
+     * process by calling the startTraining function.
      *
-     * Behavior:
-     * - Combines doTraining and kickOffTraining flags to determine if training should run
-     * - Adds 500ms delay before executing training state changes
-     * - Resets kickOffTraining flag when triggered
-     * - Starts training process if combined flag is true
-     * - Stops training process if combined flag is false
+     * The function is memoized using useCallback to prevent unnecessary
+     * re-creations and optimize performance.
      *
-     * Requirements:
-     * - startTraining() function must be defined
-     * - stopTraining() function must be defined
-     * - delay() utility must be available
-     * - trainingRunning state must track current training status
-     *
-     * @dependencies {boolean} doTraining - External flag to trigger training
-     * @dependencies {boolean} kickOffTraining - Internal flag to restart training
+     * Dependencies:
+     * - handleSetTrainingState: Used as a dependency to ensure the callback
+     *   is updated whenever this dependency changes.
      */
-    useEffect(() => {
-        const doTraining_ = doTraining || kickOffTraining;
-        console.log(`useAlignmentSuggestions - doTraining_ changed to ${doTraining_}, trainingRunning currently ${trainingRunning}`);
-        if (doTraining_ !== trainingRunning) { // check if training change
-            delay(500).then(() => { // run async
-                if (kickOffTraining) {
-                    setState( { ...stateRef.current, kickOffTraining: false});
-                }
-
-                if (doTraining_) {
-                    startTraining();
-                }
-            })
+    const toggleTraining = useCallback(() => {
+        console.log(`useAlignmentSuggestions - toggleTraining() - Currently Training: ${trainingRunning}`);
+        if (trainingRunning) {
+            _stopTraining()
+        } else {
+            startTraining()
         }
-    }, [doTraining, kickOffTraining]);
+    }, [handleSetTrainingState])
 
     const modelKey = getModelKey(contextId)
 
@@ -832,7 +840,6 @@ export const useAlignmentSuggestions = ({
                 const newTrainingState = {
                     ...trainingStateRef.current,
                     ...defaultTrainingState(newContextId),
-                    kickOffTraining: false,
                     failedToLoadCachedTraining: false,
                 };
                 setState( { ...stateRef.current, trainingState: newTrainingState });
@@ -857,7 +864,8 @@ export const useAlignmentSuggestions = ({
             getTrainingContextId,
             loadTranslationMemory,
             loadTranslationMemoryWithBook,
-            stopTraining,
+            startTraining,
+            stopTraining: _stopTraining,
             suggester,
         }
     };
