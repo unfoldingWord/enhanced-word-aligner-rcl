@@ -87,10 +87,10 @@ export function removeComplexity({
     let toKeep: string = '';
     const bookId = contextId?.reference?.bookId;
     if (reduceType === ReduceType.otherBook) {
-        toKeep = `[${contextId?.bibleId}] ${bookId} `;
+        toKeep = `${bookId} `;
         console.log(`removeComplexity - book toKeep: ${toKeep}`);
     } else if (reduceType === ReduceType.otherChapter) {
-        toKeep = `[${contextId?.bibleId}] ${bookId} ${contextId?.reference?.chapter}:`;
+        toKeep = `${bookId} ${contextId?.reference?.chapter}:`;
     }
     let currentIndex = -1;
     const doSequentialOrder = reduceType === ReduceType.otherBook;

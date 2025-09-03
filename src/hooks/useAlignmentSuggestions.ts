@@ -293,6 +293,7 @@ export const useAlignmentSuggestions = ({
         let newGroupCollection_ = stateRef.current.groupCollection;
         const group_name = getGroupName(contextId)
         let currentBookName_ = contextId?.reference?.bookId || '';
+        console.log(`loadTranslationMemory - loading translation memory for ${currentBookName_}`);
 
         // need to get the books from targetUsfms
         const newBooks: { [key: string]: Book } = {};
