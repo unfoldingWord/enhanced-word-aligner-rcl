@@ -82,6 +82,7 @@ export function removeComplexity({
     contextId,
     reduceType,
 }: RemoveComplexityParams): RemoveComplexityResult {
+    console.log(`removeComplexity - reduceType: ${reduceType}`);
     const deletedTargetVerses: { [key: string]: Token[] } = {};
     const deletedSourceVerses: { [key: string]: Token[] } = {};
     let toKeep: string = '';
@@ -91,6 +92,7 @@ export function removeComplexity({
         console.log(`removeComplexity - book toKeep: ${toKeep}`);
     } else if (reduceType === ReduceType.otherChapter) {
         toKeep = `${bookId} ${contextId?.reference?.chapter}:`;
+        console.log(`removeComplexity - chapter toKeep: ${toKeep}`);
     }
     let currentIndex = -1;
     const doSequentialOrder = reduceType === ReduceType.otherBook;
@@ -219,7 +221,7 @@ export function addAlignmentCorpus(alignedComplexityCount: number, unalignedComp
 
         // finally just remove random
         console.log(`reducing complexity by removing alignments at random`)
-        removeComplexityParams.reduceType = ReduceType.otherChapter
+        removeComplexityParams.reduceType = ReduceType.anything
         removeComplexityParams.trimmedVerseCount = trimmedVerseCount;
         removeComplexityParams.alignedComplexityCount = alignedComplexityCount;
         __ret = removeComplexity(removeComplexityParams);
