@@ -39,7 +39,7 @@ export interface TAlignmentCompletedInfo {
 
 type THandleTrainingCompleted = (info: TAlignmentCompletedInfo) => void;
 
-interface useAlignmentSuggestionsProps {
+interface TuseAlignmentSuggestionsProps {
     contextId: ContextId;
     createAlignmentTrainingWorker?:() => Promise<Worker>; // needed to support alignment training in a web worker
     handleSetTrainingState?: THandleSetTrainingState;
@@ -51,7 +51,11 @@ interface useAlignmentSuggestionsProps {
     sourceUsfm?: string;
 }
 
-interface useAlignmentSuggestionsReturn {
+type TSuggester =
+    ((sourceSentence: any, targetSentence: any, maxSuggestions?: number, manuallyAligned?: any[]) => any[])
+    | null;
+
+interface TuseAlignmentSuggestionsReturn {
     state: {
         failedToLoadCachedTraining: boolean;
         maxComplexity: number;
@@ -61,11 +65,12 @@ interface useAlignmentSuggestionsReturn {
     actions: {
         areTrainingSameBook: (contextId: ContextId) => boolean;
         cleanupWorker: () => void;
+        getSuggester: () => TSuggester;
         getTrainingContextId: () => ContextId;
         isTraining: () => boolean;
         loadTranslationMemory: (translationMemory: translationMemoryType) => Promise<void>;
         loadTranslationMemoryWithBook: (bookId: string, originalBibleBookUsfm: string, targetBibleBookUsfm: string) => void;
-        suggester: ((sourceSentence: any, targetSentence: any, maxSuggestions?: number, manuallyAligned?: any[]) => any[]) | null;
+        suggester: TSuggester;
         startTraining: () => void;
         stopTraining: () => void;
     };
@@ -217,7 +222,7 @@ export const useAlignmentSuggestions = ({
     targetLanguageId,
     targetUsfm,
     sourceUsfm,
-}: useAlignmentSuggestionsProps): useAlignmentSuggestionsReturn => {
+}: TuseAlignmentSuggestionsProps): TuseAlignmentSuggestionsReturn => {
     const dbStorageRef = useRef<IndexedDBStorage | null>(null);
 
     const [state, _setState] = useState<AppState>(defaultAppState(contextId));
@@ -875,9 +880,18 @@ export const useAlignmentSuggestions = ({
         }
     }
 
-    const suggester = alignmentPredictor.current?.predict.bind(alignmentPredictor.current) || null
+    /**
+     * Retrieves the suggester function from the current alignment predictor instance.
+     *
+     * @return {TSuggester} The suggester function bound to the current alignment predictor instance, or null if unavailable.
+     */
+    function getSuggester(): TSuggester {
+        return alignmentPredictor.current?.predict.bind(alignmentPredictor.current) || null;
+    }
 
-    return {
+    const suggester: TSuggester = getSuggester()
+
+    return { // see TuseAlignmentSuggestionsReturn interface definition
         state: {
             failedToLoadCachedTraining,
             maxComplexity,
@@ -887,6 +901,7 @@ export const useAlignmentSuggestions = ({
         actions: {
             areTrainingSameBook,
             cleanupWorker,
+            getSuggester,
             getTrainingContextId,
             isTraining,
             loadTranslationMemory,
