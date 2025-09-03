@@ -24,7 +24,11 @@ import {
     THRESHOLD_TRAINING_MINUTES,
     WORKER_TIMEOUT
 } from "@/common/constants";
-import {TAlignmentTrainingWorkerData, TTrainedWordAlignerModelWorkerResults} from "@/workers/WorkerComTypes";
+import {
+    TAlignmentTrainingWorkerData,
+    TTrainedWordAlignerModelWorkerResults,
+    TTrainingAndTestingData
+} from "@/workers/WorkerComTypes";
 import {makeTranslationMemory} from "@/workers/utils/AlignmentTrainerUtils";
 
 // console.log("useAlignmentSuggestions.ts AlignmentWorker", AlignmentWorker);
@@ -119,6 +123,17 @@ export const getLangPair = (sourceLanguageId: string, targetLanguageId: string):
 }
 
 /**
+ * Determines the testament string ('NT' for New Testament or 'OT' for Old Testament)
+ * based on the given book identifier.
+ *
+ * @param {string} bookId - The identifier of the book to evaluate.
+ * @return {string} Returns 'NT' if the book is in the New Testament, otherwise 'OT'.
+ */
+function getTestamentStr(bookId: string) {
+    return bibleHelpers.isNewTestament(bookId) ? 'NT' : 'OT';
+}
+
+/**
  * Generates a model key based on the context's Bible and book identifiers.
  *
  * The function constructs a string key by combining the Bible ID, testament type (New Testament or Old Testament),
@@ -132,7 +147,7 @@ export const getModelKey = (contextId: ContextId): string => {
     const bookId = contextId?.reference?.bookId;
     const bibleId = contextId?.bibleId; // expected to be unique such as "unfoldingWord/en/ult"
     if (bibleId && bookId) {
-        const testament = bibleHelpers.isNewTestament(bookId) ? 'NT' : 'OT';
+        const testament = getTestamentStr(bookId);
         modelKey_ = `${bibleId}_${testament}_${bookId}`;
     }
     return modelKey_
@@ -192,6 +207,26 @@ async function saveModelAndSettings(dbStorageRef: React.RefObject<IndexedDBStora
     console.log(`saveModelAndSettings() - setting maxComplexity to ${alignmentCompletedInfo.maxComplexity}`);
     
     handleTrainingCompleted?.(alignmentCompletedInfo); 
+}
+
+/**
+ * Generates a group name based on the given context identifier. The group name
+ * is constructed using the Bible ID and the testament string derived from the
+ * book ID in the context reference.
+ *
+ * @param {ContextId} contextId - The context identifier object containing the Bible ID
+ *                                and reference details, including the book ID.
+ * @return {string} The generated group name formed using the Bible ID and testament string.
+ */
+function getGroupName(contextId: ContextId) {
+    let groupName_ = ''
+    const bookId = contextId?.reference?.bookId;
+    const bibleId = contextId?.bibleId;
+    if (bibleId && bookId) {
+        const testament = getTestamentStr(bookId);
+        groupName_ = `${bibleId}_${testament}`;
+    }
+    return groupName_;
 }
 
 /**
@@ -256,7 +291,7 @@ export const useAlignmentSuggestions = ({
         }
 
         let newGroupCollection_ = stateRef.current.groupCollection;
-        const group_name = contextId?.bibleId || ''
+        const group_name = getGroupName(contextId)
         let currentBookName_ = contextId?.reference?.bookId || '';
 
         // need to get the books from targetUsfms
@@ -400,26 +435,38 @@ export const useAlignmentSuggestions = ({
         //make sure that lastUsedInstanceCount isn't still the same as groupCollection.instanceCount
         if (trainingStateRef.current.lastTrainedInstanceCount !== stateRef.current.groupCollection.instanceCount) {
             if (alignmentTrainingWorkerRef.current === null) { // check if training already running
-
-                //before creating the worker, check to see if there is any data to train on.
-                //get the information for the alignment to training.
-                const bookId = contextId?.reference?.bookId;
-                const isNT = bibleHelpers.isNewTestament(bookId)
-                const alignmentTrainingData_ = stateRef.current.groupCollection.getAlignmentDataAndCorpusForTrainingOrTesting({ forTesting: false, getCorpus: true, isNT: isNT });
-
                 const contextId_ = {
                     ...contextId,
                     bookName: currentBookName || contextId.reference.bookId
                 }
-                const alignmentTrainingData = {
-                    ...alignmentTrainingData_,
-                    contextId: contextId_,
-                    maxComplexity,
-                    sourceLanguageId,
-                    targetLanguageId
+                const bookId = contextId?.reference?.bookId;
+                const isNT = bibleHelpers.isNewTestament(bookId)
+                const groupName = getGroupName(contextId)
+                
+                //before creating the worker, check to see if there is any data to train on.
+                //get the information for the alignment to training.
+                const groupCollection_ = stateRef?.current?.groupCollection;
+                let alignmentTrainingData_:TTrainingAndTestingData|null = null;
+                const group = groupCollection_?.groups?.[groupName];
+                if (group) {
+                    alignmentTrainingData_ = group.getAlignmentDataAndCorpusForTrainingOrTesting({
+                        forTesting: false,
+                        getCorpus: true,
+                        isNT: isNT
+                    });
                 }
+
                 //check if there are enough entries in the alignment training data dictionary
-                if (Object.values(alignmentTrainingData.alignments).length > 4) {
+                const alignmentCount= group ? Object.values(alignmentTrainingData_.alignments).length : 0
+                if (alignmentCount > 4) {
+                    const alignmentTrainingData = {
+                        ...alignmentTrainingData_,
+                        contextId: contextId_,
+                        maxComplexity,
+                        sourceLanguageId,
+                        targetLanguageId
+                    }
+
                     handleSetTrainingState?.({training: true, trainingFailed: ''});
 
                     const trainingStartTime = Date.now(); // Capture start time
@@ -572,7 +619,7 @@ export const useAlignmentSuggestions = ({
                     }
 
                 } else {
-                    console.log("startTraining() -Not enough training data");
+                    console.log(`startTraining() - Not enough training data for ${groupName}, count ${alignmentCount}`);
                     handleSetTrainingState?.({training: false, trainingFailed: 'Insufficient Training Data'});
                 }
 
