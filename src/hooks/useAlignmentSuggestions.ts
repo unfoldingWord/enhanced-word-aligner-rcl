@@ -25,6 +25,7 @@ import {
     WORKER_TIMEOUT
 } from "@/common/constants";
 import {
+    TAlignmentSuggestionsConfig,
     TAlignmentTrainingWorkerData,
     TTrainedWordAlignerModelWorkerResults,
     TTrainingAndTestingData
@@ -43,7 +44,8 @@ export interface TAlignmentCompletedInfo {
 
 type THandleTrainingCompleted = (info: TAlignmentCompletedInfo) => void;
 
-interface TuseAlignmentSuggestionsProps {
+interface TUseAlignmentSuggestionsProps {
+    config?: TAlignmentSuggestionsConfig;
     contextId: ContextId;
     createAlignmentTrainingWorker?:() => Promise<Worker>; // needed to support alignment training in a web worker
     handleSetTrainingState?: THandleSetTrainingState;
@@ -59,7 +61,7 @@ type TSuggester =
     ((sourceSentence: any, targetSentence: any, maxSuggestions?: number, manuallyAligned?: any[]) => any[])
     | null;
 
-interface TuseAlignmentSuggestionsReturn {
+interface TUseAlignmentSuggestionsReturn {
     state: {
         failedToLoadCachedTraining: boolean;
         maxComplexity: number;
@@ -248,6 +250,7 @@ function getGroupName(contextId: ContextId) {
  * @return {Object} useAlignmentSuggestionsReturn - An object containing state, utilities, and actions related to alignment suggestions.
  */
 export const useAlignmentSuggestions = ({
+    config,
     contextId,
     createAlignmentTrainingWorker,
     handleTrainingCompleted,
@@ -257,7 +260,7 @@ export const useAlignmentSuggestions = ({
     targetLanguageId,
     targetUsfm,
     sourceUsfm,
-}: TuseAlignmentSuggestionsProps): TuseAlignmentSuggestionsReturn => {
+}: TUseAlignmentSuggestionsProps): TUseAlignmentSuggestionsReturn => {
     const dbStorageRef = useRef<IndexedDBStorage | null>(null);
 
     const [state, _setState] = useState<AppState>(defaultAppState(contextId));
@@ -460,8 +463,9 @@ export const useAlignmentSuggestions = ({
                 //check if there are enough entries in the alignment training data dictionary
                 const alignmentCount= group ? Object.values(alignmentTrainingData_.alignments).length : 0
                 if (alignmentCount > 4) {
-                    const alignmentTrainingData = {
+                    const alignmentTrainingData: TTrainingAndTestingData = {
                         ...alignmentTrainingData_,
+                        config,
                         contextId: contextId_,
                         maxComplexity,
                         sourceLanguageId,
@@ -939,7 +943,7 @@ export const useAlignmentSuggestions = ({
 
     const suggester: TSuggester = getSuggester()
 
-    return { // see TuseAlignmentSuggestionsReturn interface definition
+    return { // see TUseAlignmentSuggestionsReturn interface definition
         state: {
             failedToLoadCachedTraining,
             maxComplexity,

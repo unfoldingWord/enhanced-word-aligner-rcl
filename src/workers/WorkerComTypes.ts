@@ -16,6 +16,7 @@ export interface TTrainingAndTestingData {
             targetTokens: TWord[];
         }
     };
+    config?: TAlignmentSuggestionsConfig;
     contextId?: ContextId;
     maxComplexity?: number;
     sourceLanguageId?: string;
@@ -28,6 +29,7 @@ export interface TTestingWorkerData{
 }
 
 export interface TTrainedWordAlignerModelResults {
+    config: TAlignmentSuggestionsConfig;
     contextId: ContextId;
     maxComplexity: number;
     sourceLanguageId: string;
@@ -82,4 +84,8 @@ export interface TWordAlignmentTestScore{
 export interface TWordAlignmentTestResults{
     testResults: {[reference: string]: TWordAlignmentTestScore };
     average_ratio_correct: number;
+}
+
+export interface TAlignmentSuggestionsConfig {
+    trainOnlyOnCurrentBook: boolean;
 }

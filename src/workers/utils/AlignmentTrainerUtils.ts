@@ -2,6 +2,7 @@ import { MorphJLBoostWordMap, updateTokenLocations } from "uw-wordmapbooster";
 import { Token } from "wordmap-lexer";
 import { Alignment, Ngram } from "wordmap";
 import {
+    TAlignmentSuggestionsConfig,
     TTrainedWordAlignerModelResults,
     TTrainedWordAlignerModelWorkerResults,
     TTrainingAndTestingData
@@ -13,6 +14,7 @@ enum ReduceType {
     anything,
     otherBook,
     otherChapter,
+    otherBooksAll, // remove all other books regardless of complexity
 }
 
 export const TRAINING_RESULTS = 'trainingResults';
@@ -35,15 +37,17 @@ function getComplexityOfVerse(sourceLength: number, targetLength: number): numbe
 
 interface RemoveComplexityParams {
     alignedComplexityCount: number;
-    maxComplexity: number;
+    alignments: { [key: string]: Alignment[] };
+    contextId: ContextId;
+    deletedTargetVerses: { [key: string]: Token[] };
+    deletedSourceVerses: { [key: string]: Token[] };
     keyCount: number;
     keys: string[];
+    maxComplexity: number;
+    reduceType: ReduceType;
     sourceVersesTokenized: { [key: string]: Token[] };
     targetVersesTokenized: { [key: string]: Token[] };
-    alignments: { [key: string]: Alignment[] };
     trimmedVerseCount: number;
-    contextId: ContextId;
-    reduceType: ReduceType;
 }
 
 interface RemoveComplexityResult {
@@ -68,26 +72,28 @@ interface RemoveComplexityResult {
  * @param {number} params.trimmedVerseCount - Count of verses that have been trimmed or removed.
  * @param {ContextId} params.contextId - The context identifier associated with the alignment operations.
  * @param {ReduceType} params.reduceType - A parameter to define the type or strategy for reducing complexity.
- * @return {RemoveComplexityResult} Object containing updated metrics about complexity reduction results
  */
-export function removeComplexity({
-    alignedComplexityCount,
-    maxComplexity,
-    keyCount,
-    keys,
-    sourceVersesTokenized,
-    targetVersesTokenized,
-    alignments,
-    trimmedVerseCount,
-    contextId,
-    reduceType,
-}: RemoveComplexityParams): RemoveComplexityResult {
+export function removeComplexity(props: RemoveComplexityParams) {
+    let {
+        alignedComplexityCount,
+        alignments,
+        contextId,
+        deletedSourceVerses,
+        deletedTargetVerses,
+        keyCount,
+        keys,
+        maxComplexity,
+        reduceType,
+        sourceVersesTokenized,
+        targetVersesTokenized,
+        trimmedVerseCount,
+    } = props;
     console.log(`removeComplexity - reduceType: ${reduceType}`);
-    const deletedTargetVerses: { [key: string]: Token[] } = {};
-    const deletedSourceVerses: { [key: string]: Token[] } = {};
     let toKeep: string = '';
+    let doSequentialOrder = false
     const bookId = contextId?.reference?.bookId;
-    if (reduceType === ReduceType.otherBook) {
+    if ((reduceType === ReduceType.otherBook) || (reduceType === ReduceType.otherBooksAll)) {
+        doSequentialOrder = true
         toKeep = `${bookId} `;
         console.log(`removeComplexity - book toKeep: ${toKeep}`);
     } else if (reduceType === ReduceType.otherChapter) {
@@ -95,9 +101,9 @@ export function removeComplexity({
         console.log(`removeComplexity - chapter toKeep: ${toKeep}`);
     }
     let currentIndex = -1;
-    const doSequentialOrder = reduceType === ReduceType.otherBook;
 
-    while (alignedComplexityCount > maxComplexity) {
+    const maxComplexity_ = (reduceType === ReduceType.otherBooksAll) ? -1 : maxComplexity;
+    while (alignedComplexityCount > maxComplexity_) {
         if (!doSequentialOrder) {
             const randomIndex = Math.floor(Math.random() * keyCount);
             currentIndex = randomIndex
@@ -138,12 +144,12 @@ export function removeComplexity({
             currentIndex--; // backup since we removed item for keys
         }
     }
-    return {
-        alignedComplexityCount,
-        deletedSourceVerses,
-        deletedTargetVerses,
-        trimmedVerseCount,
-    };
+    
+    // update prop values
+    props.alignedComplexityCount = alignedComplexityCount;
+    props.keyCount = keyCount;
+    props.keys = keys;
+    props.trimmedVerseCount = trimmedVerseCount;
 }
 
 /**
@@ -160,95 +166,117 @@ export function removeComplexity({
  * @param {{[p: string]: Token[]}} targetVersesTokenized - The tokenized target verses.
  * @param {{[p: string]: Alignment[]}} alignments - The alignments associated with the verses.
  * @param {ContextId} contextId - The context identifier for the alignment operations.
+ * @param {TAlignmentSuggestionsConfig|null} config - special configuration settings
  * @return {{alignedComplexityCount: number, trimmedVerses: number}} An object containing the updated aligned complexity count and the number of trimmed verses.
  */
-export function addAlignmentCorpus(alignedComplexityCount: number, unalignedComplexityCount: number, maxComplexity: number, wordAlignerModel: MorphJLBoostWordMap, sourceCorpusTokenized: {
-    [p: string]: Token[]
- }, targetCorpusTokenized: { [p: string]: Token[] }, sourceVersesTokenized: {
-    [p: string]: Token[]
- }, targetVersesTokenized: { [p: string]: Token[] }, alignments: { [p: string]: Alignment[] }
- , contextId: ContextId) {
+export function addAlignmentCorpus(
+    alignedComplexityCount: number,
+    unalignedComplexityCount: number,
+    maxComplexity: number,
+    wordAlignerModel: MorphJLBoostWordMap,
+    sourceCorpusTokenized: { [p: string]: Token[] },
+    targetCorpusTokenized: { [p: string]: Token[] },
+    sourceVersesTokenized: { [p: string]: Token[] },
+    targetVersesTokenized: { [p: string]: Token[] },
+    alignments: { [p: string]: Alignment[] },
+    contextId: ContextId,
+    config: TAlignmentSuggestionsConfig|null,
+) {
     let trimmedVerseCount = 0;
     let deletedBookTargetVerses: { [key: string]: Token[] } = {};
     let deletedBookSourceVerses: { [key: string]: Token[] } = {};
+    const keys = Object.keys(targetVersesTokenized)
+    let keyCount = keys.length;
+    let removedVersesFromBook = 0;
+    const deletedTargetVerses: { [key: string]: Token[] } = {};
+    const deletedSourceVerses: { [key: string]: Token[] } = {};
+
+    const removeComplexityParams = {
+        alignedComplexityCount,
+        alignments,
+        contextId,
+        deletedSourceVerses,
+        deletedTargetVerses,
+        keyCount,
+        keys,
+        reduceType: ReduceType.otherBook,
+        maxComplexity,
+        sourceVersesTokenized,
+        targetVersesTokenized,
+        trimmedVerseCount,
+    }
+    
+    let singleBookTrimCount = 0
+
+    if (config.trainOnlyOnCurrentBook) {
+        // next remove all from other books
+        console.log(`removing corpus from all other books`)
+        removeComplexityParams.reduceType = ReduceType.otherBooksAll;
+        removeComplexity(removeComplexityParams);
+        alignedComplexityCount = removeComplexityParams.alignedComplexityCount;
+        let changed = removeComplexityParams.trimmedVerseCount - trimmedVerseCount;
+        console.log(`Removed ${changed} verses from other books, complexity now ${alignedComplexityCount}`);
+        singleBookTrimCount = changed;
+        trimmedVerseCount = removeComplexityParams.trimmedVerseCount;
+    }
 
     if (alignedComplexityCount + unalignedComplexityCount < maxComplexity) {
+        console.log("The corpus is not too complex to train the word map.The corpus complexity is:", alignedComplexityCount);
         wordAlignerModel.appendKeyedCorpusTokens(sourceCorpusTokenized, targetCorpusTokenized);
 
         // Do a test to see if adding the alignment stuff as corpus as well helps.
         wordAlignerModel.appendKeyedCorpusTokens(sourceVersesTokenized, targetVersesTokenized);
     } else if (alignedComplexityCount > maxComplexity) {
-        console.warn("The corpus is too complex to train the word map.  Trimming.  The corpus complexity is:", alignedComplexityCount);
-        const keys = Object.keys(targetVersesTokenized)
-        let keyCount = keys.length;
-        let removedVersesFromBook = 0;
+        console.warn("The corpus is too complex to train the word map.  Trimming. The corpus complexity is:", alignedComplexityCount);
 
-        // first remove from other books
-        console.log(`reducing complexity by removing alignments from other books`)
-        const removeComplexityParams = {
-            alignedComplexityCount,
-            maxComplexity,
-            keyCount,
-            keys,
-            sourceVersesTokenized,
-            targetVersesTokenized,
-            alignments,
-            trimmedVerseCount,
-            contextId,
-            reduceType: ReduceType.otherBook,
-        }
-        let __ret = removeComplexity(removeComplexityParams);
-        alignedComplexityCount = __ret.alignedComplexityCount;
-        let changed = __ret.trimmedVerseCount - trimmedVerseCount;
+        // next remove from other books
+        console.log(`reducing training complexity by removing corpus from other books`)
+        removeComplexityParams.reduceType = ReduceType.otherBook;
+        removeComplexity(removeComplexityParams);
+        alignedComplexityCount = removeComplexityParams.alignedComplexityCount;
+        let changed = removeComplexityParams.trimmedVerseCount - trimmedVerseCount;
         console.log(`Removed ${changed} verses from other books, complexity now ${alignedComplexityCount}`);
-        trimmedVerseCount = __ret.trimmedVerseCount;
+        trimmedVerseCount = removeComplexityParams.trimmedVerseCount;
 
-        // second remove from other chapters
-        console.log(`reducing complexity by removing alignments from other chapters`)
+        // next remove from other chapters
+        console.log(`reducing training complexity by removing corpus from other chapters`)
         removeComplexityParams.reduceType = ReduceType.otherChapter
-        removeComplexityParams.trimmedVerseCount = trimmedVerseCount;
-        removeComplexityParams.alignedComplexityCount = alignedComplexityCount;
-        __ret = removeComplexity(removeComplexityParams);
-        alignedComplexityCount = __ret.alignedComplexityCount;
-        changed = __ret.trimmedVerseCount - trimmedVerseCount;
-        removedVersesFromBook = changed;
-        console.log(`Removed ${changed} verses from other chapters, complexity now ${alignedComplexityCount}`);
-        if (changed > 0) {
-            deletedBookTargetVerses = __ret.deletedTargetVerses
-            deletedBookSourceVerses = __ret.deletedSourceVerses
-        }
-        trimmedVerseCount = __ret.trimmedVerseCount;
+        removeComplexity(removeComplexityParams);
+        alignedComplexityCount = removeComplexityParams.alignedComplexityCount;
+        changed = removeComplexityParams.trimmedVerseCount - trimmedVerseCount;
+        console.log(`Removed ${changed} verses from other books, complexity now ${alignedComplexityCount}`);
+        trimmedVerseCount = removeComplexityParams.trimmedVerseCount;
 
         // finally just remove random
-        console.log(`reducing complexity by removing alignments at random`)
+        console.log(`reducing training complexity by removing corpus at random`)
         removeComplexityParams.reduceType = ReduceType.anything
-        removeComplexityParams.trimmedVerseCount = trimmedVerseCount;
-        removeComplexityParams.alignedComplexityCount = alignedComplexityCount;
-        __ret = removeComplexity(removeComplexityParams);
-        alignedComplexityCount = __ret.alignedComplexityCount;
-        changed = __ret.trimmedVerseCount - trimmedVerseCount;
-        console.log(`Removed ${changed} verses at random, complexity now ${alignedComplexityCount}`);
-        if (changed > 0) {
-            deletedBookTargetVerses = {...deletedBookTargetVerses, ...__ret.deletedTargetVerses}
-            deletedBookSourceVerses = {...deletedBookSourceVerses, ...__ret.deletedSourceVerses}
-        }
-        trimmedVerseCount = __ret.trimmedVerseCount;
+        removeComplexity(removeComplexityParams);
+        alignedComplexityCount = removeComplexityParams.alignedComplexityCount;
+        changed = removeComplexityParams.trimmedVerseCount - trimmedVerseCount;
+        console.log(`Removed ${changed} verses from other books, complexity now ${alignedComplexityCount}`);
+        trimmedVerseCount = removeComplexityParams.trimmedVerseCount;
 
         console.log(`Trimmed ${trimmedVerseCount} verses, complexity now ${alignedComplexityCount}`);
         console.log( `Removed verses from this Books: ${removedVersesFromBook}`)
         
-        const shown: string[] = []
-        const targetKeys = Object.keys(targetVersesTokenized)
-        targetKeys.forEach(key => {
-            const book_chapter = key.split(':')[0];
-            if (!shown.includes(book_chapter)) {
-                shown.push(book_chapter);
-                console.log(`Training data includes ${book_chapter}`)
-            }
-        })
-
         wordAlignerModel.appendKeyedCorpusTokens(sourceVersesTokenized, targetVersesTokenized);
     }
+
+    if (singleBookTrimCount > 0) {
+        trimmedVerseCount -= singleBookTrimCount; // don't count those removed from other books when running single book training
+        console.log(`Excluding singleBookTrimCount of ${singleBookTrimCount} from trimmedVerseCount, now ${trimmedVerseCount}`);
+    }
+
+    const shown: string[] = []
+    const targetKeys = Object.keys(targetVersesTokenized)
+    targetKeys.forEach(key => {
+        const book_chapter = key.split(':')[0];
+        if (!shown.includes(book_chapter)) {
+            shown.push(book_chapter);
+            console.log(`Training data includes ${book_chapter}`)
+        }
+    })
+    
     return {
         alignedComplexityCount,
         trimmedVerseCount,
@@ -339,13 +367,14 @@ export async function createTrainedWordAlignerModel(worker: Worker, data: TTrain
       deletedBookSourceVerses,
   } = addAlignmentCorpus(alignedComplexityCount, unalignedComplexityCount, maxComplexity,
       wordAlignerModel, sourceCorpusTokenized, targetCorpusTokenized, sourceVersesTokenized,
-      targetVersesTokenized, alignments, data.contextId);
+      targetVersesTokenized, alignments, data.contextId, data.config);
 
   // Train the model and return it
   await wordAlignerModel.add_alignments_2(sourceVersesTokenized, targetVersesTokenized, alignments);
   
   delete wordMapOptions.progress_callback; // remove the progress callback since it will not pass well.
   return {
+      config: data.config,
       contextId: data.contextId,
       maxComplexity,
       sourceLanguageId: data.sourceLanguageId,

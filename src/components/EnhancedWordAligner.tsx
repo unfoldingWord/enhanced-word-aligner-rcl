@@ -13,6 +13,7 @@ import {Token} from 'wordmap-lexer'
 
 import {TAlignmentCompletedInfo, useAlignmentSuggestions} from '@/hooks/useAlignmentSuggestions';
 import {createAlignmentTrainingWorker} from "@/workers/utils/startAlignmentTrainer";
+import {TAlignmentSuggestionsConfig} from "@/workers/WorkerComTypes";
 
 interface EnhancedWordAlignerProps {
     asyncSuggester?: (
@@ -62,19 +63,21 @@ interface EnhancedWordAlignerProps {
     targetWords: TargetWordBank[];
     translate: (key: string) => void;
     verseAlignments: Alignment[];
+    config?: TAlignmentSuggestionsConfig;
 }
 
 export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
 {
     addTranslationMemory,
     contextId,
-    removeClear,
+    config,
     doTraining,
     lexiconCache,
     loadLexiconEntry,
     handleSetTrainingState,
     hasRenderedSuggestions,
     onChange,
+    removeClear,
     showPopover,
     sourceLanguageId,
     sourceLanguageFont,
@@ -93,8 +96,8 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
 
     const handleSetTrainingState_ = (props: TTrainingStateChange) => {
         handleSetTrainingState?.(props);
-        const trainingCurrent = areTrainingSameBook_();
-        console.log(`handleSetTrainingState - training Current Book: ${trainingCurrent}`);
+        // const trainingCurrent = areTrainingSameBook_();
+        // console.log(`handleSetTrainingState - training Current Book: ${trainingCurrent}`);
     }
     
     const {
@@ -108,6 +111,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             stopTraining,
         }
     } = useAlignmentSuggestions({
+        config,
         contextId,
         createAlignmentTrainingWorker,
         handleSetTrainingState: handleSetTrainingState_,

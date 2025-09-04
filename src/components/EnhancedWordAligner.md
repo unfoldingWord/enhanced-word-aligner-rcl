@@ -18,7 +18,8 @@ import {NT_ORIG_LANG} from "../common/constants";
 console.log('Loading WordAlignerComponent.md');
 
 const removeClear = false;  // set true to remove clear button
-
+const trainOnlyOnCurrentBook = true;
+const bookId = 'tit';
 
 // const alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1.json');
 // const alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1_partial.json');
@@ -27,8 +28,8 @@ const LexiconData = require("../__tests__/fixtures/lexicon/lexicons.json");
 const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory.json");
 
 // limit to single book
-translationMemory.targetUsfms = { "tit": translationMemory.targetUsfms.tit};
-translationMemory.sourceUsfms = { "tit": translationMemory.sourceUsfms.tit};
+// translationMemory.targetUsfms = { "tit": translationMemory.targetUsfms.tit};
+// translationMemory.sourceUsfms = { "tit": translationMemory.sourceUsfms.tit};
 
 // const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryMat.json");
 // merge together translationMemory and translationMemory2
@@ -58,13 +59,14 @@ const translate = (key) => {
 };
 
 const targetLanguageId = 'en';
-const bookId = 'tit';
 const chapter = 1;
 const verse = 1;
-const source_json = usfm.toJSON(translationMemory.sourceUsfms[bookId], { convertToInt: ['occurrence','occurrences']});
-const target_json = usfm.toJSON(translationMemory.targetUsfms[bookId], { convertToInt: ['occurrence','occurrences']});
-const sourceVerseUSFM = extractVerseText(translationMemory.sourceUsfms[bookId], chapter, verse)
-const targetVerseUSFM = extractVerseText(translationMemory.targetUsfms[bookId], chapter, verse)
+var sourceUsfm = translationMemory.sourceUsfms[bookId] || '';
+var targetUsfm = translationMemory.targetUsfms[bookId] || '';
+const source_json = usfm.toJSON(sourceUsfm, {convertToInt: ['occurrence', 'occurrences']});
+const target_json = usfm.toJSON(targetUsfm, {convertToInt: ['occurrence', 'occurrences']});
+const sourceVerseUSFM = extractVerseText(sourceUsfm, chapter, verse)
+const targetVerseUSFM = extractVerseText(targetUsfm, chapter, verse)
 
 const alignedVerseJson = usfmHelpers.usfmVerseToJson(targetVerseUSFM);
 const originalVerseJson = usfmHelpers.usfmVerseToJson(sourceVerseUSFM);
@@ -127,12 +129,12 @@ const WordAlignerPanel = ({
     if (_training === undefined) {
       _training = training;
     } else {
-      console.log('Updating training state: ' + _training);
+      // console.log('Updating training state: ' + _training);
     }
     if (trainingComplete === undefined) {
       trainingComplete = trained;
     } else {
-      console.log('Updating trainingComplete state: ' + trainingComplete);
+      // console.log('Updating trainingComplete state: ' + trainingComplete);
     }
 
     if (_training !== training) {
@@ -163,7 +165,8 @@ const WordAlignerPanel = ({
     if (percentComplete !== undefined) {
       trainingStatusStr_ += ` ${percentComplete}% complete`;
     }
-
+    console.log(`handleSetTrainingState new state: training ${_training}, trainingComplete ${trainingComplete}, trainingStatusStr ${trainingStatusStr_}`);
+    
     setMessage(trainingStatusStr_);
   };
 
@@ -211,6 +214,7 @@ const WordAlignerPanel = ({
 
       </div>
       <EnhancedWordAligner
+        config={{trainOnlyOnCurrentBook}}
         removeClear={removeClear}
         styles={{maxHeight: '450px', overflowY: 'auto', ...styles}}
         verseAlignments={verseAlignments}

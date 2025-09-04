@@ -132,3 +132,10 @@ interface TUsfmBook{
     headers: TUsfmHeader[];
     chapters: {[key:string]:TUsfmChapter};
 }
+
+export interface TUsfmBookExt extends TUsfmBook {
+    stats?: {
+        verseCount?: number;
+        alignedVerseCount?: number;
+    }
+}
