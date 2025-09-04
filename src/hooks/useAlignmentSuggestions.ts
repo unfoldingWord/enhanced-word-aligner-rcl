@@ -517,7 +517,7 @@ export const useAlignmentSuggestions = ({
                             if ('trainingStatus' === workerResults?.type) {
                                 const percentComplete = event.data?.percent_complete;
                                 const contextId_ = event.data?.contextId;
-                                console.log(`startTraining() - trainingStatus received: ${percentComplete}%`)
+                                // console.log(`startTraining() - trainingStatus received: ${percentComplete}%`)
                                 if (typeof percentComplete === 'number') {
                                     handleSetTrainingState?.({ percentComplete, training: true, contextId: contextId_ });
                                 }
