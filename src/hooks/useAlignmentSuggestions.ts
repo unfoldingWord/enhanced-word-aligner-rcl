@@ -1,4 +1,9 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import {
+    useCallback,
+    useEffect,
+    useRef,
+    useState,
+} from 'react';
 import { AbstractWordMapWrapper } from 'uw-wordmapbooster';
 import { bibleHelpers } from 'word-aligner-rcl';
 import usfm from 'usfm-js';
@@ -12,11 +17,11 @@ import GroupCollection from "@/shared/GroupCollection";
 import IndexedDBStorage from "@/shared/IndexedDBStorage";
 import { limitRangeOfComplexity } from "@/utils/misc";
 import {
-    TrainingState,
+    AppState,
     ContextId,
-    translationMemoryType,
     THandleSetTrainingState,
-    AppState
+    TrainingState,
+    translationMemoryType,
 } from "@/common/classes";
 import {
     DEFAULT_MAX_COMPLEXITY,
@@ -150,7 +155,7 @@ export const getModelKey = (contextId: ContextId): string => {
     const bibleId = contextId?.bibleId; // expected to be unique such as "unfoldingWord/en/ult"
     if (bibleId && bookId) {
         const testament = getTestamentStr(bookId);
-        modelKey_ = `${bibleId}_${testament}_${bookId}`;
+        modelKey_ = `Model_${bibleId}_${testament}_${bookId}`;
     }
     return modelKey_
 }
@@ -179,39 +184,6 @@ async function storeLanguagePreferences(sourceLanguageId: string, targetLanguage
 }
 
 /**
- * Saves the trained model and associated settings into local storage and invokes a callback function upon completion.
- *
- * @param {React.RefObject<IndexedDBStorage | null>} dbStorageRef - A reference to the IndexedDBStorage object used for saving data.
- * @param {TAlignmentCompletedInfo} alignmentCompletedInfo - An object containing information about the completed model alignment, including model key and metadata.
- * @param {THandleTrainingCompleted | null} handleTrainingCompleted - A nullable callback function to handle post-training completion logic.
- * @return {Promise<void>} A promise that resolves once the model and settings have been successfully saved, or if the storage is not ready.
- */
-async function saveModelAndSettings(dbStorageRef: React.RefObject<IndexedDBStorage | null>, alignmentCompletedInfo: TAlignmentCompletedInfo, handleTrainingCompleted: THandleTrainingCompleted | null) {
-    if (!dbStorageRef?.current?.isReady()) {
-        console.log("saveModelAndSettings() - storage not ready");
-        return
-    }
-
-    const modelKey_ = alignmentCompletedInfo.modelKey;
-    if (!modelKey_) {
-        console.log("saveModelAndSettings() - modelKey not defined");
-        return
-    }
-
-    console.log(`saveModelAndSettings() - saving model for ${modelKey_}`);
-
-    // save model to local storage
-    const abstractWordMapWrapper: AbstractWordMapWrapper = alignmentCompletedInfo.model;
-    await dbStorageRef.current.setItem(modelKey_, JSON.stringify(abstractWordMapWrapper?.save()));
-
-    await storeLanguagePreferences(alignmentCompletedInfo.sourceLanguageId, alignmentCompletedInfo.targetLanguageId, alignmentCompletedInfo.maxComplexity, dbStorageRef);
-
-    console.log(`saveModelAndSettings() - setting maxComplexity to ${alignmentCompletedInfo.maxComplexity}`);
-    
-    handleTrainingCompleted?.(alignmentCompletedInfo); 
-}
-
-/**
  * Generates a group name based on the given context identifier. The group name
  * is constructed using the Bible ID and the testament string derived from the
  * book ID in the context reference.
@@ -229,6 +201,10 @@ function getGroupName(contextId: ContextId) {
         groupName_ = `${bibleId}_${testament}`;
     }
     return groupName_;
+}
+
+function getAlignmentMemoryKey(group_name: string) {
+    return `memory_${group_name}`;
 }
 
 /**
@@ -283,6 +259,54 @@ export const useAlignmentSuggestions = ({
     const alignmentPredictor = useRef<AbstractWordMapWrapper | null>(null);
 
     /**
+     * Saves the current group to the IndexedDB storage.
+     *
+     * @param {string} group_name - The name of the group to be saved.
+     * @param {Group} currentGroup - The group data to be saved.
+     * @return {Promise<void>} A promise that resolves when the group is successfully saved.
+     */
+    async function saveCurrentGroup(group_name: string, currentGroup: Group) {
+        try {
+            console.log(`saveCurrentGroup - saving ${group_name}`, group_name, currentGroup);
+
+            const dbStorage = await getIndexedDbStorage();
+            const groupJson = JSON.stringify(currentGroup, null, 2);
+            const key = getAlignmentMemoryKey(group_name);
+            await dbStorage.setItem(key, groupJson);
+        } catch (e) {
+            console.error(`saveCurrentGroup - ERROR saving ${group_name}`,e);
+        }
+    }
+
+    /**
+     * Loads the current group data from indexed database storage by the given group name.
+     *
+     * @param {string} group_name - The name of the group to be loaded from storage.
+     * @return {Promise<Group|null>} A promise that resolves to the loaded group if data exists, otherwise null.
+     */
+    async function loadCurrentGroup(group_name: string) {
+        let currentGroup: Group|null = null;
+
+        try {
+            console.log(`loadCurrentGroup - loading {$group_name}`, group_name);
+
+            const dbStorage = await getIndexedDbStorage();
+            const key = getAlignmentMemoryKey(group_name);
+            const groupStr: string | null = await dbStorage.getItem(key);
+            if (groupStr && groupStr !== "undefined") {
+                const groupJson = JSON.parse(groupStr);
+                currentGroup = Group.load(group_name, groupJson);
+            } else {
+                console.log(`loadCurrentGroup - no saved data for {$group_name}`);
+            }
+        } catch (e) {
+            console.error(`loadCurrentGroup - ERROR loading {$group_name}`,e);
+        }
+        return currentGroup;
+    }
+
+
+    /**
      * Loads translation memory data into the component state
      * @param translationMemory Object containing source and target USFM translation data
      * @throws Error if no resources are selected or if USFM content is missing
@@ -312,9 +336,19 @@ export const useAlignmentSuggestions = ({
             const newBook = new Book({ chapters: {}, filename: bookId, toc3Name, targetUsfmBook: null, sourceUsfmBook: null });
             newBooks[bookId] = newBook.addTargetUsfm({ filename: bookId, usfm_book: usfm_json, toc3Name });
         });
-        
-        // if group doesn't exist, then add
-        if (!newGroupCollection_.groups?.[group_name]) {
+
+        // check if group exists
+        const noGroup = !newGroupCollection_.groups?.[group_name];
+
+        // if group doesn't exist, check if saved
+        const savedGroup = await loadCurrentGroup(group_name)
+        if (savedGroup) {
+            console.log(`loadTranslationMemory - group ${group_name} doesn't exist, loading from cache`);
+            const newBooks_ = { ...savedGroup.books, ...newBooks };
+            const newGroup_ = new Group(newBooks_);
+            const newGroups = { ...newGroupCollection_.groups, [group_name]: newGroup_ };
+            newGroupCollection_ = new GroupCollection(newGroups, newGroupCollection_.instanceCount + 1);
+        } else if (noGroup) { // if group doesn't exist and wasn't saved, then add
             console.log(`loadTranslationMemory - group ${group_name} doesn't exist, creating`);
             const newGroup: Group = newGroupCollection_.groups[group_name] || new Group(newBooks);
             const newGroups = { ...newGroupCollection_.groups, [group_name]: newGroup };
@@ -358,6 +392,8 @@ export const useAlignmentSuggestions = ({
 
             console.log(`${addedVerseCount} connections added.`);
 
+            // cache updated group settings
+            await saveCurrentGroup(group_name, newGroupCollection_.groups[group_name]);
         } catch (error) {
             console.error(`error importing ${error}`);
             throw new Error("Failed to load source data");
@@ -593,8 +629,8 @@ export const useAlignmentSuggestions = ({
                                 targetLanguageId,
                                 maxComplexity: newMaxComplexity,
                             }
+                            
                             saveModelAndSettings(
-                                dbStorageRef,
                                 alignmentCompletedInfo,
                                 handleTrainingCompleted,
                             ).then(() => {
@@ -848,6 +884,21 @@ export const useAlignmentSuggestions = ({
     }, [handleSetTrainingState]);
 
     /**
+     * Retrieves an instance of IndexedDBStorage. If the storage has not been initialized,
+     * it initializes the storage with the specified database name and object store name.
+     *
+     * @return {Promise<IndexedDBStorage>} A promise that resolves to the initialized IndexedDBStorage instance.
+     */
+    async function getIndexedDbStorage() {
+        if (!dbStorageRef.current) {
+            const dbStorage = new IndexedDBStorage('app-state', 'dataStore');
+            await dbStorage.initialize();
+            dbStorageRef.current = dbStorage;
+        }
+        return dbStorageRef.current
+    }
+
+    /**
      * Effect hook that loads model settings and data from IndexedDB storage.
      *
      * Initializes IndexedDB storage if not already done and loads saved alignment model
@@ -868,20 +919,8 @@ export const useAlignmentSuggestions = ({
             let cachedDataLoaded = false;
             if (shown && modelKey) {
                 console.log(`useAlignmentSuggestions - modelKey changed to ${modelKey}`);
-                if (!dbStorageRef.current) { // if not initialized
-                    const dbStorage = new IndexedDBStorage('app-state', 'dataStore');
-                    await dbStorage.initialize();
-                    console.log(`useAlignmentSuggestions - IndexedDBStorage initialized ${dbStorage.isReady()}`);
-
-                    cachedDataLoaded = await loadSettingsFromStorage(dbStorage, modelKey);
-
-                    //don't set the reference to the dbStorage for setting until after
-                    //we have finished loading so that data which is stale doesn't overwrite
-                    //the data we are wanting to load.
-                    dbStorageRef.current = dbStorage;
-                } else {
-                    cachedDataLoaded = await loadSettingsFromStorage(dbStorageRef.current, modelKey);
-                }
+                const dbStorage = await getIndexedDbStorage();
+                cachedDataLoaded = await loadSettingsFromStorage(dbStorage, modelKey);
                 console.log(`useAlignmentSuggestions - cachedDataLoaded: ${cachedDataLoaded}`);
                 
                 // add the usfm for current book to training memory
@@ -939,6 +978,41 @@ export const useAlignmentSuggestions = ({
      */
     function getSuggester(): TSuggester {
         return alignmentPredictor.current?.predict.bind(alignmentPredictor.current) || null;
+    }
+
+    /**
+     * Saves the trained model and associated settings into local storage and invokes a callback function upon completion.
+     *
+     * @param {React.RefObject<IndexedDBStorage | null>} dbStorageRef - A reference to the IndexedDBStorage object used for saving data.
+     * @param {TAlignmentCompletedInfo} alignmentCompletedInfo - An object containing information about the completed model alignment, including model key and metadata.
+     * @param {THandleTrainingCompleted | null} handleTrainingCompleted - A nullable callback function to handle post-training completion logic.
+     * @return {Promise<void>} A promise that resolves once the model and settings have been successfully saved, or if the storage is not ready.
+     */
+    async function saveModelAndSettings(alignmentCompletedInfo: TAlignmentCompletedInfo, handleTrainingCompleted: THandleTrainingCompleted | null) {
+        const dbStorage = await getIndexedDbStorage();
+        
+        if (!dbStorage?.isReady()) {
+            console.log("saveModelAndSettings() - storage not ready");
+            return
+        }
+
+        const modelKey_ = alignmentCompletedInfo.modelKey;
+        if (!modelKey_) {
+            console.log("saveModelAndSettings() - modelKey not defined");
+            return
+        }
+
+        console.log(`saveModelAndSettings() - saving model for ${modelKey_}`);
+
+        // save model to local storage
+        const abstractWordMapWrapper: AbstractWordMapWrapper = alignmentCompletedInfo.model;
+        await dbStorageRef.current.setItem(modelKey_, JSON.stringify(abstractWordMapWrapper?.save()));
+
+        await storeLanguagePreferences(alignmentCompletedInfo.sourceLanguageId, alignmentCompletedInfo.targetLanguageId, alignmentCompletedInfo.maxComplexity, dbStorageRef);
+
+        console.log(`saveModelAndSettings() - setting maxComplexity to ${alignmentCompletedInfo.maxComplexity}`);
+
+        handleTrainingCompleted?.(alignmentCompletedInfo);
     }
 
     const suggester: TSuggester = getSuggester()
