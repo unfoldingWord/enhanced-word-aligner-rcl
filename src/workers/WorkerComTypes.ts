@@ -2,6 +2,13 @@ import { TSourceTargetAlignment, TWord } from "word-aligner-rcl";
 import {ContextId} from "@/common/classes";
 import {MorphJLBoostWordMap} from "uw-wordmapbooster";
 
+export interface TVerseCounts {
+    alignmentCompletedVerseCount: number;
+    alignmentVerseCount: number;
+    sourceVerseCount: number;
+    targetVerseCount: number;
+}
+
 export interface TTrainingAndTestingData {
     alignments: {
         [key: string]: {
@@ -21,6 +28,7 @@ export interface TTrainingAndTestingData {
     maxComplexity?: number;
     sourceLanguageId?: string;
     targetLanguageId?: string;
+    currentBookVerseCounts?: TVerseCounts;
 }
 
 export interface TTestingWorkerData{
@@ -31,6 +39,7 @@ export interface TTestingWorkerData{
 export interface TTrainedWordAlignerModelResults {
     config: TAlignmentSuggestionsConfig;
     contextId: ContextId;
+    currentBookVerseCounts: TVerseCounts;
     maxComplexity: number;
     sourceLanguageId: string;
     targetLanguageId: string;

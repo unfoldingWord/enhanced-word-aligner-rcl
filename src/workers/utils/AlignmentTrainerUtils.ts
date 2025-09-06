@@ -5,7 +5,8 @@ import {
     TAlignmentSuggestionsConfig,
     TTrainedWordAlignerModelResults,
     TTrainedWordAlignerModelWorkerResults,
-    TTrainingAndTestingData
+    TTrainingAndTestingData,
+    TVerseCounts,
 } from "../WorkerComTypes";
 import {ContextId, translationMemoryType} from "@/common/classes";
 import {DEFAULT_MAX_COMPLEXITY} from "@/common/constants";
@@ -44,6 +45,7 @@ interface RemoveComplexityParams {
     keyCount: number;
     keys: string[];
     maxComplexity: number;
+    minVerseCount: number;
     reduceType: ReduceType;
     sourceVersesTokenized: { [key: string]: Token[] };
     targetVersesTokenized: { [key: string]: Token[] };
@@ -83,6 +85,7 @@ export function removeComplexity(props: RemoveComplexityParams) {
         keyCount,
         keys,
         maxComplexity,
+        minVerseCount,
         reduceType,
         sourceVersesTokenized,
         targetVersesTokenized,
@@ -103,7 +106,7 @@ export function removeComplexity(props: RemoveComplexityParams) {
     let currentIndex = -1;
 
     const maxComplexity_ = (reduceType === ReduceType.otherBooksAll) ? -1 : maxComplexity;
-    while (alignedComplexityCount > maxComplexity_) {
+    while ((alignedComplexityCount > maxComplexity_) && (keys.length > minVerseCount)) {
         if (!doSequentialOrder) {
             const randomIndex = Math.floor(Math.random() * keyCount);
             currentIndex = randomIndex
@@ -167,6 +170,7 @@ export function removeComplexity(props: RemoveComplexityParams) {
  * @param {{[p: string]: Alignment[]}} alignments - The alignments associated with the verses.
  * @param {ContextId} contextId - The context identifier for the alignment operations.
  * @param {TAlignmentSuggestionsConfig|null} config - special configuration settings
+ * @param {TVerseCounts|null} currentBookVerseCounts 
  * @return {{alignedComplexityCount: number, trimmedVerses: number}} An object containing the updated aligned complexity count and the number of trimmed verses.
  */
 export function addAlignmentCorpus(
@@ -181,6 +185,7 @@ export function addAlignmentCorpus(
     alignments: { [p: string]: Alignment[] },
     contextId: ContextId,
     config: TAlignmentSuggestionsConfig|null,
+    currentBookVerseCounts: TVerseCounts|null
 ) {
     let trimmedVerseCount = 0;
     let deletedBookTargetVerses: { [key: string]: Token[] } = {};
@@ -190,6 +195,9 @@ export function addAlignmentCorpus(
     let removedVersesFromBook = 0;
     const deletedTargetVerses: { [key: string]: Token[] } = {};
     const deletedSourceVerses: { [key: string]: Token[] } = {};
+
+    const bookVerseCount = currentBookVerseCounts ? Math.max(currentBookVerseCounts.alignmentVerseCount, currentBookVerseCounts.sourceVerseCount, currentBookVerseCounts.targetVerseCount) : 0
+    const minVerseCount = bookVerseCount * 1.25 || Infinity
 
     const removeComplexityParams = {
         alignedComplexityCount,
@@ -201,11 +209,11 @@ export function addAlignmentCorpus(
         keys,
         reduceType: ReduceType.otherBook,
         maxComplexity,
+        minVerseCount,
         sourceVersesTokenized,
         targetVersesTokenized,
         trimmedVerseCount,
     }
-    
     let singleBookTrimCount = 0
 
     if (config.trainOnlyOnCurrentBook) {
@@ -367,7 +375,7 @@ export async function createTrainedWordAlignerModel(worker: Worker, data: TTrain
       deletedBookSourceVerses,
   } = addAlignmentCorpus(alignedComplexityCount, unalignedComplexityCount, maxComplexity,
       wordAlignerModel, sourceCorpusTokenized, targetCorpusTokenized, sourceVersesTokenized,
-      targetVersesTokenized, alignments, data.contextId, data.config);
+      targetVersesTokenized, alignments, data.contextId, data.config, data.currentBookVerseCounts);
 
   // Train the model and return it
   await wordAlignerModel.add_alignments_2(sourceVersesTokenized, targetVersesTokenized, alignments);
@@ -376,6 +384,7 @@ export async function createTrainedWordAlignerModel(worker: Worker, data: TTrain
   return {
       config: data.config,
       contextId: data.contextId,
+      currentBookVerseCounts: data.currentBookVerseCounts,
       maxComplexity,
       sourceLanguageId: data.sourceLanguageId,
       targetLanguageId: data.targetLanguageId,

@@ -33,7 +33,8 @@ import {
     TAlignmentSuggestionsConfig,
     TAlignmentTrainingWorkerData,
     TTrainedWordAlignerModelWorkerResults,
-    TTrainingAndTestingData
+    TTrainingAndTestingData,
+    TVerseCounts,
 } from "@/workers/WorkerComTypes";
 import {makeTranslationMemory} from "@/workers/utils/AlignmentTrainerUtils";
 
@@ -499,13 +500,21 @@ export const useAlignmentSuggestions = ({
                 //check if there are enough entries in the alignment training data dictionary
                 const alignmentCount= group ? Object.values(alignmentTrainingData_.alignments).length : 0
                 if (alignmentCount > 4) {
+                    const book = group?.books?.[bookId];
+                    let currentBookVerseCounts:TVerseCounts|null = null;
+                    if (book) {
+                        currentBookVerseCounts = book.getVerseCounts()
+                        console.log(`startTraining() - alignment data for ${bookId}`, currentBookVerseCounts)
+                    }
+                    
                     const alignmentTrainingData: TTrainingAndTestingData = {
                         ...alignmentTrainingData_,
                         config,
                         contextId: contextId_,
+                        currentBookVerseCounts,
                         maxComplexity,
                         sourceLanguageId,
-                        targetLanguageId
+                        targetLanguageId,
                     }
 
                     handleSetTrainingState?.({training: true, trainingFailed: ''});

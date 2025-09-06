@@ -1,10 +1,7 @@
-import React from "react";
-import Group from "@/shared/Group";
 import GroupCollection from "@/shared/GroupCollection";
 import {TAlignerData, TSourceTargetAlignment, TWord} from "word-aligner-rcl";
 import {Token} from 'wordmap-lexer'
 import {Suggestion} from 'wordmap'
-import {TWordAlignmentTestResults} from "@/workers/WorkerComTypes";
 
 export type usfmType = string; // Type definition for USFM content
 export type booksUsfmType = { [bibleId: string]: usfmType };

@@ -1,12 +1,12 @@
 import Chapter, { TChapterTestResults } from './Chapter';
 import { is_number } from '@/utils/usfm_misc';
-import Verse from './Verse';
+import Verse, {VerseState} from './Verse';
 import { TSourceTargetAlignment, TUsfmChapter, TWord } from 'word-aligner-rcl';
 import { deepClone } from '@/utils/load_file';
 import JSZip from 'jszip';
 // @ts-ignore
 import usfm from 'usfm-js';
-import { TTrainingAndTestingData } from '@/workers/WorkerComTypes';
+import {TVerseCounts, TTrainingAndTestingData} from '@/workers/WorkerComTypes';
 import {TState, TUsfmBookExt, TWordAlignerAlignmentResult} from "@/common/classes";
 
 export interface TBookTestResults{
@@ -165,6 +165,57 @@ export default class Book {
         return result;
     }
 
+    getVerseCounts(): TVerseCounts {
+        let sourceVerseCount = 0;
+        let targetVerseCount = 0;
+        let alignmentVerseCount = 0;
+        let alignmentCompletedVerseCount = 0;
+        
+        if (this.sourceUsfmBook?.chapters) {
+            Object.entries(this.sourceUsfmBook?.chapters).forEach(([chapter_number, verses]) => {
+                if (parseInt(chapter_number) > 0) {
+                    Object.entries(verses).forEach(([verse_number, verse]) => {
+                        if (parseInt(verse_number) > 0) {
+                            sourceVerseCount++;
+                        }
+                    })
+                }
+            });
+        }
+
+        if (this.targetUsfmBook?.chapters) {
+            Object.entries(this.targetUsfmBook?.chapters).forEach(([chapter_number, verses]) => {
+                if (parseInt(chapter_number) > 0) {
+                    Object.entries(verses).forEach(([verse_number, verse]) => {
+                        if (parseInt(verse_number) > 0) {
+                            targetVerseCount++;
+                        }
+                    })
+                }
+            });
+        }
+        
+        Object.entries(this.chapters).forEach(([chapter_number,chapter])=>{
+            if (parseInt(chapter_number) > 0) {
+                const verses = chapter.verses;
+                Object.entries(verses).forEach(([verse_number,verse])=>{
+                    if (parseInt(verse_number) > 0) {
+                        alignmentVerseCount++;
+                        if (verse.state === VerseState.AlignedTrain) {
+                            alignmentCompletedVerseCount++;
+                        }
+                    }
+                })
+            }
+        });
+        
+        return {
+            alignmentCompletedVerseCount,
+            alignmentVerseCount,
+            sourceVerseCount,
+            targetVerseCount,
+        };
+    }
 
     getVerseBySelector(selector: string[]): Verse | null {
         if( selector.length < 1 ) return null;
