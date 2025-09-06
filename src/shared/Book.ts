@@ -1,13 +1,18 @@
 import Chapter, { TChapterTestResults } from './Chapter';
 import { is_number } from '@/utils/usfm_misc';
 import Verse, {VerseState} from './Verse';
-import { TSourceTargetAlignment, TUsfmChapter, TWord } from 'word-aligner-rcl';
+import {
+    TSourceTargetAlignment,
+    TUsfmBook,
+    TUsfmChapter,
+    TWord,
+} from 'word-aligner-rcl';
 import { deepClone } from '@/utils/load_file';
 import JSZip from 'jszip';
 // @ts-ignore
 import usfm from 'usfm-js';
 import {TVerseCounts, TTrainingAndTestingData} from '@/workers/WorkerComTypes';
-import {TState, TUsfmBookExt, TWordAlignerAlignmentResult} from "@/common/classes";
+import {TState, TWordAlignerAlignmentResult} from "@/common/classes";
 
 export interface TBookTestResults{
     [key:number]: TChapterTestResults
@@ -17,11 +22,11 @@ export default class Book {
     chapters: { [key: number]: Chapter };
     filename: string;
     toc3Name: string;
-    sourceUsfmBook: TUsfmBookExt | null;
-    targetUsfmBook: TUsfmBookExt | null;
+    sourceUsfmBook: TUsfmBook | null;
+    targetUsfmBook: TUsfmBook | null;
 
 
-    constructor( {chapters,filename,toc3Name, sourceUsfmBook, targetUsfmBook}: {chapters:{[key:number]:Chapter},filename:string,toc3Name:string,sourceUsfmBook:TUsfmBookExt|null,targetUsfmBook:TUsfmBookExt|null} ) {
+    constructor( {chapters,filename,toc3Name, sourceUsfmBook, targetUsfmBook}: {chapters:{[key:number]:Chapter},filename:string,toc3Name:string,sourceUsfmBook:TUsfmBook|null,targetUsfmBook:TUsfmBook|null} ) {
         this.chapters = chapters;
         this.filename = filename;
         this.toc3Name = toc3Name;
@@ -86,7 +91,7 @@ export default class Book {
      * @param usfm_book The usfm book content being added.
      * @returns a new copy of the Book object with the usfm content added.
      */
-    addTargetUsfm( {filename,usfm_book,toc3Name}:{filename:string,usfm_book:TUsfmBookExt,toc3Name:string}):Book{
+    addTargetUsfm( {filename,usfm_book,toc3Name}:{filename:string,usfm_book:TUsfmBook,toc3Name:string}):Book{
         if( !usfm_book ) return this;
 
         const newChapters: {[key:number]:Chapter} = {};
@@ -102,7 +107,7 @@ export default class Book {
         return new Book( {chapters:{...this.chapters,...newChapters}, filename, toc3Name, targetUsfmBook:usfm_book, sourceUsfmBook:this.sourceUsfmBook} );
     }
 
-    addSourceUsfm( {usfm_book, isResourceSelected, group_name, book_name }:{usfm_book:TUsfmBookExt,isResourceSelected:( resourceKey: string[] )=>boolean,group_name:string,book_name:string} ):{ addedVerseCount:number, droppedVerseCount:number, modifiedBook:Book }{
+    addSourceUsfm( {usfm_book, isResourceSelected, group_name, book_name }:{usfm_book:TUsfmBook,isResourceSelected:( resourceKey: string[] )=>boolean,group_name:string,book_name:string} ):{ addedVerseCount:number, droppedVerseCount:number, modifiedBook:Book }{
         if( !usfm_book ) return { addedVerseCount:0, droppedVerseCount:0, modifiedBook:this };
 
         const modifiedChapters: {[key:number]:Chapter} = {};
@@ -242,7 +247,7 @@ export default class Book {
         if( this.targetUsfmBook == null ) throw new Error( "Target USFM not loaded" );
 
         //Going to deep clone the book before adding the new chapter in to preserve the immutability of the original structure.
-        const newTargetUsfm: TUsfmBookExt = deepClone( this.targetUsfmBook );
+        const newTargetUsfm: TUsfmBook = deepClone( this.targetUsfmBook );
         newTargetUsfm.chapters[chapter_num] = newChapter.targetUsfm!;
 
         const newChapters = { ...this.chapters, [chapter_num]: newChapter };
@@ -306,7 +311,7 @@ export default class Book {
         }));
 
         //now also filter the usfm information.
-        let newTargetUsfmBook : TUsfmBookExt | null = null;
+        let newTargetUsfmBook : TUsfmBook | null = null;
         if( this.targetUsfmBook ){
             newTargetUsfmBook = deepClone( this.targetUsfmBook );
 
@@ -326,7 +331,7 @@ export default class Book {
                 }
             })
         }
-        let newSourceUsfmBook : TUsfmBookExt | null = null;
+        let newSourceUsfmBook : TUsfmBook | null = null;
         if( this.sourceUsfmBook ){
             newSourceUsfmBook = deepClone( this.sourceUsfmBook );
 
@@ -361,8 +366,8 @@ export default class Book {
         const newChapters = { ...this.chapters };
         //fall over to the other other book's usfm for the target usfm
         //so we can have book headers.
-        let newTargetUsfmBook : TUsfmBookExt | null = (this.targetUsfmBook !== null)?this.targetUsfmBook:book.targetUsfmBook;
-        let newSourceUsfmBook : TUsfmBookExt | null = (this.sourceUsfmBook !== null)?this.sourceUsfmBook:book.sourceUsfmBook;
+        let newTargetUsfmBook : TUsfmBook | null = (this.targetUsfmBook !== null)?this.targetUsfmBook:book.targetUsfmBook;
+        let newSourceUsfmBook : TUsfmBook | null = (this.sourceUsfmBook !== null)?this.sourceUsfmBook:book.sourceUsfmBook;
         Object.entries(book.chapters).forEach(([chapter_number,chapter]:[string,Chapter])=>{
             const chapter_number_int = parseInt(chapter_number);
             if( chapter_number in newChapters ){

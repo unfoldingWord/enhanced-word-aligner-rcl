@@ -113,26 +113,3 @@ interface TReference{
 interface TContextId{
     reference: TReference;
 }
-
-interface TUsfmVerse{
-    verseObjects: TWord[];
-}
-
-type TUsfmChapter = {[key:string]:TUsfmVerse};
-
-interface TUsfmHeader{
-    tag: string;
-    content: string;
-}
-
-interface TUsfmBook{
-    headers: TUsfmHeader[];
-    chapters: {[key:string]:TUsfmChapter};
-}
-
-export interface TUsfmBookExt extends TUsfmBook {
-    stats?: {
-        verseCount?: number;
-        alignedVerseCount?: number;
-    }
-}

@@ -1,10 +1,15 @@
 import { is_number, parseUsfmHeaders } from "@/utils/usfm_misc";
 import Book, { TBookTestResults } from "./Book";
 import Verse from "./Verse";
-import { TSourceTargetAlignment, TUsfmChapter, TWord } from "word-aligner-rcl";
+import {
+    TSourceTargetAlignment,
+    TUsfmBook,
+    TUsfmChapter,
+    TWord,
+} from "word-aligner-rcl";
 import JSZip from "jszip";
 import { TTrainingAndTestingData } from "@/workers/WorkerComTypes";
-import {TState, TUsfmBookExt, TWordAlignerAlignmentResult} from "@/common/classes";
+import {TState, TWordAlignerAlignmentResult} from "@/common/classes";
 import { bibleHelpers } from 'word-aligner-rcl';
 
 export interface TGroupTestResults{
@@ -43,7 +48,7 @@ export default class Group {
      * This adds usfm to this group collection, but does so without
      * changing the original group collection in order to make it react compatible.
      */
-    addTargetUsfm( usfm_json: {[key:string]:TUsfmBookExt} ): Group {
+    addTargetUsfm( usfm_json: {[key:string]:TUsfmBook} ): Group {
         const newBooks: {[key:string]:Book} = {};
 
         Object.entries(usfm_json).forEach(([filename,usfm_book])=>{
@@ -55,7 +60,7 @@ export default class Group {
         return new Group({...this.books, ...newBooks});
     }
 
-    addSourceUsfm( {usfm_json: usfm_json,isResourceSelected,group_name}:{usfm_json:{[key:string]:TUsfmBookExt},isResourceSelected:( resourceKey: string[] )=>boolean,group_name:string} ): {addedVerseCount:number,droppedVerseCount:number,newGroup:Group }{
+    addSourceUsfm( {usfm_json: usfm_json,isResourceSelected,group_name}:{usfm_json:{[key:string]:TUsfmBook},isResourceSelected:( resourceKey: string[] )=>boolean,group_name:string} ): {addedVerseCount:number,droppedVerseCount:number,newGroup:Group }{
         const modifiedBooks: {[key:string]:Book} = {};
 
         //rehash our books by their toc3.
@@ -67,7 +72,7 @@ export default class Group {
         let totalAddedVerseCount:number = 0;
         let totalDroppedVerseCount:number = 0;
         //Now run through each of the imported books and match them up.
-        Object.entries(usfm_json).forEach( ([filename,usfm_book]:[book_name:string,book_json:TUsfmBookExt]) => {
+        Object.entries(usfm_json).forEach( ([filename,usfm_book]:[book_name:string,book_json:TUsfmBook]) => {
             const parsedUsfmHeaders = parseUsfmHeaders(usfm_book.headers);
             
             if( parsedUsfmHeaders.toc3 in toc3_books ){
