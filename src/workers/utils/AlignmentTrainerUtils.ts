@@ -40,12 +40,13 @@ interface RemoveComplexityParams {
     alignedComplexityCount: number;
     alignments: { [key: string]: Alignment[] };
     contextId: ContextId;
+    deletedAlignments: { [key: string]: Alignment[] };
     deletedTargetVerses: { [key: string]: Token[] };
     deletedSourceVerses: { [key: string]: Token[] };
     keyCount: number;
     keys: string[];
     maxComplexity: number;
-    minVerseCount: number;
+    minTrainingVerseCount: number;
     reduceType: ReduceType;
     sourceVersesTokenized: { [key: string]: Token[] };
     targetVersesTokenized: { [key: string]: Token[] };
@@ -80,12 +81,13 @@ export function removeComplexity(props: RemoveComplexityParams) {
         alignedComplexityCount,
         alignments,
         contextId,
+        deletedAlignments,
         deletedSourceVerses,
         deletedTargetVerses,
         keyCount,
         keys,
         maxComplexity,
-        minVerseCount,
+        minTrainingVerseCount,
         reduceType,
         sourceVersesTokenized,
         targetVersesTokenized,
@@ -106,7 +108,7 @@ export function removeComplexity(props: RemoveComplexityParams) {
     let currentIndex = -1;
 
     const maxComplexity_ = (reduceType === ReduceType.otherBooksAll) ? -1 : maxComplexity;
-    while ((alignedComplexityCount > maxComplexity_) && (keys.length > minVerseCount)) {
+    while (alignedComplexityCount > maxComplexity_) { // remove verses if we exceed the complexity count to reduce memory usage and training time.
         if (!doSequentialOrder) {
             const randomIndex = Math.floor(Math.random() * keyCount);
             currentIndex = randomIndex
@@ -139,6 +141,7 @@ export function removeComplexity(props: RemoveComplexityParams) {
         delete sourceVersesTokenized[key]
         deletedTargetVerses[key] = targetVersesTokenized[key];
         delete targetVersesTokenized[key]
+        deletedAlignments[key] = alignments[key]
         delete alignments[key]
 
         trimmedVerseCount++;
@@ -146,6 +149,24 @@ export function removeComplexity(props: RemoveComplexityParams) {
         if (doSequentialOrder) {
             currentIndex--; // backup since we removed item for keys
         }
+    }
+
+    if (reduceType === ReduceType.otherBooksAll) {
+        let restoredVerseCount = 0;
+        const deletedKeys = Object.keys(deletedAlignments);
+        // put back deleted verses to meet the minimum aligned verse count
+        while ((deletedKeys.length > 0) && (keys.length < minTrainingVerseCount)) {
+            const key = deletedKeys.pop()
+            keys.push(key);
+            sourceVersesTokenized[key] = deletedSourceVerses[key]
+            delete deletedSourceVerses[key]
+            targetVersesTokenized[key] = deletedTargetVerses[key]
+            delete deletedTargetVerses[key]
+            alignments[key] = deletedAlignments[key]
+            delete deletedTargetVerses[key]
+            restoredVerseCount++
+        }
+        console.log(``)
     }
     
     // update prop values
@@ -195,21 +216,23 @@ export function addAlignmentCorpus(
     let removedVersesFromBook = 0;
     const deletedTargetVerses: { [key: string]: Token[] } = {};
     const deletedSourceVerses: { [key: string]: Token[] } = {};
+    const deletedAlignments: { [p: string]: Alignment[] } = {};
 
     const bookVerseCount = currentBookVerseCounts ? Math.max(currentBookVerseCounts.alignmentVerseCount, currentBookVerseCounts.sourceVerseCount, currentBookVerseCounts.targetVerseCount) : 0
-    const minVerseCount = bookVerseCount * 1.25 || Infinity
+    const minTrainingVerseCount = bookVerseCount * 1.25 || Infinity
 
     const removeComplexityParams = {
         alignedComplexityCount,
         alignments,
         contextId,
+        deletedAlignments,
         deletedSourceVerses,
         deletedTargetVerses,
         keyCount,
         keys,
         reduceType: ReduceType.otherBook,
         maxComplexity,
-        minVerseCount,
+        minTrainingVerseCount,
         sourceVersesTokenized,
         targetVersesTokenized,
         trimmedVerseCount,
@@ -288,6 +311,7 @@ export function addAlignmentCorpus(
     return {
         alignedComplexityCount,
         trimmedVerseCount,
+        deletedAlignments,
         deletedBookTargetVerses,
         deletedBookSourceVerses,
     };
@@ -370,9 +394,10 @@ export async function createTrainedWordAlignerModel(worker: Worker, data: TTrain
     const wordAlignerModel = new MorphJLBoostWordMap(wordMapOptions);
   
   const {
-      trimmedVerseCount,
+      deletedAlignments,
       deletedBookTargetVerses,
       deletedBookSourceVerses,
+      trimmedVerseCount,
   } = addAlignmentCorpus(alignedComplexityCount, unalignedComplexityCount, maxComplexity,
       wordAlignerModel, sourceCorpusTokenized, targetCorpusTokenized, sourceVersesTokenized,
       targetVersesTokenized, alignments, data.contextId, data.config, data.currentBookVerseCounts);
@@ -380,6 +405,16 @@ export async function createTrainedWordAlignerModel(worker: Worker, data: TTrain
   // Train the model and return it
   await wordAlignerModel.add_alignments_2(sourceVersesTokenized, targetVersesTokenized, alignments);
   
+  // @ts-ignore
+  const map: WordMap = wordAlignerModel.wordMap
+  let translationMemoryVersesAdded = 0;
+  // TRICKY: EXPERIMENTAL - put removed verses back into translation memory
+  Object.entries(deletedAlignments).forEach(([key, alignment]) => {
+      map.appendAlignmentMemory(alignment);
+      translationMemoryVersesAdded++;
+  })
+  console.log(`translationMemoryVersesAdded back ${translationMemoryVersesAdded}`);
+    
   delete wordMapOptions.progress_callback; // remove the progress callback since it will not pass well.
   return {
       config: data.config,
