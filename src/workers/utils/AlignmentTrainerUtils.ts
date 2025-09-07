@@ -166,7 +166,7 @@ export function removeComplexity(props: RemoveComplexityParams) {
             delete deletedTargetVerses[key]
             restoredVerseCount++
         }
-        console.log(``)
+        console.log(`restoredVerseCount = ${restoredVerseCount}`)
     }
     
     // update prop values
@@ -219,7 +219,11 @@ export function addAlignmentCorpus(
     const deletedAlignments: { [p: string]: Alignment[] } = {};
 
     const bookVerseCount = currentBookVerseCounts ? Math.max(currentBookVerseCounts.alignmentVerseCount, currentBookVerseCounts.sourceVerseCount, currentBookVerseCounts.targetVerseCount) : 0
-    const minTrainingVerseCount = bookVerseCount * 1.25 || Infinity
+    let minTrainingVerseCount = 0
+    if (config?.minTrainingVerseRatio) {
+        minTrainingVerseCount = bookVerseCount * config?.minTrainingVerseRatio
+        console.log(`minTrainingVerseRatio = ${config?.minTrainingVerseRatio} and minTrainingVerseCount is ${minTrainingVerseCount}`)
+    }
 
     const removeComplexityParams = {
         alignedComplexityCount,

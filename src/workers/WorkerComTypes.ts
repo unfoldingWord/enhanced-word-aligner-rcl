@@ -96,5 +96,6 @@ export interface TWordAlignmentTestResults{
 }
 
 export interface TAlignmentSuggestionsConfig {
-    trainOnlyOnCurrentBook: boolean;
+    trainOnlyOnCurrentBook?: boolean;
+    minTrainingVerseRatio?: number;
 }

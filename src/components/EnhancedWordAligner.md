@@ -19,6 +19,7 @@ console.log('Loading WordAlignerComponent.md');
 
 const removeClear = false;  // set true to remove clear button
 const trainOnlyOnCurrentBook = true;
+const minTrainingVerseRatio = 1.1;
 const bookId = 'tit';
 
 // const alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1.json');
@@ -214,7 +215,7 @@ const WordAlignerPanel = ({
 
       </div>
       <EnhancedWordAligner
-        config={{trainOnlyOnCurrentBook}}
+        config={{minTrainingVerseRatio, trainOnlyOnCurrentBook}}
         removeClear={removeClear}
         styles={{maxHeight: '450px', overflowY: 'auto', ...styles}}
         verseAlignments={verseAlignments}
