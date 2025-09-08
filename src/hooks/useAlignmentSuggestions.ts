@@ -25,6 +25,7 @@ import {
 } from "@/common/classes";
 import {
     DEFAULT_MAX_COMPLEXITY,
+    DEFAULT_MAX_COMPLEXITY_OT,
     MIN_THRESHOLD_TRAINING_MINUTES,
     THRESHOLD_TRAINING_MINUTES,
     WORKER_TIMEOUT
@@ -98,10 +99,13 @@ function getSelectionFromContext(contextId: ContextId) {
 function defaultAppState(contextId: ContextId): AppState {
     const newGroups : {[key:string]: Group} = {};
     const groupCollection = new GroupCollection(newGroups, 0);
+    const bookId = contextId?.reference?.bookId || '';
+    const isNT = bibleHelpers.isNewTestament(bookId)
+    const maxComplexity = isNT ? DEFAULT_MAX_COMPLEXITY : DEFAULT_MAX_COMPLEXITY_OT;
     return {
         groupCollection,
-        maxComplexity: DEFAULT_MAX_COMPLEXITY,
-        currentBookName: contextId?.reference?.bookId || '',
+        maxComplexity,
+        currentBookName: bookId,
         trainingState: defaultTrainingState(contextId),
         kickOffTraining: false,
         failedToLoadCachedTraining: false,

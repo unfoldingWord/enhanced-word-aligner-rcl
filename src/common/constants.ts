@@ -13,6 +13,7 @@ export const OT_ORIG_LANG: string = 'hbo';
 export const OT_ORIG_LANG_BIBLE: string = 'uhb';
 export const UNALIGNED_THRESHOLD = 15; // percent of unaligned content at which verse it considered unaligned
 export const DEFAULT_MAX_COMPLEXITY = 100000; // initial complexity threshold for alignment suggestion training, used to prevent training from taking too long as well as memory overflow
+export const DEFAULT_MAX_COMPLEXITY_OT = 50000; // for old testament, initial complexity threshold for alignment suggestion training, used to prevent training from taking too long as well as memory overflow
 export const MAX_COMPLEXITY = 300000; // maximum complexity threshold for alignment suggestion training that prevents memory overflow
 export const MIN_COMPLEXITY = 10000; // minimum complexity threshold for alignment suggestion training
 export const THRESHOLD_TRAINING_MINUTES = 8; // ideal threshold training time in minutes
