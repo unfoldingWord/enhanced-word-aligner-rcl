@@ -166,6 +166,11 @@ export function removeComplexity(props: RemoveComplexityParams) {
             delete deletedTargetVerses[key]
             restoredVerseCount++
             trimmedVerseCount--
+            keyCount++
+
+            // put back in the complexity
+            const complexityCount = getComplexityOfVerse(sourceVersesTokenized[key].length, targetVersesTokenized[key].length);
+            alignedComplexityCount+= complexityCount;
         }
         console.log(`restoredVerseCount = ${restoredVerseCount}`)
     }
@@ -175,6 +180,25 @@ export function removeComplexity(props: RemoveComplexityParams) {
     props.keyCount = keyCount;
     props.keys = keys;
     props.trimmedVerseCount = trimmedVerseCount;
+}
+
+/**
+ * Processes alignment data to display unique book and chapter references associated with a given subject.
+ *
+ * @param {Object} alignmentData - An object containing key-value pairs where keys represent book and chapter references.
+ * @param {string} subject - The subject for which alignment data is being displayed.
+ * @return {void} Does not return a value.
+ */
+function showAlignmentData(alignmentData: { [p: string]: any }, subject: string) {
+    const shown: string[] = []
+    const keys = Object.keys(alignmentData)
+    keys.forEach(key => {
+        const book_chapter = key.split(':')[0];
+        if (!shown.includes(book_chapter)) {
+            shown.push(book_chapter);
+            console.log(`'${subject}' includes ${book_chapter}`)
+        }
+    })
 }
 
 /**
@@ -282,7 +306,7 @@ export function addAlignmentCorpus(
         removeComplexity(removeComplexityParams);
         alignedComplexityCount = removeComplexityParams.alignedComplexityCount;
         changed = removeComplexityParams.trimmedVerseCount - trimmedVerseCount;
-        console.log(`Removed ${changed} verses from other books, complexity now ${alignedComplexityCount}`);
+        console.log(`Removed ${changed} verses from other chapters, complexity now ${alignedComplexityCount}`);
         trimmedVerseCount = removeComplexityParams.trimmedVerseCount;
 
         // finally just remove random
@@ -291,7 +315,7 @@ export function addAlignmentCorpus(
         removeComplexity(removeComplexityParams);
         alignedComplexityCount = removeComplexityParams.alignedComplexityCount;
         changed = removeComplexityParams.trimmedVerseCount - trimmedVerseCount;
-        console.log(`Removed ${changed} verses from other books, complexity now ${alignedComplexityCount}`);
+        console.log(`Removed ${changed} verses from current book, complexity now ${alignedComplexityCount}`);
         trimmedVerseCount = removeComplexityParams.trimmedVerseCount;
 
         console.log(`Trimmed ${trimmedVerseCount} verses, complexity now ${alignedComplexityCount}`);
@@ -305,16 +329,8 @@ export function addAlignmentCorpus(
     //     console.log(`Excluding singleBookTrimCount of ${singleBookTrimCount} from trimmedVerseCount, now ${trimmedVerseCount}`);
     // }
 
-    const shown: string[] = []
-    const targetKeys = Object.keys(targetVersesTokenized)
-    targetKeys.forEach(key => {
-        const book_chapter = key.split(':')[0];
-        if (!shown.includes(book_chapter)) {
-            shown.push(book_chapter);
-            console.log(`Training data includes ${book_chapter}`)
-        }
-    })
-    
+    showAlignmentData(targetVersesTokenized, 'Training Data');
+
     return {
         alignedComplexityCount,
         percentBookAligned,
@@ -431,6 +447,7 @@ export async function createTrainedWordAlignerModel(worker: Worker, data: TTrain
           map.appendAlignmentMemory(alignment);
           translationMemoryVersesAdded++;
       })
+      showAlignmentData(deletedAlignments, 'Other Translation Memory');
       console.log(`translation Memory Verses Added back ${translationMemoryVersesAdded}`);
   }
 

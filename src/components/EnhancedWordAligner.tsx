@@ -37,7 +37,7 @@ interface EnhancedWordAlignerProps {
         targetWords: TargetWordBank[];
         contextId: ContextId;
     }) => void;
-    removeClear?: boolean;
+    suggestionsOnly?: boolean;
     showPopover: (
         PopoverTitle: React.ReactNode,
         wordDetails: React.ReactNode,
@@ -77,7 +77,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     handleSetTrainingState,
     hasRenderedSuggestions,
     onChange,
-    removeClear,
+    suggestionsOnly,
     showPopover,
     sourceLanguageId,
     sourceLanguageFont,
@@ -154,7 +154,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     return (
         <SuggestingWordAligner
             contextId={contextId}
-            removeClear={removeClear}
+            suggestionsOnly={suggestionsOnly}
             hasRenderedSuggestions={hasRenderedSuggestions}
             styles={styles}
             targetWords={targetWords}
