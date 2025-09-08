@@ -224,6 +224,7 @@ export function addAlignmentCorpus(
         minTrainingVerseCount = bookVerseCount * config?.minTrainingVerseRatio
         console.log(`minTrainingVerseRatio = ${config?.minTrainingVerseRatio} and minTrainingVerseCount is ${minTrainingVerseCount}`)
     }
+    const percentBookAligned = (bookVerseCount > 0) ? currentBookVerseCounts.alignmentCompletedVerseCount / bookVerseCount * 100 : 0
 
     const removeComplexityParams = {
         alignedComplexityCount,
@@ -314,6 +315,7 @@ export function addAlignmentCorpus(
     
     return {
         alignedComplexityCount,
+        percentBookAligned,
         trimmedVerseCount,
         deletedAlignments,
         deletedBookTargetVerses,
@@ -401,6 +403,7 @@ export async function createTrainedWordAlignerModel(worker: Worker, data: TTrain
       deletedAlignments,
       deletedBookTargetVerses,
       deletedBookSourceVerses,
+      percentBookAligned,
       trimmedVerseCount,
   } = addAlignmentCorpus(alignedComplexityCount, unalignedComplexityCount, maxComplexity,
       wordAlignerModel, sourceCorpusTokenized, targetCorpusTokenized, sourceVersesTokenized,
@@ -408,23 +411,34 @@ export async function createTrainedWordAlignerModel(worker: Worker, data: TTrain
 
   // Train the model and return it
   await wordAlignerModel.add_alignments_2(sourceVersesTokenized, targetVersesTokenized, alignments);
-  
-  // @ts-ignore
-  const map: WordMap = wordAlignerModel.wordMap
-  let translationMemoryVersesAdded = 0;
-  // TRICKY: EXPERIMENTAL - put removed verses back into translation memory
-  Object.entries(deletedAlignments).forEach(([key, alignment]) => {
-      map.appendAlignmentMemory(alignment);
-      translationMemoryVersesAdded++;
-  })
-  console.log(`translationMemoryVersesAdded back ${translationMemoryVersesAdded}`);
-    
+
+  let keepAllAlignmentMemory = data.config.keepAllAlignmentMemory
+  if (!keepAllAlignmentMemory && data.config.keepAllAlignmentMinThreshold) {
+      if (percentBookAligned < data.config.keepAllAlignmentMinThreshold) {
+          keepAllAlignmentMemory = true
+      }
+  }
+
+    console.log(`percent Book Aligned ${percentBookAligned}`);
+    if (keepAllAlignmentMemory) {
+      // TRICKY: EXPERIMENTAL - put removed verses back into translation memory
+      // @ts-ignore
+      const map: WordMap = wordAlignerModel.wordMap
+      let translationMemoryVersesAdded = 0;
+      Object.entries(deletedAlignments).forEach(([key, alignment]) => {
+          map.appendAlignmentMemory(alignment);
+          translationMemoryVersesAdded++;
+      })
+      console.log(`translation Memory Verses Added back ${translationMemoryVersesAdded}`);
+  }
+
   delete wordMapOptions.progress_callback; // remove the progress callback since it will not pass well.
   return {
       config: data.config,
       contextId: data.contextId,
       currentBookVerseCounts: data.currentBookVerseCounts,
       maxComplexity,
+      percentBookAligned,
       sourceLanguageId: data.sourceLanguageId,
       targetLanguageId: data.targetLanguageId,
       trimmedVerses: trimmedVerseCount,

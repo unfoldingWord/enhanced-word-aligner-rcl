@@ -18,8 +18,11 @@ import {NT_ORIG_LANG} from "../common/constants";
 console.log('Loading WordAlignerComponent.md');
 
 const removeClear = false;  // set true to remove clear button
-const trainOnlyOnCurrentBook = true;
-const minTrainingVerseRatio = 1.1;
+const trainOnlyOnCurrentBook = true; // if true, then training is sped up for small books by just training on alignment memory data for current book
+const minTrainingVerseRatio = 1.1; // if trainOnlyOnCurrentBook, then this is protection for the case that the book is not completely aligned.  If a ratio such as 1.0 is set, then training will use the minimum number of verses for training.  This minimum is calculated by multiplying the number of verses in the book by this ratio
+const keepAllAlignmentMemory = false; // EXPERIMENTAL FEATURE - if true, then alignment data not used for training will be added back into wordMap after training.  This should improve alignment vocabulary, but may negatively impact accuracy in the case of fully aligned books.
+const keepAllAlignmentMinThreshold = 90; // EXPERIMENTAL FEATURE - if threshold percentage is set (such as value 60), then alignment data not used for training will be added back into wordMap after training, but only if the percentage of book alignment is less than this threshold.  This should improve alignment vocabulary for books not completely aligned
+
 const bookId = 'tit';
 
 // const alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1.json');
@@ -167,12 +170,18 @@ const WordAlignerPanel = ({
       trainingStatusStr_ += ` ${percentComplete}% complete`;
     }
     console.log(`handleSetTrainingState new state: training ${_training}, trainingComplete ${trainingComplete}, trainingStatusStr ${trainingStatusStr_}`);
-    
+
     setMessage(trainingStatusStr_);
   };
 
   const enableLoadTranslationMemory = !doingTraining;
   const enableTrainingToggle = trained || (translationMemoryLoaded && !doingTraining);
+  const alignmentSuggestionsConfig = {
+    minTrainingVerseRatio,
+    trainOnlyOnCurrentBook,
+    keepAllAlignmentMemory,
+    keepAllAlignmentMinThreshold,
+  };
 
   return (
     <>
@@ -215,7 +224,7 @@ const WordAlignerPanel = ({
 
       </div>
       <EnhancedWordAligner
-        config={{minTrainingVerseRatio, trainOnlyOnCurrentBook}}
+        config={alignmentSuggestionsConfig}
         removeClear={removeClear}
         styles={{maxHeight: '450px', overflowY: 'auto', ...styles}}
         verseAlignments={verseAlignments}
