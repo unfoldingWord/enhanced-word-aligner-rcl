@@ -165,6 +165,7 @@ export function removeComplexity(props: RemoveComplexityParams) {
             alignments[key] = deletedAlignments[key]
             delete deletedTargetVerses[key]
             restoredVerseCount++
+            trimmedVerseCount--
         }
         console.log(`restoredVerseCount = ${restoredVerseCount}`)
     }
@@ -243,6 +244,7 @@ export function addAlignmentCorpus(
         trimmedVerseCount,
     }
     let singleBookTrimCount = 0
+    let currentBookTrimCount = 0
 
     if (config.trainOnlyOnCurrentBook) {
         // next remove all from other books
@@ -265,14 +267,14 @@ export function addAlignmentCorpus(
     } else if (alignedComplexityCount > maxComplexity) {
         console.warn("The corpus is too complex to train the word map.  Trimming. The corpus complexity is:", alignedComplexityCount);
 
-        // next remove from other books
+        // remove from other books
         console.log(`reducing training complexity by removing corpus from other books`)
         removeComplexityParams.reduceType = ReduceType.otherBook;
         removeComplexity(removeComplexityParams);
         alignedComplexityCount = removeComplexityParams.alignedComplexityCount;
         let changed = removeComplexityParams.trimmedVerseCount - trimmedVerseCount;
         console.log(`Removed ${changed} verses from other books, complexity now ${alignedComplexityCount}`);
-        trimmedVerseCount = removeComplexityParams.trimmedVerseCount;
+        trimmedVerseCount = removeComplexityParams.trimmedVerseCount = 0; // ignore removing alignments from other books, optional data
 
         // next remove from other chapters
         console.log(`reducing training complexity by removing corpus from other chapters`)
@@ -298,10 +300,10 @@ export function addAlignmentCorpus(
         wordAlignerModel.appendKeyedCorpusTokens(sourceVersesTokenized, targetVersesTokenized);
     }
 
-    if (singleBookTrimCount > 0) {
-        trimmedVerseCount -= singleBookTrimCount; // don't count those removed from other books when running single book training
-        console.log(`Excluding singleBookTrimCount of ${singleBookTrimCount} from trimmedVerseCount, now ${trimmedVerseCount}`);
-    }
+    // if (singleBookTrimCount > 0) {
+    //     trimmedVerseCount -= singleBookTrimCount; // don't count those removed from other books when running single book training
+    //     console.log(`Excluding singleBookTrimCount of ${singleBookTrimCount} from trimmedVerseCount, now ${trimmedVerseCount}`);
+    // }
 
     const shown: string[] = []
     const targetKeys = Object.keys(targetVersesTokenized)

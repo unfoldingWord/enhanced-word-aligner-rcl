@@ -604,8 +604,13 @@ export const useAlignmentSuggestions = ({
                                 newMaxComplexity = adjustMaxComplexity(THRESHOLD_TRAINING_MINUTES / elapsedMinutes, workerResults.maxComplexity);
                                 setState( { ...stateRef.current, maxComplexity: newMaxComplexity});
                             } else if (workerResults.trimmedVerses && elapsedMinutes < MIN_THRESHOLD_TRAINING_MINUTES) { // if we have trimmed verses, but time is below threshold, bump up complexity limit so we can train with more data
-                                const targetTime = (THRESHOLD_TRAINING_MINUTES + MIN_THRESHOLD_TRAINING_MINUTES) / 2;
-                                const adjustComplexity = (targetTime / elapsedMinutes);
+                                const targetTime = MIN_THRESHOLD_TRAINING_MINUTES;
+                                let adjustComplexity = (targetTime / elapsedMinutes);
+                                const limit = 2;
+                                if (adjustComplexity > limit) { // cap the change amount
+                                    console.log(`startTraining() - dynamic complexity adjustment of ${adjustComplexity}  limited to ${limit}`);
+                                    adjustComplexity = limit
+                                }
                                 console.log(`startTraining() - Worker took under ${MIN_THRESHOLD_TRAINING_MINUTES} minutes, adjusting complexity by ${adjustComplexity}`);
                                 newMaxComplexity = adjustMaxComplexity(adjustComplexity, workerResults.maxComplexity);
                                 setState( { ...stateRef.current, maxComplexity: newMaxComplexity});
