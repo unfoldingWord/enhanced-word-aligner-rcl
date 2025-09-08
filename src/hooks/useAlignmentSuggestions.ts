@@ -254,6 +254,7 @@ export const useAlignmentSuggestions = ({
     const contextIdRef = useRef<ContextId>(null);
     const alignmentTrainingWorkerRef = useRef<TAlignmentTrainingWorkerData | null>(null);
     const workerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const trainingProgress = useRef<number>(0)
 
     const {groupCollection, maxComplexity, currentBookName, trainingState, kickOffTraining, failedToLoadCachedTraining} = state;
 
@@ -449,7 +450,7 @@ export const useAlignmentSuggestions = ({
     const adjustMaxComplexity = (reductionFactor: number, maxComplexity_ = maxComplexity) => {
         let newMaxComplexity = Math.ceil(maxComplexity_ * reductionFactor);
         newMaxComplexity = limitRangeOfComplexity(newMaxComplexity);
-        console.log(`Adjusting maxComplexity from ${maxComplexity_} to ${newMaxComplexity}`);
+        console.log(`Adjusting maxComplexity from ${maxComplexity_} to ${newMaxComplexity}, reduction Factor: ${reductionFactor}`);
         setState( { ...stateRef.current, maxComplexity: newMaxComplexity });
         return newMaxComplexity;
     }
@@ -541,9 +542,14 @@ export const useAlignmentSuggestions = ({
                         // Set up a worker timeout
                         workerTimeoutRef.current = setTimeout(() => {
                             const elapsedMinutes1 = getElapsedMinutes(trainingStartTime);
-                            console.log(`startTraining() -Training Worker timeout after ${elapsedMinutes1} minutes`);
+                            console.log(`startTraining() -Training Worker timeout after ${elapsedMinutes1} minutes, percent complete ${trainingProgress.current}`);
 
-                            const newMaxComplexity = adjustMaxComplexity(0.75);
+                            let reductionFactor = 0.5;
+                            if (trainingProgress.current) {
+                                reductionFactor = trainingProgress.current / 100
+                            }
+
+                            const newMaxComplexity = adjustMaxComplexity(reductionFactor);
 
                             cleanupWorker();
 
@@ -568,6 +574,7 @@ export const useAlignmentSuggestions = ({
                                 const contextId_ = event.data?.contextId;
                                 // console.log(`startTraining() - trainingStatus received: ${percentComplete}%`)
                                 if (typeof percentComplete === 'number') {
+                                    trainingProgress.current = percentComplete; // keep track of progress
                                     handleSetTrainingState?.({ percentComplete, training: true, contextId: contextId_ });
                                 }
                                 return
@@ -657,6 +664,7 @@ export const useAlignmentSuggestions = ({
                         });
 
                         // start the training worker
+                        trainingProgress.current = 0
                         alignmentTrainingWorkerRef.current.worker.postMessage({
                             type: "startTraining",
                             data: alignmentTrainingData
