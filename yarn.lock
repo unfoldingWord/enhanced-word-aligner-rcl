@@ -10765,10 +10765,10 @@ uuid@^8.3.2:
   resolved "https://registry.yarnpkg.com/uuid/-/uuid-8.3.2.tgz#80d5b5ced271bb9af6c445f21a1a04c606cefbe2"
   integrity sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==
 
-uw-wordmapbooster@1.0.3-beta.14:
-  version "1.0.3-beta.14"
-  resolved "https://registry.yarnpkg.com/uw-wordmapbooster/-/uw-wordmapbooster-1.0.3-beta.14.tgz#e2b5a5f74d518c6c547e03e39b71b8bc64f48f61"
-  integrity sha512-4z9B76Y2hkXK2MUAgu+V8BjhGU6ZHGAXJT56Bognj3R2tK9pRj9FuboFthIaA1G+LJbvN99fn9lWjliaY5SKjA==
+uw-wordmapbooster@1.0.3:
+  version "1.0.3"
+  resolved "https://registry.yarnpkg.com/uw-wordmapbooster/-/uw-wordmapbooster-1.0.3.tgz#cb4ef26115f81cdb6514c2c1b556e96459ca4a65"
+  integrity sha512-xkXDX39WcMN99FTXK9Xfqm7hV7W4tJMEw+ylf6jibx1ydk/ziaUwQNtRANzmWL9z4IWhcT+bvqyh32EtRaOZpA==
   dependencies:
     usfm-js "^3.4.2"
     wordmap "0.6.0"
@@ -11131,10 +11131,10 @@ wildcard@^2.0.0:
   resolved "https://registry.yarnpkg.com/wildcard/-/wildcard-2.0.1.tgz#5ab10d02487198954836b6349f74fff961e10f67"
   integrity sha512-CC1bOL87PIWSBhDcTrdeLo6eGT7mCFtrg0uIJtqJUFyK+eJnzl8A1niH56uu7KMa5XFrtiV+AQuHO3n7DsHnLQ==
 
-word-aligner-rcl@1.2.0-beta.21:
-  version "1.2.0-beta.21"
-  resolved "https://registry.yarnpkg.com/word-aligner-rcl/-/word-aligner-rcl-1.2.0-beta.21.tgz#aa699a17006c046cc5ae0657385730f06540a0b7"
-  integrity sha512-09YRVXn95xrnpj1WIhb0XM2RV2wYeVObvlnSr2gY691kV0cCVSJ74s+n3p+3irB4w64wcjGGQukiO1cv0kxPPQ==
+word-aligner-rcl@1.2.0:
+  version "1.2.0"
+  resolved "https://registry.yarnpkg.com/word-aligner-rcl/-/word-aligner-rcl-1.2.0.tgz#7d334bf83b57608c9228d70e267e6c187f9139e8"
+  integrity sha512-cqsojuzRDTly4DXumom+ggJcexAr1YbfLZWSyPK8WTFLIRtaKaU3NnjGP/px9tnpwNozh/p4BB/YyOXe/k6cTw==
   dependencies:
     "@emotion/react" "^11.10.0"
     "@emotion/styled" "^11.10.0"
