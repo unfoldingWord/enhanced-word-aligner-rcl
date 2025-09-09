@@ -1,10 +1,7 @@
-import React from "react";
-import Group from "@/shared/Group";
 import GroupCollection from "@/shared/GroupCollection";
 import {TAlignerData, TSourceTargetAlignment, TWord} from "word-aligner-rcl";
 import {Token} from 'wordmap-lexer'
 import {Suggestion} from 'wordmap'
-import {TWordAlignmentTestResults} from "@/workers/WorkerComTypes";
 
 export type usfmType = string; // Type definition for USFM content
 export type booksUsfmType = { [bibleId: string]: usfmType };
@@ -12,8 +9,16 @@ export type translationMemoryType = {
     sourceUsfms: booksUsfmType;
     targetUsfms: booksUsfmType;
 };
-export type THandleSetTrainingState = (running: boolean, trainingComplete: boolean) => void;
 
+export interface TTrainingStateChange {
+    training?: boolean,
+    trainingComplete?: boolean,
+    trainingFailed?: string,
+    percentComplete?: number,
+    contextId?: ContextId,
+}
+
+export type THandleSetTrainingState = (state: TTrainingStateChange) => void;
 
 export interface TWordAlignerAlignmentResult{
     targetWords: TWord[];
@@ -48,21 +53,18 @@ interface WordAlignerDialogProps{
 
 export interface AppState {
     groupCollection: GroupCollection; //This contains all the verse data loaded in a hierarchical structure of Groups->Books->Chapter->Verses
-    scope: string;  //This is Book, Group, Chapter or Verse.  It changes how the list is shown.
-    currentSelection: string[][]; //This contains a collection of the references to all the things selected in the list.
-    doubleClickedVerse: string[] | null; //This gets set when a verse is double clicked.
-    alignerStatus: TAlignerStatus | null; //This gets set to pop up the word aligner dialog.
+    maxComplexity: number;
+    currentBookName: string;
+    trainingState: TrainingState;
+    kickOffTraining: boolean;
+    failedToLoadCachedTraining: boolean;
 }
 
 export interface TrainingState{
-    isTrainingEnabled: boolean; //This is true when the training checkbox is checked
-    isTestingEnabled: boolean; //This is true when the testing is enabled
-    trainingStatusOutput: string; //Setting this shows up on the toolbar and lets the training have a place to give live output status.
-    lastTrainedInstanceCount: number; //This lets us know if something has changed since last training by comparing it to groupCollection.instanceCount
+    contextId: ContextId | null;
     currentTrainingInstanceCount: number; //This keeps track of what is currently training so that when it finishes lastTrainedInstanceCount can be set.
-    lastTestAlignedCount: number; //This count keeps track of which alignment model count was last used to update test alignments.
-    currentTestingInstanceCount: number; //This keeps track of what is currently testing so that when it finishes lastTestAlignedCount can be set.
-    testResults: TWordAlignmentTestResults | null; //This holds the last results which were returned from the testing thread.
+    lastTrainedInstanceCount: number; //This lets us know if something has changed since last training by comparing it to groupCollection.instanceCount
+    trainingStatusOutput: string; //Setting this shows up on the toolbar and lets the training have a place to give live output status.
 }
 
 export interface ContextId {
@@ -110,20 +112,4 @@ interface TReference{
 
 interface TContextId{
     reference: TReference;
-}
-
-interface TUsfmVerse{
-    verseObjects: TWord[];
-}
-
-type TUsfmChapter = {[key:string]:TUsfmVerse};
-
-interface TUsfmHeader{
-    tag: string;
-    content: string;
-}
-
-interface TUsfmBook{
-    headers: TUsfmHeader[];
-    chapters: {[key:string]:TUsfmChapter};
 }

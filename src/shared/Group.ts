@@ -1,10 +1,16 @@
 import { is_number, parseUsfmHeaders } from "@/utils/usfm_misc";
 import Book, { TBookTestResults } from "./Book";
 import Verse from "./Verse";
-import { TSourceTargetAlignment, TUsfmBook, TUsfmChapter, TWord } from "word-aligner-rcl";
+import {
+    TSourceTargetAlignment,
+    TUsfmBook,
+    TUsfmChapter,
+    TWord,
+} from "word-aligner-rcl";
 import JSZip from "jszip";
 import { TTrainingAndTestingData } from "@/workers/WorkerComTypes";
 import {TState, TWordAlignerAlignmentResult} from "@/common/classes";
+import { bibleHelpers } from 'word-aligner-rcl';
 
 export interface TGroupTestResults{
     [key:string]: TBookTestResults
@@ -216,10 +222,14 @@ export default class Group {
     /**
      * This function gets the alignment training data from this group.
      */
-    getAlignmentDataAndCorpusForTrainingOrTesting( { forTesting, getCorpus }: { forTesting:boolean, getCorpus: boolean } ): TTrainingAndTestingData {
+    getAlignmentDataAndCorpusForTrainingOrTesting( { forTesting, getCorpus, isNT }: { forTesting:boolean, getCorpus: boolean, isNT: boolean } ): TTrainingAndTestingData {
         const alignments: { [key: string]: { targetVerse: TWord[], sourceVerse: TWord[], alignments:TSourceTargetAlignment[] }} = {};
         const corpus: { [key: string]: { sourceTokens: TWord[], targetTokens: TWord[] }} = {};
         Object.entries(this.books).forEach( ([book_name,book]: [string,Book])=>{
+            const isNT_ = bibleHelpers.isNewTestament(book_name)
+            if ( isNT_ != isNT ) {
+                return // skip this book when it's not the right testament
+            };
             const subResults = book.getAlignmentDataAndCorpusForTrainingOrTesting( {forTesting,getCorpus} );
             Object.entries(subResults.alignments).forEach(([reference,alignment])=>{
                 alignments[`${book_name} ${reference}`] = alignment;

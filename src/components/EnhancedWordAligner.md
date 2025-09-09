@@ -17,17 +17,25 @@ import {NT_ORIG_LANG} from "../common/constants";
 
 console.log('Loading WordAlignerComponent.md');
 
+const suggestionsOnly = true;  // set true to remove clear button and add suggestion label
+const trainOnlyOnCurrentBook = true; // if true, then training is sped up for small books by just training on alignment memory data for current book
+const minTrainingVerseRatio = 1.1; // if trainOnlyOnCurrentBook, then this is protection for the case that the book is not completely aligned.  If a ratio such as 1.0 is set, then training will use the minimum number of verses for training.  This minimum is calculated by multiplying the number of verses in the book by this ratio
+const keepAllAlignmentMemory = false; // EXPERIMENTAL FEATURE - if true, then alignment data not used for training will be added back into wordMap after training.  This should improve alignment vocabulary, but may negatively impact accuracy in the case of fully aligned books.
+const keepAllAlignmentMinThreshold = 90; // EXPERIMENTAL FEATURE - if threshold percentage is set (such as value 60), then alignment data not used for training will be added back into wordMap after training, but only if the percentage of book alignment is less than this threshold.  This should improve alignment vocabulary for books not completely aligned
+
+const bookId = 'tit';
+
 // const alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1.json');
 // const alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1_partial.json');
 // const originalVerseJson = require('../__tests__/fixtures/alignments/grk_tit_1_1.json');
 const LexiconData = require("../__tests__/fixtures/lexicon/lexicons.json");
-// const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory.json");
-//
-// // limit to single book
+const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory.json");
+
+// limit to single book
 // translationMemory.targetUsfms = { "tit": translationMemory.targetUsfms.tit};
 // translationMemory.sourceUsfms = { "tit": translationMemory.sourceUsfms.tit};
 
-const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryMat.json");
+// const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryMat.json");
 // merge together translationMemory and translationMemory2
 // translationMemory.targetUsfms = {...translationMemory.targetUsfms, ...translationMemory2.targetUsfms};
 // translationMemory.sourceUsfms = {...translationMemory.sourceUsfms, ...translationMemory2.sourceUsfms};
@@ -45,7 +53,8 @@ const translate = (key) => {
     "suggestions.reject_suggestions" : "Reject all suggestions.",
     "suggestions.reject"             : "Reject",
     "alignments.clear_alignments"    : "Clear all alignments.",
-    "alignments.clear"              : "Clear",
+    "alignments.clear"               : "Clear",
+    "suggestions.title"              : "Suggestions:",
   };
   if (!(key in lookup)) {
     console.log(`translate(${key})`)
@@ -54,14 +63,15 @@ const translate = (key) => {
   }
 };
 
-const targetLanguage = 'en';
-const bookId = 'mat';
-const chapter = 2;
-const verse = 3;
-const source_json = usfm.toJSON(translationMemory.sourceUsfms[bookId], { convertToInt: ['occurrence','occurrences']});
-const target_json = usfm.toJSON(translationMemory.targetUsfms[bookId], { convertToInt: ['occurrence','occurrences']});
-const sourceVerseUSFM = extractVerseText(translationMemory.sourceUsfms[bookId], chapter, verse)
-const targetVerseUSFM = extractVerseText(translationMemory.targetUsfms[bookId], chapter, verse)
+const targetLanguageId = 'en';
+const chapter = 1;
+const verse = 1;
+var sourceUsfm = translationMemory.sourceUsfms[bookId] || '';
+var targetUsfm = translationMemory.targetUsfms[bookId] || '';
+const source_json = usfm.toJSON(sourceUsfm, {convertToInt: ['occurrence', 'occurrences']});
+const target_json = usfm.toJSON(targetUsfm, {convertToInt: ['occurrence', 'occurrences']});
+const sourceVerseUSFM = extractVerseText(sourceUsfm, chapter, verse)
+const targetVerseUSFM = extractVerseText(targetUsfm, chapter, verse)
 
 const alignedVerseJson = usfmHelpers.usfmVerseToJson(targetVerseUSFM);
 const originalVerseJson = usfmHelpers.usfmVerseToJson(sourceVerseUSFM);
@@ -77,7 +87,7 @@ const WordAlignerPanel = ({
     translate,
     contextId,
     targetLanguageFont,
-    sourceLanguage,
+    sourceLanguageId,
     showPopover,
     lexicons,
     loadLexiconEntry,
@@ -92,6 +102,8 @@ const WordAlignerPanel = ({
   const [trained, setTrained] = useState(false);
   const [training, setTraining] = useState(false);
   const [message, setMessage] = useState('');
+  const [trainingError, setTrainingError] = useState('')
+  const [trainingButtonStr, setTrainingButtonStr] = useState('');
 
   // Handler for the load translation memory button
   const handleLoadTranslationMemory = () => {
@@ -106,24 +118,71 @@ const WordAlignerPanel = ({
     setDoingTraining(newTrainingState);
   };
 
-  const handleSetTrainingState = (_training, trained) => {
-    console.log('Updating training state: ' + _training);
-    delay(500).then(() => { // update async
-      setTraining(_training);
-      if (!_training) {
-        setDoingTraining(false);
-      } else {
-        setMessage("Training ...")
-      }
-      setMessage(trained ? "Training Complete" : "")
-      setTrained(trained);
-    })
-  };
+  const handleSetTrainingState = (props) => {
+    if (!props) {
+      console.log('handleSetTrainingState: no props');
+      return;
+    }
 
-  const trainingButtonStr = training ? "Stop Training" : "Start Training"
+    let {
+      percentComplete,
+      training: _training,
+      trainingComplete,
+      trainingFailed,
+    } = props || {};
+
+    if (_training === undefined) {
+      _training = training;
+    } else {
+      // console.log('Updating training state: ' + _training);
+    }
+    if (trainingComplete === undefined) {
+      trainingComplete = trained;
+    } else {
+      // console.log('Updating trainingComplete state: ' + trainingComplete);
+    }
+
+    if (_training !== training) {
+      setTraining(_training);
+    }
+    if (!_training && doingTraining) {
+      setDoingTraining(false);
+    }
+    if (trainingComplete !== trained) {
+      setTrained(trainingComplete);
+    }
+
+    let trainingErrorStr = ''
+    let currentTrainingError = trainingError;
+    if (typeof trainingFailed === 'string') {
+      currentTrainingError = trainingFailed;
+      setTrainingError(currentTrainingError)
+    }
+    if (currentTrainingError) {
+      trainingErrorStr = " - " + currentTrainingError;
+    }
+
+    const trainingButtonStr = _training ? "Stop Training" : "Start Training"
+    setTrainingButtonStr(trainingButtonStr);
+
+    let trainingStatusStr_ = (_training ? "Currently Training ..." : trainingComplete ? "Trained" : "Not Trained") + trainingErrorStr;
+
+    if (percentComplete !== undefined) {
+      trainingStatusStr_ += ` ${percentComplete}% complete`;
+    }
+    console.log(`handleSetTrainingState new state: training ${_training}, trainingComplete ${trainingComplete}, trainingStatusStr ${trainingStatusStr_}`);
+
+    setMessage(trainingStatusStr_);
+  };
 
   const enableLoadTranslationMemory = !doingTraining;
   const enableTrainingToggle = trained || (translationMemoryLoaded && !doingTraining);
+  const alignmentSuggestionsConfig = {
+    minTrainingVerseRatio,
+    trainOnlyOnCurrentBook,
+    keepAllAlignmentMemory,
+    keepAllAlignmentMinThreshold,
+  };
 
   return (
     <>
@@ -166,14 +225,16 @@ const WordAlignerPanel = ({
 
       </div>
       <EnhancedWordAligner
+        config={alignmentSuggestionsConfig}
+        suggestionsOnly={suggestionsOnly}
         styles={{maxHeight: '450px', overflowY: 'auto', ...styles}}
         verseAlignments={verseAlignments}
         targetWords={targetWords}
         translate={translate}
         contextId={contextId}
         targetLanguageFont={targetLanguageFont}
-        sourceLanguage={sourceLanguage}
-        targetLanguage={targetLanguage}
+        sourceLanguageId={sourceLanguageId}
+        targetLanguageId={targetLanguageId}
         showPopover={showPopover}
         lexicons={lexicons}
         loadLexiconEntry={loadLexiconEntry}
@@ -190,7 +251,7 @@ const WordAlignerPanel = ({
 const App = () => {
   const targetLanguageFont = '';
   const source = bibleHelpers.getOrigLangforBook(bookId);
-  const sourceLanguage = source && source.languageId || NT_ORIG_LANG;
+  const sourceLanguageId = source && source.languageId || NT_ORIG_LANG;
   const lexicons = {};
   const contextId = {
     "reference": {
@@ -234,7 +295,7 @@ const App = () => {
         translate={translate}
         contextId={contextId}
         targetLanguageFont={targetLanguageFont}
-        sourceLanguage={sourceLanguage}
+        sourceLanguageId={sourceLanguageId}
         showPopover={showPopover}
         lexicons={lexicons}
         loadLexiconEntry={loadLexiconEntry}
