@@ -959,6 +959,32 @@ export const useAlignmentSuggestions = ({
         })();
     }, [modelKey, shown]);
 
+    // Effect to load translation memory and start training when fail to load cached training Model
+    useEffect(() => {
+        if (failedToLoadCachedTraining && doAutoTraining) {
+            console.log('WordAlignerArea: failedToLoadCachedTraining', {failedToLoadCachedTraining, contextId, showDialog})
+            const haveBook = contextId?.reference?.bookId;
+
+            if (!haveBook) {
+                if (autoTrainingCompleted) {
+                    setState(prevState => ({...prevState, autoTrainingCompleted: false}));
+                }
+            } else { // have a book, so check if we have cached training data
+                if (showDialog) {
+                    const trainingSameBook = areTrainingSameBook_()
+
+                    if (trainingRunning) {
+                        console.log('WordAlignerArea: training already running trainingSameBook:', trainingSameBook)
+                    }
+
+                    if (!trainingRunning && !autoTrainingCompleted) {
+                        startTraining_();
+                    }
+                }
+            }
+        }
+    }, [failedToLoadCachedTraining]);
+    
     /**
      * Prepares the application context and state for initiating a training workflow.
      *
