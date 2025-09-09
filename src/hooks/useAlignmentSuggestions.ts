@@ -17,9 +17,9 @@ import GroupCollection from "@/shared/GroupCollection";
 import IndexedDBStorage from "@/shared/IndexedDBStorage";
 import { limitRangeOfComplexity } from "@/utils/misc";
 import {
-    AppState,
     ContextId,
-    THandleSetTrainingState,
+    TAlignmentSuggestionsState,
+    THandleTrainingStateChange,
     TrainingState,
     translationMemoryType,
 } from "@/common/classes";
@@ -55,7 +55,7 @@ interface TUseAlignmentSuggestionsProps {
     config?: TAlignmentSuggestionsConfig;
     contextId: ContextId;
     createAlignmentTrainingWorker?:() => Promise<Worker>; // needed to support alignment training in a web worker
-    handleSetTrainingState?: THandleSetTrainingState;
+    handleSetTrainingState?: THandleTrainingStateChange;
     handleTrainingCompleted?: THandleTrainingCompleted ;
     shown: boolean;
     sourceLanguageId: string;
@@ -96,19 +96,20 @@ function getSelectionFromContext(contextId: ContextId) {
     return currentSelection;
 }
 
-function defaultAppState(contextId: ContextId): AppState {
+function defaultAppState(contextId: ContextId): TAlignmentSuggestionsState {
     const newGroups : {[key:string]: Group} = {};
     const groupCollection = new GroupCollection(newGroups, 0);
     const bookId = contextId?.reference?.bookId || '';
     const isNT = bibleHelpers.isNewTestament(bookId)
     const maxComplexity = isNT ? DEFAULT_MAX_COMPLEXITY : DEFAULT_MAX_COMPLEXITY_OT;
     return {
-        groupCollection,
-        maxComplexity,
+        autoTrainingCompleted: false,
         currentBookName: bookId,
-        trainingState: defaultTrainingState(contextId),
-        kickOffTraining: false,
         failedToLoadCachedTraining: false,
+        groupCollection,
+        kickOffTraining: false,
+        maxComplexity,
+        trainingState: defaultTrainingState(contextId),
     }
 }
 
@@ -244,11 +245,11 @@ export const useAlignmentSuggestions = ({
 }: TUseAlignmentSuggestionsProps): TUseAlignmentSuggestionsReturn => {
     const dbStorageRef = useRef<IndexedDBStorage | null>(null);
 
-    const [state, _setState] = useState<AppState>(defaultAppState(contextId));
+    const [state, _setState] = useState<TAlignmentSuggestionsState>(defaultAppState(contextId));
     //also hold the state in a ref so that callbacks can get the up-to-date information.
     //https://stackoverflow.com/a/60643670
-    const stateRef = useRef<AppState>(state);
-    function setState( newState: AppState ) {
+    const stateRef = useRef<TAlignmentSuggestionsState>(state);
+    function setState( newState: TAlignmentSuggestionsState ) {
         stateRef.current = newState;
         _setState( newState );
     }
@@ -925,7 +926,7 @@ export const useAlignmentSuggestions = ({
     }
 
     /**
-     * Effect hook that loads model settings and data from IndexedDB storage.
+     * Effect hook that loads model settings and data from IndexedDB storage when aligned is shown.
      *
      * Initializes IndexedDB storage if not already done and loads saved alignment model
      * and settings when the modelKey changes or component becomes visible.
@@ -943,7 +944,7 @@ export const useAlignmentSuggestions = ({
     useEffect(() => {
         (async () => {
             let cachedDataLoaded = false;
-            if (shown && modelKey) {
+            if (shown && modelKey && config?.doAutoTraining) {
                 console.log(`useAlignmentSuggestions - modelKey changed to ${modelKey}`);
                 const dbStorage = await getIndexedDbStorage();
                 cachedDataLoaded = await loadSettingsFromStorage(dbStorage, modelKey);
@@ -959,26 +960,31 @@ export const useAlignmentSuggestions = ({
         })();
     }, [modelKey, shown]);
 
-    // Effect to load translation memory and start training when fail to load cached training Model
+    // Effect to load translation memory and start training when failure to load cached training Model
     useEffect(() => {
-        if (failedToLoadCachedTraining && doAutoTraining) {
-            console.log('WordAlignerArea: failedToLoadCachedTraining', {failedToLoadCachedTraining, contextId, showDialog})
+        if (failedToLoadCachedTraining && config?.doAutoTraining) {
+            console.log('useAlignmentSuggestions - failedToLoadCachedTraining', {failedToLoadCachedTraining, contextId, shown})
             const haveBook = contextId?.reference?.bookId;
+            const autoTrainingCompleted = stateRef.current?.autoTrainingCompleted;
 
             if (!haveBook) {
                 if (autoTrainingCompleted) {
-                    setState(prevState => ({...prevState, autoTrainingCompleted: false}));
+                    setState( { ...stateRef.current, autoTrainingCompleted: false});
                 }
             } else { // have a book, so check if we have cached training data
-                if (showDialog) {
-                    const trainingSameBook = areTrainingSameBook_()
+                if (shown) {
+                    const trainingSameBook = areTrainingSameBook(contextId)
 
                     if (trainingRunning) {
-                        console.log('WordAlignerArea: training already running trainingSameBook:', trainingSameBook)
-                    }
-
-                    if (!trainingRunning && !autoTrainingCompleted) {
-                        startTraining_();
+                        console.log('useAlignmentSuggestions - training already running trainingSameBook:', trainingSameBook)
+                        if (!trainingSameBook) {
+                            console.log(`WordAlignerDialog: stopping training on other book:`, getTrainingContextId())
+                            _stopTraining()
+                        }
+                    } else { // training not running
+                        if (!autoTrainingCompleted) {
+                            startTraining();
+                        }
                     }
                 }
             }

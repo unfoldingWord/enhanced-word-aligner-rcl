@@ -18,7 +18,7 @@ export interface TTrainingStateChange {
     contextId?: ContextId,
 }
 
-export type THandleSetTrainingState = (state: TTrainingStateChange) => void;
+export type THandleTrainingStateChange = (state: TTrainingStateChange) => void;
 
 export interface TWordAlignerAlignmentResult{
     targetWords: TWord[];
@@ -51,13 +51,14 @@ interface WordAlignerDialogProps{
     suggester: ((sourceSentence: string | Token[], targetSentence: string | Token[], maxSuggestions?: number, manuallyAligned?: Alignment[] ) => Suggestion[])|null
 }
 
-export interface AppState {
-    groupCollection: GroupCollection; //This contains all the verse data loaded in a hierarchical structure of Groups->Books->Chapter->Verses
-    maxComplexity: number;
+export interface TAlignmentSuggestionsState {
+    autoTrainingCompleted: boolean;
     currentBookName: string;
-    trainingState: TrainingState;
-    kickOffTraining: boolean;
     failedToLoadCachedTraining: boolean;
+    groupCollection: GroupCollection; //This contains all the verse data loaded in a hierarchical structure of Groups->Books->Chapter->Verses
+    kickOffTraining: boolean;
+    maxComplexity: number;
+    trainingState: TrainingState;
 }
 
 export interface TrainingState{

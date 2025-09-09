@@ -97,6 +97,7 @@ export interface TWordAlignmentTestResults{
 }
 
 export interface TAlignmentSuggestionsConfig {
+    doAutoTraining?: boolean; // set true to enable auto training of alignment suggestions
     trainOnlyOnCurrentBook?: boolean; // if true, then training is sped up for small books by just training on alignment memory data for current book
     minTrainingVerseRatio?: number; // if trainOnlyOnCurrentBook, then this is protection for the case that the book is not completely aligned.  If a ratio such as 1.0 is set, then training will use the minimum number of verses for training.  This minimum is calculated by multiplying the number of verses in the book by this ratio
     keepAllAlignmentMemory?: boolean; // EXPERIMENTAL FEATURE - if true, then alignment data not used for training will be added back into wordMap after training.  This should improve alignment vocabulary, but may negatively impact accuracy in the case of fully aligned books.

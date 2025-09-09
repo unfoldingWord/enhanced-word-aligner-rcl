@@ -4,7 +4,7 @@ import {
     ContextId,
     SourceWord,
     TargetWordBank,
-    THandleSetTrainingState,
+    THandleTrainingStateChange,
     translationMemoryType,
     TTrainingStateChange
 } from "@/common/classes";
@@ -25,7 +25,7 @@ interface EnhancedWordAlignerProps {
     addTranslationMemory?: translationMemoryType;
     contextId: ContextId;
     doTraining: boolean;
-    handleSetTrainingState?: THandleSetTrainingState;
+    handleTrainingStateChange?: THandleTrainingStateChange;
     hasRenderedSuggestions?: boolean;
     lexiconCache?: Record<string, any>;
     loadLexiconEntry: (lexiconId: string, entryId: string) => void;
@@ -74,7 +74,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     doTraining,
     lexiconCache,
     loadLexiconEntry,
-    handleSetTrainingState,
+    handleTrainingStateChange,
     hasRenderedSuggestions,
     onChange,
     suggestionsOnly,
@@ -94,10 +94,8 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
         console.log("handleTrainingCompleted", info);
     }
 
-    const handleSetTrainingState_ = (props: TTrainingStateChange) => {
-        handleSetTrainingState?.(props);
-        // const trainingCurrent = areTrainingSameBook_();
-        // console.log(`handleSetTrainingState - training Current Book: ${trainingCurrent}`);
+    const handleTrainingStateChange_ = (props: TTrainingStateChange) => {
+        handleTrainingStateChange?.(props);
     }
     
     const {
@@ -114,18 +112,13 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
         config,
         contextId,
         createAlignmentTrainingWorker,
-        handleSetTrainingState: handleSetTrainingState_,
+        handleSetTrainingState: handleTrainingStateChange_,
         handleTrainingCompleted,
         shown: true,
         sourceLanguageId,
         targetLanguageId,
     });
     
-    const areTrainingSameBook_ = () => {
-        const trainingCurrent = areTrainingSameBook(contextId);
-        return trainingCurrent;
-    }
-
     // Effect to load translation memory when it changes
     useEffect(() => {
         if (addTranslationMemory && Object.keys(addTranslationMemory).length > 0) {
