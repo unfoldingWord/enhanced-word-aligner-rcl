@@ -1,20 +1,20 @@
-import { is_number } from "@/utils/usfm_misc";
+import { isValidVerse } from "@/utils/usfm_misc";
 import Verse, { VerseState } from "./Verse";
 import { TSourceTargetAlignment, TUsfmChapter, TUsfmVerse, TWord } from "word-aligner-rcl";
 import { TTrainingAndTestingData, TWordAlignmentTestScore } from "@/workers/WorkerComTypes";
-import {TState, TWordAlignerAlignmentResult} from "@/common/classes";
+import { TState, TWordAlignerAlignmentResult } from "@/common/classes";
 
 export interface TChapterTestResults{
-    [key:number]: TWordAlignmentTestScore;
+    [key:number|string]: TWordAlignmentTestScore;
 }
 
 export default class Chapter {
-    verses: { [key: number]: Verse };
+    verses: { [key: number|string]: Verse };
 
     targetUsfm: TUsfmChapter | null = null;
     sourceUsfm: TUsfmChapter | null = null;
 
-    constructor( newVerses: {[key:number]: Verse}, targetUsfm: TUsfmChapter | null, sourceUsfm: TUsfmChapter | null ) {
+    constructor( newVerses: {[key:number|string]: Verse}, targetUsfm: TUsfmChapter | null, sourceUsfm: TUsfmChapter | null ) {
         this.verses = newVerses;
         this.targetUsfm = targetUsfm;
         this.sourceUsfm = sourceUsfm;
@@ -30,9 +30,8 @@ export default class Chapter {
         const newVerses: {[key:number]:Verse} = {};
         if( chapter.verses ){
             Object.entries(chapter.verses).forEach( ([verse_number_string,usfm_verse]:[string,any]) => {
-                if( is_number(verse_number_string) ){
-                    const verse_number_int = parseInt( verse_number_string );
-                    newVerses[verse_number_int] = Verse.load( verse_number_string, usfm_verse );
+                if( isValidVerse(verse_number_string) ){
+                    newVerses[verse_number_string] = Verse.load( verse_number_string, usfm_verse );
                 }
             });
         }
@@ -58,10 +57,9 @@ export default class Chapter {
         const newVerses: {[key:number]:Verse} = {};
 
         Object.entries(usfm_chapter).forEach( ([verse_number_string,usfm_verse]:[string,TUsfmVerse]) => {
-            if( is_number(verse_number_string) ){
-                const verse_number_int = parseInt( verse_number_string );
-                const newVerse = this.verses[verse_number_int] || new Verse();
-                newVerses[verse_number_int] = newVerse.addTargetUsfm( usfm_verse );
+            if( isValidVerse(verse_number_string) ){
+                const newVerse = this.verses[verse_number_string] || new Verse();
+                newVerses[verse_number_string] = newVerse.addTargetUsfm( usfm_verse );
             }
         });
 
@@ -73,12 +71,10 @@ export default class Chapter {
         let totalDroppedVerseCount = 0;
 
         Object.entries(usfm_chapter).forEach( ([verse_number_string,usfm_verse]:[string,TUsfmVerse]) => {
-            if( is_number(verse_number_string) ){
-                const verse_number_int = parseInt( verse_number_string );
-
-                if( verse_number_int in this.verses && isResourceSelected([group_name,book_name,chapter_number,verse_number_string]) ){
-                    const toModifyVerse: Verse = this.verses[verse_number_int];
-                    modifiedVerses[verse_number_int] = toModifyVerse.addSourceUsfm( usfm_verse )
+            if( isValidVerse(verse_number_string) ){
+                if( verse_number_string in this.verses && isResourceSelected([group_name,book_name,chapter_number,verse_number_string]) ){
+                    const toModifyVerse: Verse = this.verses[verse_number_string];
+                    modifiedVerses[verse_number_string] = toModifyVerse.addSourceUsfm( usfm_verse )
                     totalAddedVerseCount++;
                 }else{
                     totalDroppedVerseCount++;
@@ -97,7 +93,7 @@ export default class Chapter {
         //Map through our verses and modify them accordingly.
         //It makes more sense to use isResourceSelected to grab the verses
         //but isResourcePartiallySelected will do and is needed further up.
-        const newVerses : {[key:number]: Verse} = Object.fromEntries(Object.entries(this.verses).map( ([verse_number,verse])=>{
+        const newVerses : {[key:number|string]: Verse} = Object.fromEntries(Object.entries(this.verses).map( ([verse_number,verse])=>{
             return [verse_number,isResourcePartiallySelected([group_name,book_name,chapter_number,verse_number]) ? 
                 verse.setTestReservation( reservedForTesting ) : 
                 verse];            
@@ -127,7 +123,7 @@ export default class Chapter {
             } );
         }else{
             Object.entries(this.verses).forEach(([verse_number,verse])=>{
-                verse.getListInfo(parseInt(verse_number)).forEach((subResult) =>{
+                verse.getListInfo(verse_number).forEach((subResult) =>{
                     result.push( {
                         data: [""+chapter_num].concat(subResult.data),
                         keys: [""+chapter_num].concat(subResult.keys),
@@ -141,7 +137,7 @@ export default class Chapter {
 
     getVerseBySelector(selector: string[]): Verse | null {
         if( selector.length < 1 ) return null;
-        const verse_num : number = parseInt(selector[0]);
+        const verse_num = selector[0];
         if( !(verse_num in this.verses ) ) return null;
         return this.verses[verse_num];
     }
@@ -149,14 +145,14 @@ export default class Chapter {
 
     getVerseAlignmentStateBySelector(chapter_num: number, selector: string[]): TState | null {
         if( selector.length < 1 ) throw new Error( "Verse not selected for alignment." );
-        const verse_num : number = parseInt(selector[0]);
+        const verse_num = selector[0];
         if( !(verse_num in this.verses ) ) throw new Error( "Verse not found." );
         return this.verses[verse_num].getAlignmentState( chapter_num, verse_num );
     }
 
     updateAlignmentState( alignmentDialogResult: TWordAlignerAlignmentResult, selector: string[] ): Chapter{
         if( selector.length < 1 ) return this;
-        const verse_num: number = parseInt( selector[0] );
+        const verse_num = selector[0];
         if( !(verse_num in this.verses) ) return this;
 
         const newVerse = this.verses[verse_num].updateAlignmentState(alignmentDialogResult );
@@ -188,7 +184,7 @@ export default class Chapter {
         //also trip the USFM chapter
         const newTargetUsfm = this.targetUsfm == null?null:Object.fromEntries(Object.entries(this.targetUsfm).filter(([verse_number,verse]:[string,TUsfmVerse]):boolean=>{
             //only keep the verses which are not selected or is other stuff.
-            if( !is_number(verse_number) ) return true;
+            if( !isValidVerse(verse_number) ) return true;
             const isSelected = isResourceSelected( bookKey.concat([verse_number]) );
             return !isSelected;
         }));
@@ -207,11 +203,10 @@ export default class Chapter {
         const newTargetUsfm = (this.targetUsfm==null)?{}:{ ...this.targetUsfm};
         const newSourceUsfm = (this.sourceUsfm==null)?{}:{ ...this.sourceUsfm};
         Object.entries(chapter.verses).forEach(([verse_number,verse]:[string,Verse])=>{
-            const verse_number_int = parseInt(verse_number);
             if( !(verse_number in this.verses) ){
-                newVerses[verse_number_int] = verse;
-                if( verse.targetVerse != null ) newTargetUsfm[verse_number_int] = verse.targetVerse;
-                if( verse.sourceVerse != null ) newSourceUsfm[verse_number_int] = verse.sourceVerse;
+                newVerses[verse_number] = verse;
+                if( verse.targetVerse != null ) newTargetUsfm[verse_number] = verse.targetVerse;
+                if( verse.sourceVerse != null ) newSourceUsfm[verse_number] = verse.sourceVerse;
             }
         });
         return new Chapter( newVerses, newTargetUsfm, newSourceUsfm );
@@ -231,9 +226,9 @@ export default class Chapter {
         Object.entries(this.verses).forEach(([verse_number,verse]:[string,Verse])=>{
            //First test if this is for the training or testing which will make it for an alignment.
            if( verse.getVerseAlignmentStatus() == (forTesting?VerseState.AlignedTest:VerseState.AlignedTrain) ){
-               alignmentSelectedVerses[parseInt(verse_number)] = verse;
+               alignmentSelectedVerses[verse_number] = verse;
            }else if( getCorpus ){
-               corpusSelectedVerses[parseInt(verse_number)] = verse;
+               corpusSelectedVerses[verse_number] = verse;
            }
         });
 
@@ -258,7 +253,7 @@ export default class Chapter {
     addRestructuredAlignmentTestResults( testResults: TChapterTestResults ): Chapter{
         const newVerses = Object.fromEntries(Object.entries(this.verses).map(([verse_number,verse]:[string,Verse])=>{
             if( !(verse_number in testResults) ) return [verse_number,verse];
-            return [verse_number,verse.addAlignmentTestResults( testResults[parseInt(verse_number)] )];
+            return [verse_number,verse.addAlignmentTestResults( testResults[verse_number] )];
         }));
         return new Chapter( newVerses, this.targetUsfm, this.sourceUsfm );
     }

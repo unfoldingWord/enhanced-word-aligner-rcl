@@ -2,6 +2,9 @@ import {default as word_aligner_default} from "word-aligner";
 import _wordmapLexer, { Token } from "wordmap-lexer";
 import { TUsfmVerse, TWord, AlignmentHelpers, TUsfmHeader, TSourceTargetAlignment, TTopBottomAlignment } from "word-aligner-rcl";
 import { migrateOriginalLanguageHelpers } from 'word-aligner-rcl';
+// @ts-ignore
+import { referenceHelpers } from 'bible-reference-range'
+
 export function parseUsfmHeaders(headers_section: TUsfmHeader[]) {
     const parsed_headers: { [key: string]: string } = headers_section.reduce((acc: { [key: string]: string }, entry: { tag: string, content: string }) => {
         if (entry.tag && entry.content) {
@@ -14,6 +17,11 @@ export function parseUsfmHeaders(headers_section: TUsfmHeader[]) {
 
 export function is_number( value: string ){
     return !isNaN(parseInt(value));
+}
+
+export function isValidVerse(verse: string) {
+    const isSet = referenceHelpers.isVerseSet(verse);
+    return isSet;
 }
 
 export function only_numbers(to_filter: string[]): string[] {
