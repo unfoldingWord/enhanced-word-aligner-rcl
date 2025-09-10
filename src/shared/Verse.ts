@@ -126,7 +126,7 @@ export default class Verse {
     static getListHeaders():string[]{
         return ["Verse","Status","Ratio Correct"];
     }
-    getListInfo( verse_num: number ):{ data:string[], keys:string[] }[]{
+    getListInfo( verse_num: number|string ):{ data:string[], keys:string[] }[]{
         return [{data:[ 
             "" + verse_num, 
             this.state, 

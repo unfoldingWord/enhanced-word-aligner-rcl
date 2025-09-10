@@ -15,10 +15,22 @@ export function parseUsfmHeaders(headers_section: TUsfmHeader[]) {
     return parsed_headers;
 }
 
+/**
+ * Determines if the provided string value represents a valid number or at least starts with a number.
+ *
+ * @param {string} value - The string to be evaluated.
+ * @return {boolean} Returns true if the string can be parsed into a number, otherwise false.
+ */
 export function is_number( value: string ){
     return !isNaN(parseInt(value));
 }
 
+/**
+ * Determines if the provided verse reference is valid.
+ *
+ * @param {string} verse - The verse reference to validate.
+ * @return {boolean} Returns true if the verse reference is valid; otherwise, returns false.
+ */
 export function isValidVerse(verse: string) {
     let isValid: boolean = referenceHelpers.isVerseSet(verse);
     if (!isValid) {
@@ -27,6 +39,12 @@ export function isValidVerse(verse: string) {
     return isValid;
 }
 
+/**
+ * Extracts a list of verse numbers from a given verse reference.  It will expand verse spans and lists.
+ *
+ * @param {string} verse - A string representing the verse reference in the format to be parsed.
+ * @return {number[]} An array of verse numbers extracted from the provided verse reference.
+ */
 export function getVerseList(verse: string) {
     const verses:number[] = [];
     const verseChunks: { verse:number, endVerse:number }[] = referenceHelpers.parseReferenceToList('1:' + verse)
@@ -38,6 +56,19 @@ export function getVerseList(verse: string) {
         }
     })
     return verses;
+}
+
+/**
+ * Determines whether a given verse reference is within a specified verse range.
+ *
+ * @param {string} verseRange - A string representation of the verse range.
+ * @param {number} verseRef - The verse reference to check against the range.
+ * @return {boolean} True if the verse reference is within the range, false otherwise.
+ */
+export function isVerseInRange( verseRange:string, verseRef: number) {
+    const verses = getVerseList(verseRange);
+    const pos = verses.findIndex(v => (v === verseRef));
+    return pos > 0;
 }
 
 export function only_numbers(to_filter: string[]): string[] {

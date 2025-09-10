@@ -307,9 +307,9 @@ import {getVerseList, isValidVerse} from "@/utils/usfm_misc";
           } 
           
           if (isSpan) { // try getting each verse in span
-              const verseChunks = getVerseList(verseNum_);
-              verseChunks.forEach((verse) => {
-                  const verseContent = extractVerseContent(usfmContent, chapterNum, parseInt(verse))
+              const verses = getVerseList(verseNum_);
+              verses.forEach((verse) => {
+                  const verseContent = extractVerseContent(usfmContent, chapterNum, verse)
                   content += getJustVerseText(verseContent)
               })
               return content

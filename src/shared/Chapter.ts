@@ -1,8 +1,10 @@
-import { isValidVerse } from "@/utils/usfm_misc";
+import {getVerseList, isValidVerse, isVerseInRange} from "@/utils/usfm_misc";
 import Verse, { VerseState } from "./Verse";
 import { TSourceTargetAlignment, TUsfmChapter, TUsfmVerse, TWord } from "word-aligner-rcl";
 import { TTrainingAndTestingData, TWordAlignmentTestScore } from "@/workers/WorkerComTypes";
 import { TState, TWordAlignerAlignmentResult } from "@/common/classes";
+// @ts-ignore
+import {referenceHelpers} from "bible-reference-range";
 
 export interface TChapterTestResults{
     [key:string]: TWordAlignmentTestScore;
@@ -69,6 +71,7 @@ export default class Chapter {
         const modifiedVerses: {[key:string]:Verse} = {};
         let totalAddedVerseCount = 0;
         let totalDroppedVerseCount = 0;
+        const versesNotFound:string[] = [];
 
         Object.entries(usfm_chapter).forEach( ([verse_number_string,usfm_verse]:[string,TUsfmVerse]) => {
             if( isValidVerse(verse_number_string) ){
@@ -77,10 +80,41 @@ export default class Chapter {
                     modifiedVerses[verse_number_string] = toModifyVerse.addSourceUsfm( usfm_verse )
                     totalAddedVerseCount++;
                 }else{
+                    versesNotFound.push(verse_number_string);
                     totalDroppedVerseCount++;
                 }
             }
         })
+        
+        if (versesNotFound.length > 0){
+            const verseSpansFound = Object.keys(this.verses).filter(verse => (referenceHelpers.isVerseSpan(verse)))
+            if (verseSpansFound.length > 0) {
+                for (const verse of versesNotFound) {
+                    if (verse && !referenceHelpers.isVerseSet(verse)) {
+                        // check if in range
+                        const verseNum = parseInt(verse);
+                        const matchedVerseSpan = verseSpansFound.find(verseSpan => (isVerseInRange(verseSpan, verseNum)))
+                        if (matchedVerseSpan) {
+                            // get verse data for each verse in span
+                            const usfm_span:TUsfmVerse = { verseObjects: [] }
+                            const verses = getVerseList(matchedVerseSpan);
+                            for (const verse_num of verses) {
+                                const verse_text = verse_num + ''
+                                const sourceVerse = usfm_chapter[verse_num]
+                                usfm_span.verseObjects.concat(sourceVerse.verseObjects)
+                                const pos = versesNotFound.find( v => (verse_text == v) )
+                                versesNotFound[pos] = null
+                                totalDroppedVerseCount--
+                            }
+
+                            const toModifyVerse: Verse = this.verses[matchedVerseSpan];
+                            modifiedVerses[matchedVerseSpan] = toModifyVerse.addSourceUsfm( usfm_span )
+                            totalAddedVerseCount++;
+                        }
+                    }
+                }
+            }
+        }
 
         return {
             addedVerseCount:totalAddedVerseCount,

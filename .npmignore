@@ -9,3 +9,4 @@ src/
 coverage/
 node_modules/
 **/__tests__/
+typings/
