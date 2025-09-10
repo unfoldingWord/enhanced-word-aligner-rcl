@@ -20,8 +20,24 @@ export function is_number( value: string ){
 }
 
 export function isValidVerse(verse: string) {
-    const isSet = referenceHelpers.isVerseSet(verse);
-    return isSet;
+    let isValid: boolean = referenceHelpers.isVerseSet(verse);
+    if (!isValid) {
+        isValid = is_number(verse);
+    }
+    return isValid;
+}
+
+export function getVerseList(verse: string) {
+    const verses:number[] = [];
+    const verseChunks: { verse:number, endVerse:number }[] = referenceHelpers.parseReferenceToList('1:' + verse)
+    verseChunks.forEach(chunk => {
+        const start = chunk.verse
+        const end = chunk.endVerse
+        for (let verse = start; verse <= end; verse++) {
+            verses.push(verse)
+        }
+    })
+    return verses;
 }
 
 export function only_numbers(to_filter: string[]): string[] {
@@ -30,9 +46,6 @@ export function only_numbers(to_filter: string[]): string[] {
         return acc;
     }, []);
 }
-
-
-
 
 /**
  * for each item in word list convert occurrence(s) to numbers

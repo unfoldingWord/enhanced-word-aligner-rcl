@@ -25,13 +25,16 @@ const minTrainingVerseRatio = 1.1; // if trainOnlyOnCurrentBook, then this is pr
 const keepAllAlignmentMemory = false; // EXPERIMENTAL FEATURE - if true, then alignment data not used for training will be added back into wordMap after training.  This should improve alignment vocabulary, but may negatively impact accuracy in the case of fully aligned books.
 const keepAllAlignmentMinThreshold = 90; // EXPERIMENTAL FEATURE - if threshold percentage is set (such as value 60), then alignment data not used for training will be added back into wordMap after training, but only if the percentage of book alignment is less than this threshold.  This should improve alignment vocabulary for books not completely aligned
 
-const bookId = 'tit';
+const targetLanguageId = 'en';
+const bookId = 'eph';
+const chapter = 5;
+const verse = '22-23';
 
 // const alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1.json');
 // const alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1_partial.json');
 // const originalVerseJson = require('../__tests__/fixtures/alignments/grk_tit_1_1.json');
 const LexiconData = require("../__tests__/fixtures/lexicon/lexicons.json");
-const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory.json");
+// const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory.json");
 
 // limit to single book
 // translationMemory.targetUsfms = { "tit": translationMemory.targetUsfms.tit};
@@ -45,6 +48,7 @@ const translationMemory = require("../__tests__/fixtures/alignments/full_books/t
 // const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryMark.json");
 // const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryActs.json");
 // const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryRuth.json");
+const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryEphUST.json");
 
 const translate = (key) => {
   const lookup = {
@@ -76,9 +80,6 @@ const translate = (key) => {
   }
 };
 
-const targetLanguageId = 'en';
-const chapter = 1;
-const verse = 1;
 var sourceUsfm = translationMemory.sourceUsfms[bookId] || '';
 var targetUsfm = translationMemory.targetUsfms[bookId] || '';
 const source_json = usfm.toJSON(sourceUsfm, {convertToInt: ['occurrence', 'occurrences']});
@@ -152,6 +153,7 @@ const WordAlignerPanel = ({
 
   return (
     <>
+      <div>{targetLanguageId} - {bookId} {chapter}:{verse}</div>
       <div style={{display: 'flex', gap: '10px'}}>
         <button
           onClick={handleLoadTranslationMemory}

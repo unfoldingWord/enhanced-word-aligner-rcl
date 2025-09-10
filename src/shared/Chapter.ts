@@ -5,16 +5,16 @@ import { TTrainingAndTestingData, TWordAlignmentTestScore } from "@/workers/Work
 import { TState, TWordAlignerAlignmentResult } from "@/common/classes";
 
 export interface TChapterTestResults{
-    [key:number|string]: TWordAlignmentTestScore;
+    [key:string]: TWordAlignmentTestScore;
 }
 
 export default class Chapter {
-    verses: { [key: number|string]: Verse };
+    verses: { [key: string]: Verse };
 
     targetUsfm: TUsfmChapter | null = null;
     sourceUsfm: TUsfmChapter | null = null;
 
-    constructor( newVerses: {[key:number|string]: Verse}, targetUsfm: TUsfmChapter | null, sourceUsfm: TUsfmChapter | null ) {
+    constructor( newVerses: {[key:string]: Verse}, targetUsfm: TUsfmChapter | null, sourceUsfm: TUsfmChapter | null ) {
         this.verses = newVerses;
         this.targetUsfm = targetUsfm;
         this.sourceUsfm = sourceUsfm;
@@ -27,7 +27,7 @@ export default class Chapter {
      * @return {Chapter} The revived chapter object.
      */
     static load( chapter_number_string: string, chapter: any ): Chapter {
-        const newVerses: {[key:number]:Verse} = {};
+        const newVerses: {[key:string]:Verse} = {};
         if( chapter.verses ){
             Object.entries(chapter.verses).forEach( ([verse_number_string,usfm_verse]:[string,any]) => {
                 if( isValidVerse(verse_number_string) ){
@@ -54,7 +54,7 @@ export default class Chapter {
 
     
     addTargetUsfm( usfm_chapter: TUsfmChapter ): Chapter{
-        const newVerses: {[key:number]:Verse} = {};
+        const newVerses: {[key:string]:Verse} = {};
 
         Object.entries(usfm_chapter).forEach( ([verse_number_string,usfm_verse]:[string,TUsfmVerse]) => {
             if( isValidVerse(verse_number_string) ){
@@ -66,7 +66,7 @@ export default class Chapter {
         return new Chapter( {...this.verses, ...newVerses}, usfm_chapter, this.sourceUsfm );
     }
     addSourceUsfm( {usfm_chapter, isResourceSelected, group_name, book_name, chapter_number}: {usfm_chapter:TUsfmChapter, isResourceSelected:( resourceKey: string[] )=>boolean, group_name:string, book_name:string, chapter_number:string }):{addedVerseCount:number, droppedVerseCount:number, modifiedChapter:Chapter }{
-        const modifiedVerses: {[key:number]:Verse} = {};
+        const modifiedVerses: {[key:string]:Verse} = {};
         let totalAddedVerseCount = 0;
         let totalDroppedVerseCount = 0;
 
@@ -93,7 +93,7 @@ export default class Chapter {
         //Map through our verses and modify them accordingly.
         //It makes more sense to use isResourceSelected to grab the verses
         //but isResourcePartiallySelected will do and is needed further up.
-        const newVerses : {[key:number|string]: Verse} = Object.fromEntries(Object.entries(this.verses).map( ([verse_number,verse])=>{
+        const newVerses : {[key:string]: Verse} = Object.fromEntries(Object.entries(this.verses).map( ([verse_number,verse])=>{
             return [verse_number,isResourcePartiallySelected([group_name,book_name,chapter_number,verse_number]) ? 
                 verse.setTestReservation( reservedForTesting ) : 
                 verse];            
@@ -220,8 +220,8 @@ export default class Chapter {
      */
     getAlignmentDataAndCorpusForTrainingOrTesting( { forTesting, getCorpus }: { forTesting:boolean, getCorpus: boolean } ): TTrainingAndTestingData {
         //This function need to modified when there is verse spanning alignments.
-        const alignmentSelectedVerses : { [key: number]: Verse } = {};
-        const corpusSelectedVerses    : { [key: number]: Verse } = {};
+        const alignmentSelectedVerses : { [key:string]: Verse } = {};
+        const corpusSelectedVerses    : { [key:string]: Verse } = {};
 
         Object.entries(this.verses).forEach(([verse_number,verse]:[string,Verse])=>{
            //First test if this is for the training or testing which will make it for an alignment.
