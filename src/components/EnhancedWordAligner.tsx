@@ -12,7 +12,7 @@ import {Alignment, Suggestion} from "wordmap";
 import {Token} from 'wordmap-lexer'
 
 import {TAlignmentCompletedInfo, useAlignmentSuggestions} from '@/hooks/useAlignmentSuggestions';
-import {createAlignmentTrainingWorker} from "@/workers/utils/startAlignmentTrainer";
+import {createAlignmentTrainingWorker as createAlignmentTrainingWorker_} from "@/workers/utils/startAlignmentTrainer";
 import {TAlignmentSuggestionsConfig} from "@/workers/WorkerComTypes";
 
 interface EnhancedWordAlignerProps {
@@ -24,6 +24,7 @@ interface EnhancedWordAlignerProps {
     ) => Promise<Suggestion[]>;
     addTranslationMemory?: translationMemoryType;
     contextId: ContextId;
+    createAlignmentTrainingWorker: () => Promise<Worker>;
     doTraining: boolean;
     handleTrainingStateChange?: THandleTrainingStateChange;
     hasRenderedSuggestions?: boolean;
@@ -71,6 +72,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     addTranslationMemory,
     contextId,
     config,
+    createAlignmentTrainingWorker = createAlignmentTrainingWorker_, // TRICKY - the steps to create the training Worker are dependent on the platform, so this allows it to be overriden
     doTraining,
     lexiconCache,
     loadLexiconEntry,
@@ -147,21 +149,21 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     return (
         <SuggestingWordAligner
             contextId={contextId}
-            suggestionsOnly={suggestionsOnly}
             hasRenderedSuggestions={hasRenderedSuggestions}
-            styles={styles}
-            targetWords={targetWords}
-            translate={translate}
-            targetLanguageFont={targetLanguageFont}
-            sourceLanguage={sourceLanguageId}
-            showPopover={showPopover}
             lexiconCache={lexiconCache}
             loadLexiconEntry={loadLexiconEntry}
             onChange={onChange}
+            showPopover={showPopover}
+            sourceLanguage={sourceLanguageId}
             sourceLanguageFont={sourceLanguageFont}
             sourceFontSizePercent={sourceFontSizePercent}
-            targetFontSizePercent={targetFontSizePercent}
+            suggestionsOnly={suggestionsOnly}
+            style={styles}
             suggester={suggester}
+            targetWords={targetWords}
+            translate={translate}
+            targetLanguageFont={targetLanguageFont}
+            targetFontSizePercent={targetFontSizePercent}
             verseAlignments={verseAlignments}
         />
     )

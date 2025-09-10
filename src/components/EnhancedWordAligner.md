@@ -105,7 +105,6 @@ const WordAlignerPanel = ({
     lexicons,
     loadLexiconEntry,
     onChange,
-    getLexiconData,
     translationMemory,
     styles
 }) => {
@@ -192,24 +191,23 @@ const WordAlignerPanel = ({
 
       </div>
       <EnhancedWordAligner
+        addTranslationMemory={addTranslationMemory}
         config={alignmentSuggestionsConfig}
-        suggestionsOnly={suggestionsOnly}
-        styles={{maxHeight: '450px', overflowY: 'auto', ...styles}}
-        verseAlignments={verseAlignments}
-        targetWords={targetWords}
-        translate={translate}
         contextId={contextId}
-        targetLanguageFont={targetLanguageFont}
-        sourceLanguageId={sourceLanguageId}
-        targetLanguageId={targetLanguageId}
-        showPopover={showPopover}
+        doTraining={doingTraining}
+        handleTrainingStateChange={handleTrainingStateChange}
         lexicons={lexicons}
         loadLexiconEntry={loadLexiconEntry}
         onChange={onChange}
-        getLexiconData={getLexiconData}
-        addTranslationMemory={addTranslationMemory}
-        doTraining={doingTraining}
-        handleTrainingStateChange={handleTrainingStateChange}
+        showPopover={showPopover}
+        sourceLanguageId={sourceLanguageId}
+        styles={{...styles, maxHeight: '450px', overflowY: 'auto'}}
+        suggestionsOnly={suggestionsOnly}
+        targetLanguageFont={targetLanguageFont}
+        targetLanguageId={targetLanguageId}
+        targetWords={targetWords}
+        translate={translate}
+        verseAlignments={verseAlignments}
       />
     </>
   );
@@ -239,11 +237,6 @@ const App = () => {
     console.log(`loadLexiconEntry(${key})`)
     return LexiconData
   };
-  const getLexiconData_ = (lexiconId, entryId) => {
-    console.log(`loadLexiconEntry(${lexiconId}, ${entryId})`)
-    const entryData = (LexiconData && LexiconData[lexiconId]) ? LexiconData[lexiconId][entryId] : null;
-    return {[lexiconId]: {[entryId]: entryData}};
-  };
 
   function onChange(results) {
     console.log(`WordAligner() - alignment changed, results`, results);// merge alignments into target verse and convert to USFM
@@ -257,18 +250,18 @@ const App = () => {
   return (
     <div style={{height: '650px', width: '800px'}}>
       <WordAlignerPanel
-        verseAlignments={verseAlignments}
-        targetWords={targetWords}
-        translate={translate}
         contextId={contextId}
-        targetLanguageFont={targetLanguageFont}
-        sourceLanguageId={sourceLanguageId}
-        showPopover={showPopover}
         lexicons={lexicons}
         loadLexiconEntry={loadLexiconEntry}
         onChange={onChange}
-        getLexiconData={getLexiconData_}
+        showPopover={showPopover}
+        sourceLanguageId={sourceLanguageId}
+        styles={{}}
+        targetLanguageFont={targetLanguageFont}
+        targetWords={targetWords}
+        translate={translate}
         translationMemory={translationMemory}
+        verseAlignments={verseAlignments}
       />
     </div>
   );
