@@ -68,7 +68,7 @@ export function getVerseList(verse: string) {
 export function isVerseInRange( verseRange:string, verseRef: number) {
     const verses = getVerseList(verseRange);
     const pos = verses.findIndex(v => (v === verseRef));
-    return pos > 0;
+    return pos >= 0;
 }
 
 export function only_numbers(to_filter: string[]): string[] {

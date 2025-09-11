@@ -101,10 +101,13 @@ export default class Chapter {
                             for (const verse_num of verses) {
                                 const verse_text = verse_num + ''
                                 const sourceVerse = usfm_chapter[verse_num]
-                                usfm_span.verseObjects.concat(sourceVerse.verseObjects)
-                                const pos = versesNotFound.find( v => (verse_text == v) )
-                                versesNotFound[pos] = null
-                                totalDroppedVerseCount--
+                                usfm_span.verseObjects =
+                                    usfm_span.verseObjects.concat(sourceVerse.verseObjects)
+                                const pos = versesNotFound.findIndex( v => (verse_text == v) )
+                                if (pos >= 0) {
+                                    versesNotFound[pos] = null
+                                    totalDroppedVerseCount--
+                                }
                             }
 
                             const toModifyVerse: Verse = this.verses[matchedVerseSpan];
