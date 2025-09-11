@@ -26,6 +26,7 @@ interface EnhancedWordAlignerProps {
     contextId: ContextId;
     createAlignmentTrainingWorker: () => Promise<Worker>;
     doTraining: boolean;
+    handleInfoClick: (TAlignmentCompletedInfo) => void;
     handleTrainingStateChange?: THandleTrainingStateChange;
     hasRenderedSuggestions?: boolean;
     lexiconCache?: Record<string, any>;
@@ -76,6 +77,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     doTraining,
     lexiconCache,
     loadLexiconEntry,
+    handleInfoClick,
     handleTrainingStateChange,
     hasRenderedSuggestions,
     onChange,
@@ -104,6 +106,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
         actions: {
             areTrainingSameBook,
             cleanupWorker,
+            getModelMetaData,
             isTraining,
             loadTranslationMemory,
             suggester,
@@ -120,6 +123,12 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
         sourceLanguageId,
         targetLanguageId,
     });
+
+    function handleInfoClick_() {
+        // console.log("handleInfoClick");
+        const info = getModelMetaData()
+        handleInfoClick?.(info)
+    }
     
     // Effect to load translation memory when it changes
     useEffect(() => {
@@ -149,6 +158,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     return (
         <SuggestingWordAligner
             contextId={contextId}
+            handleInfoClick={handleInfoClick_}
             hasRenderedSuggestions={hasRenderedSuggestions}
             lexiconCache={lexiconCache}
             loadLexiconEntry={loadLexiconEntry}

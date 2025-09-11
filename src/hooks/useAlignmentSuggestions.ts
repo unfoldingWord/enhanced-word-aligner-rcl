@@ -78,6 +78,7 @@ interface TUseAlignmentSuggestionsReturn {
     actions: {
         areTrainingSameBook: (contextId: ContextId) => boolean;
         cleanupWorker: () => void;
+        getModelMetaData: () => TAlignmentCompletedInfo|null;
         getSuggester: () => TSuggester;
         getTrainingContextId: () => ContextId;
         isTraining: () => boolean;
@@ -161,7 +162,7 @@ export const getModelKey = (contextId: ContextId): string => {
     const bibleId = contextId?.bibleId; // expected to be unique such as "unfoldingWord/en/ult"
     if (bibleId && bookId) {
         const testament = getTestamentStr(bookId);
-        modelKey_ = `Model_${bibleId}_${testament}_${bookId}`;
+        modelKey_ = `Tmodel_${bibleId}_${testament}_${bookId}`;
     }
     return modelKey_
 }
@@ -264,6 +265,7 @@ export const useAlignmentSuggestions = ({
     const {groupCollection, maxComplexity, currentBookName, trainingState, kickOffTraining, failedToLoadCachedTraining} = state;
 
     const alignmentPredictor = useRef<AbstractWordMapWrapper | null>(null);
+    const modelMetaData = useRef<TAlignmentCompletedInfo | null>(null);
 
     /**
      * Saves the current group to the IndexedDB storage.
@@ -869,12 +871,12 @@ export const useAlignmentSuggestions = ({
         if (modelKey) {
             //load the model.
             let predictorModel: AbstractWordMapWrapper | null = null; // default to null
-            const modelStr: string | null = await dbStorage.getItem(modelKey);
-            if (modelStr && modelStr !== "undefined") {
-                const model = JSON.parse(modelStr);
-                if (model !== null) {
+            const modelMetaDataStr: string | null = await dbStorage.getItem(modelKey);
+            if (modelMetaDataStr && modelMetaDataStr !== "undefined") {
+                const modelMetaData_:TAlignmentCompletedInfo = JSON.parse(modelMetaDataStr);
+                if (modelMetaData_?.model) {
                     try {
-                        predictorModel = AbstractWordMapWrapper.load(model);
+                        predictorModel = AbstractWordMapWrapper.load(modelMetaData_?.model);
                         console.log('loaded alignmentPredictor from local storage');
                     } catch (e) {
                         console.log(`error loading alignmentPredictor: ${(e as Error).message}`);
@@ -882,8 +884,11 @@ export const useAlignmentSuggestions = ({
                 }
                 if (predictorModel) {
                     alignmentPredictor.current = predictorModel;
+                    modelMetaData_.model = null
+                    modelMetaData.current = modelMetaData_;
                 } else if (!trainingRunning) { // if training is running, then don't reset the alignmentPredictor
                     alignmentPredictor.current = null
+                    modelMetaData.current = null
                 }
             }
             const trainingComplete = !!predictorModel;
@@ -918,6 +923,15 @@ export const useAlignmentSuggestions = ({
         }
         return success;
     }, [handleSetTrainingState]);
+
+    /**
+     * Retrieves the metadata for the current model.
+     *
+     * @return {TAlignmentCompletedInfo} The metadata associated with the current model.
+     */
+    function getModelMetaData():TAlignmentCompletedInfo|null {
+        return modelMetaData?.current || null
+    }
 
     /**
      * Retrieves an instance of IndexedDBStorage. If the storage has not been initialized,
@@ -1073,7 +1087,10 @@ export const useAlignmentSuggestions = ({
 
         // save model to local storage
         const abstractWordMapWrapper: AbstractWordMapWrapper = alignmentCompletedInfo.model;
-        await dbStorageRef.current.setItem(modelKey_, JSON.stringify(abstractWordMapWrapper?.save()));
+        const saveData:object = {...alignmentCompletedInfo}
+        // @ts-ignore
+        saveData.model = abstractWordMapWrapper?.save()
+        await dbStorageRef.current.setItem(modelKey_, JSON.stringify(saveData));
 
         await storeLanguagePreferences(alignmentCompletedInfo.sourceLanguageId, alignmentCompletedInfo.targetLanguageId, alignmentCompletedInfo.maxComplexity, dbStorageRef);
 
@@ -1094,6 +1111,7 @@ export const useAlignmentSuggestions = ({
         actions: {
             areTrainingSameBook,
             cleanupWorker,
+            getModelMetaData,
             getSuggester,
             getTrainingContextId,
             isTraining,

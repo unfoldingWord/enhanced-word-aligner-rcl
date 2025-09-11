@@ -126,6 +126,12 @@ const WordAlignerPanel = ({
     setDoingTraining(newTrainingState);
   };
 
+  const handleInfoClick = (info) => {
+    console.log("handleInfoClick");
+    const message = JSON.stringify(info, null, 2)
+    window.prompt(`Training Model: ${info}`)
+  }
+
   const {
     actions: {
       handleTrainingStateChange
@@ -190,13 +196,14 @@ const WordAlignerPanel = ({
         </button>
 
         <span style={{marginLeft: '8px', color: '#000'}}> {trainingStatusStr} </span>
-
       </div>
+
       <EnhancedWordAligner
         addTranslationMemory={addTranslationMemory}
         config={alignmentSuggestionsConfig}
         contextId={contextId}
         doTraining={doingTraining}
+        handleInfoClick={handleInfoClick}
         handleTrainingStateChange={handleTrainingStateChange}
         lexicons={lexicons}
         loadLexiconEntry={loadLexiconEntry}
