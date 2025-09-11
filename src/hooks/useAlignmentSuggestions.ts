@@ -37,7 +37,7 @@ import {
     TTrainingAndTestingData,
     TVerseCounts,
 } from "@/workers/WorkerComTypes";
-import {makeTranslationMemory} from "@/workers/utils/AlignmentTrainerUtils";
+import {makeTranslationMemory, START_TRAINING} from "@/workers/utils/AlignmentTrainerUtils";
 
 // console.log("useAlignmentSuggestions.ts AlignmentWorker", AlignmentWorker);
 
@@ -685,7 +685,7 @@ export const useAlignmentSuggestions = ({
                         // start the training worker
                         trainingProgress.current = 0
                         alignmentTrainingWorkerRef.current.worker.postMessage({
-                            type: "executeTraining",
+                            type: START_TRAINING,
                             data: alignmentTrainingData
                         });
                     } catch (error) {
@@ -793,7 +793,7 @@ export const useAlignmentSuggestions = ({
         if (!trainingRunning) {
             delay(500).then(() => { // run async
                 executeTraining().then(() => {
-                    console.log(`useAlignmentSuggestions - startTraining() - Training finished`);
+                    console.log(`useAlignmentSuggestions - startTraining() - Training started`);
                 });
             });
         }
