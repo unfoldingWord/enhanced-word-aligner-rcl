@@ -466,7 +466,7 @@ export const useAlignmentSuggestions = ({
      * Updates training state and alignment predictor with trained model results
      * Includes a timeout that is cleared if worker completes sooner
      */
-    const _startTraining = async () => {
+    const executeTraining = async () => {
         //Use the Refs such as trainingStateRef instead of trainingState
         //because in the callback the objects are stale because they were
         //captured from a previous invocation of the function and don't
@@ -476,7 +476,7 @@ export const useAlignmentSuggestions = ({
         //https://stackoverflow.com/a/60643670
 
         if (!createAlignmentTrainingWorker) {
-            console.log("startTraining() - createAlignmentTrainingWorker not defined");
+            console.log("executeTraining() - createAlignmentTrainingWorker not defined");
             return;
         }
         //make sure that lastUsedInstanceCount isn't still the same as groupCollection.instanceCount
@@ -510,7 +510,7 @@ export const useAlignmentSuggestions = ({
                     let currentBookVerseCounts:TVerseCounts|null = null;
                     if (book) {
                         currentBookVerseCounts = book.getVerseCounts()
-                        console.log(`startTraining() - alignment data for ${bookId}`, currentBookVerseCounts)
+                        console.log(`executeTraining() - alignment data for ${bookId}`, currentBookVerseCounts)
                     }
                     
                     const alignmentTrainingData: TTrainingAndTestingData = {
@@ -528,7 +528,7 @@ export const useAlignmentSuggestions = ({
                     const trainingStartTime = Date.now(); // Capture start time
 
                     try { // background processing
-                        console.log(`startTraining() - start training for ${stateRef.current.groupCollection.instanceCount}`);
+                        console.log(`executeTraining() - start training for ${stateRef.current.groupCollection.instanceCount}`);
 
                         const newTrainingState = {
                             ...trainingStateRef.current,
@@ -546,10 +546,15 @@ export const useAlignmentSuggestions = ({
 
                         // Set up a worker timeout
                         workerTimeoutRef.current = setTimeout(() => {
-                            const elapsedMinutes1 = getElapsedMinutes(trainingStartTime);
-                            console.log(`startTraining() -Training Worker timeout after ${elapsedMinutes1} minutes, percent complete ${trainingProgress.current}`);
-
                             let reductionFactor = 0.5;
+                            let elapsedMinutes1 = getElapsedMinutes(trainingStartTime);
+                            console.log(`executeTraining() - Training Worker timeout after ${elapsedMinutes1} minutes, percent complete ${trainingProgress.current}`);
+                            
+                            if (elapsedMinutes1 > WORKER_TIMEOUT) {
+                                console.log(`executeTraining() - elapsed time greater than timeout, likely went to sleep, using ${WORKER_TIMEOUT} for run time`);
+                                reductionFactor = THRESHOLD_TRAINING_MINUTES / WORKER_TIMEOUT;
+                            }
+                            
                             if (trainingProgress.current) {
                                 reductionFactor = trainingProgress.current / 100
                             }
@@ -566,7 +571,7 @@ export const useAlignmentSuggestions = ({
 
                             storeLanguagePreferences(sourceLanguageId, targetLanguageId, newMaxComplexity, dbStorageRef).then(() => {
                                 // Restart training if needed
-                                _startTraining();
+                                executeTraining();
                             })
                         }, WORKER_TIMEOUT);
 
@@ -577,7 +582,7 @@ export const useAlignmentSuggestions = ({
                             if ('trainingStatus' === workerResults?.type) {
                                 const percentComplete = event.data?.percent_complete;
                                 const contextId_ = event.data?.contextId;
-                                // console.log(`startTraining() - trainingStatus received: ${percentComplete}%`)
+                                // console.log(`executeTraining() - trainingStatus received: ${percentComplete}%`)
                                 if (typeof percentComplete === 'number') {
                                     trainingProgress.current = percentComplete; // keep track of progress
                                     handleSetTrainingState?.({ percentComplete, training: true, contextId: contextId_ });
@@ -586,11 +591,11 @@ export const useAlignmentSuggestions = ({
                             }
 
                             if ('trainingResults' !== workerResults?.type) {
-                                console.log(`startTraining() - not training results - ignoring`)
+                                console.log(`executeTraining() - not training results - ignoring`)
                                 return
                             }
 
-                            console.log(`startTraining() - alignment training worker completed: `, alignmentTrainingWorkerRef.current);
+                            console.log(`executeTraining() - alignment training worker completed: `, alignmentTrainingWorkerRef.current);
                             handleSetTrainingState?.({ training: false })
                             
                             // Clear timeout since worker completed successfully
@@ -599,20 +604,24 @@ export const useAlignmentSuggestions = ({
                             let newMaxComplexity = workerResults.maxComplexity
                             //Load the trained model and put it somewhere it can be used.
                             const elapsedMinutes = getElapsedMinutes(trainingStartTime);
-                            console.log(`startTraining() - Training completed in ${elapsedMinutes} minutes`);
+                            console.log(`executeTraining() - Training completed in ${elapsedMinutes} minutes`);
                             if (elapsedMinutes > THRESHOLD_TRAINING_MINUTES) {
-                                console.log(`startTraining() - Worker took over ${THRESHOLD_TRAINING_MINUTES} minutes, adjusting down`);
-                                newMaxComplexity = adjustMaxComplexity(THRESHOLD_TRAINING_MINUTES / elapsedMinutes, workerResults.maxComplexity);
-                                setState( { ...stateRef.current, maxComplexity: newMaxComplexity});
+                                if (elapsedMinutes > WORKER_TIMEOUT) {
+                                    console.log(`executeTraining() - elapsed time greater than timeout, likely went to sleep`);
+                                } else {
+                                    console.log(`executeTraining() - Worker took over ${THRESHOLD_TRAINING_MINUTES} minutes, adjusting down`);
+                                    newMaxComplexity = adjustMaxComplexity(THRESHOLD_TRAINING_MINUTES / elapsedMinutes, workerResults.maxComplexity);
+                                    setState({...stateRef.current, maxComplexity: newMaxComplexity});
+                                }
                             } else if (workerResults.trimmedVerses && elapsedMinutes < MIN_THRESHOLD_TRAINING_MINUTES) { // if we have trimmed verses, but time is below threshold, bump up complexity limit so we can train with more data
                                 const targetTime = MIN_THRESHOLD_TRAINING_MINUTES;
                                 let adjustComplexity = (targetTime / elapsedMinutes);
                                 const limit = 2;
                                 if (adjustComplexity > limit) { // cap the change amount
-                                    console.log(`startTraining() - dynamic complexity adjustment of ${adjustComplexity}  limited to ${limit}`);
+                                    console.log(`executeTraining() - dynamic complexity adjustment of ${adjustComplexity}  limited to ${limit}`);
                                     adjustComplexity = limit
                                 }
-                                console.log(`startTraining() - Worker took under ${MIN_THRESHOLD_TRAINING_MINUTES} minutes, adjusting complexity by ${adjustComplexity}`);
+                                console.log(`executeTraining() - Worker took under ${MIN_THRESHOLD_TRAINING_MINUTES} minutes, adjusting complexity by ${adjustComplexity}`);
                                 newMaxComplexity = adjustMaxComplexity(adjustComplexity, workerResults.maxComplexity);
                                 setState( { ...stateRef.current, maxComplexity: newMaxComplexity});
                             }
@@ -620,19 +629,19 @@ export const useAlignmentSuggestions = ({
                             let abstractWordMapWrapper;
 
                             if ("error" in workerResults) {
-                                console.log("startTraining() - Error running alignment worker: " + workerResults.error);
+                                console.log("executeTraining() - Error running alignment worker: " + workerResults.error);
                                 return;
                             }
 
                             if ("trainedModel" in workerResults) {
                                 abstractWordMapWrapper = AbstractWordMapWrapper.load(workerResults.trainedModel);
                                 // @ts-ignore
-                                console.log(`startTraining() - Number of alignments: ${abstractWordMapWrapper?.alignmentStash?.length}`)
+                                console.log(`executeTraining() - Number of alignments: ${abstractWordMapWrapper?.alignmentStash?.length}`)
                             }
                             
                             const modelKey = getModelKey(workerResults.contextId)
                             const currentModelKey = getModelKey(contextIdRef?.current)
-                            console.log(`startTraining() - currentModelKey: ${currentModelKey}`)
+                            console.log(`executeTraining() - currentModelKey: ${currentModelKey}`)
 
                             const forCurrentModel = currentModelKey == modelKey;
                             if (forCurrentModel) { // check if the current model is the same as the one we are training
@@ -644,7 +653,7 @@ export const useAlignmentSuggestions = ({
                                 setState( { ...stateRef.current, trainingState: newTrainingState });
                                 handleSetTrainingState?.({training: false, trainingComplete: true, trainingFailed: ''});
                             } else {
-                                console.log(`startTraining() - currentModelKey: ${currentModelKey} != ${modelKey} - so not replacing current model`)
+                                console.log(`executeTraining() - currentModelKey: ${currentModelKey} != ${modelKey} - so not replacing current model`)
                             }
 
                             // save the model to local storage NOW
@@ -660,7 +669,7 @@ export const useAlignmentSuggestions = ({
                                 alignmentCompletedInfo,
                                 handleTrainingCompleted,
                             ).then(() => {
-                                console.log(`startTraining() - Saved model and settings`);
+                                console.log(`executeTraining() - Saved model and settings`);
                                 
                                 // *** disabled training auto-repeat - seems data has not been changed enough to justify a full retraining.
                                 
@@ -676,27 +685,27 @@ export const useAlignmentSuggestions = ({
                         // start the training worker
                         trainingProgress.current = 0
                         alignmentTrainingWorkerRef.current.worker.postMessage({
-                            type: "startTraining",
+                            type: "executeTraining",
                             data: alignmentTrainingData
                         });
                     } catch (error) {
-                        console.error("startTraining() - Error during alignment training setup:", error);
-                        console.log(`startTraining() - Training failed after ${getElapsedMinutes(trainingStartTime)} minutes`);
+                        console.error("executeTraining() - Error during alignment training setup:", error);
+                        console.log(`executeTraining() - Training failed after ${getElapsedMinutes(trainingStartTime)} minutes`);
                         cleanupWorker();
                         handleSetTrainingState?.({training: false, trainingFailed: 'Training Error'});
                     }
 
                 } else {
-                    console.log(`startTraining() - Not enough training data for ${groupName}, count ${alignmentCount}`);
+                    console.log(`executeTraining() - Not enough training data for ${groupName}, count ${alignmentCount}`);
                     handleSetTrainingState?.({training: false, trainingFailed: 'Insufficient Training Data'});
                 }
 
             } else {
-                console.log("startTraining() - Alignment training already running");
+                console.log("executeTraining() - Alignment training already running");
                 handleSetTrainingState?.({trainingFailed: 'Insufficient Training Data'});
             }
         } else {
-            console.log("startTraining() - information not changed");
+            console.log("executeTraining() - information not changed");
             handleSetTrainingState?.({trainingFailed: 'Information not changed'});
         }
     };
@@ -768,7 +777,7 @@ export const useAlignmentSuggestions = ({
     /**
      * Initiates the training process if it is not already running.
      * Logs the current state of the training process to the console.
-     * When training is ready to start, invokes a private method `_startTraining`
+     * When training is ready to start, invokes a private method `executeTraining`
      * and logs a message upon completion of the training.
      *
      * Preconditions:
@@ -776,14 +785,14 @@ export const useAlignmentSuggestions = ({
      *
      * Side Effects:
      * - Outputs log messages to the console for debugging purposes.
-     * - Calls `_startTraining` asynchronously when conditions are met.
+     * - Calls `executeTraining` asynchronously when conditions are met.
      */
     const startTraining = useCallback(() => {
         const trainingRunning = !!alignmentTrainingWorkerRef.current
         console.log(`useAlignmentSuggestions - startTraining() - Starting, already running is: ${trainingRunning}`);
         if (!trainingRunning) {
             delay(500).then(() => { // run async
-                _startTraining().then(() => {
+                executeTraining().then(() => {
                     console.log(`useAlignmentSuggestions - startTraining() - Training finished`);
                 });
             });
@@ -818,7 +827,7 @@ export const useAlignmentSuggestions = ({
      * - Starts training process if flag is true
      *
      * Requirements:
-     * - _startTraining() function must be defined
+     * - executeTraining() function must be defined
      * - delay() utility must be available
      * - trainingRunning state must track current training status
      *
@@ -832,7 +841,7 @@ export const useAlignmentSuggestions = ({
                 if (kickOffTraining) {
                     console.log(`useAlignmentSuggestions - kickOffTraining true, started training`);
                     setState( { ...stateRef.current, kickOffTraining: false});
-                    _startTraining();
+                    executeTraining();
                 }
             })
         }
