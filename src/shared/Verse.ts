@@ -134,7 +134,7 @@ export default class Verse {
         ],keys:[""+verse_num]}];
     }
 
-    getAlignmentState( chapter: number, verse: number ): TState | null{
+    getAlignmentState( chapter: number, verse: string ): TState | null{
         if( this.sourceVerse === null ) throw new Error( "No source text in verse" );
         if( this.targetVerse === null ) throw new Error( "No target text in verse" );
 

@@ -108,7 +108,7 @@ interface Alignment {
 
 interface TReference{
     chapter: number;
-    verse: number;
+    verse: string;
 }
 
 interface TContextId{
