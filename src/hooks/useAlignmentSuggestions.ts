@@ -266,6 +266,53 @@ export const useAlignmentSuggestions = ({
 
     const alignmentPredictor = useRef<AbstractWordMapWrapper | null>(null);
     const modelMetaData = useRef<TAlignmentCompletedInfo | null>(null);
+    const minuteCounter = useRef<number>(0);
+    const minuteTimer = useRef<NodeJS.Timeout|null>(null);
+
+    /**
+     * Starts a minute counter that increments every minute.  This is a work-around for issue where tab or computer goes to sleep.  In that case the system clock would be much greater than the actual run time.
+     *
+     * The method initializes a counter to zero and starts a timer that increments the counter every minute.
+     * Optionally, the timer can be stopped after a desired number of elapsed minutes by using the returned interval ID.
+     *
+     * @return {NodeJS.Timeout} The interval ID for the minute timer, which can be used to stop the timer with `clearInterval`.
+     */
+    function _startMinuteCounter():NodeJS.Timeout {
+        minuteCounter.current = 0;
+
+        console.log("⏱️ Timer started");
+
+        minuteTimer.current = setInterval(() => {
+            minuteCounter.current++;
+            console.log(`Training ${minuteCounter.current} minute(s) elapsed`);
+
+            // Optional: stop after a certain number of minutes
+            // if (minutes >= 10) clearInterval(timer);
+        }, 60 * 1000); // 60,000 ms = 1 minute
+
+        return minuteTimer.current; // You can use this to stop the timer later
+    }
+
+    /**
+     * Stops the minute counter by clearing the interval and resetting it.
+     *
+     * @return {void} Does not return a value.
+     */
+    function _stopMinuteCounter() {
+        if (minuteTimer.current) {
+            clearInterval(minuteTimer.current);
+            minuteTimer.current = null;
+        }
+    }
+
+    /**
+     * Retrieves the current value of the minute counter.
+     *
+     * @return {number} The current value of the minute counter.
+     */
+    function _getMinuteCounter():number {
+        return minuteCounter.current;
+    }
 
     /**
      * Saves the current group to the IndexedDB storage.
@@ -441,6 +488,7 @@ export const useAlignmentSuggestions = ({
             alignmentTrainingWorkerRef.current.worker.terminate();
             alignmentTrainingWorkerRef.current = null;
         }
+        _stopMinuteCounter()
     }
 
     /**
@@ -545,17 +593,14 @@ export const useAlignmentSuggestions = ({
                             contextId: cloneDeep(contextId),
                         }
                         alignmentTrainingWorkerRef.current = workerData;
+                        _startMinuteCounter();
 
                         // Set up a worker timeout
                         workerTimeoutRef.current = setTimeout(() => {
                             let reductionFactor = 0.5;
-                            let elapsedMinutes1 = getElapsedMinutes(trainingStartTime);
+                            let elapsedMinutes1 = _getMinuteCounter();
                             console.log(`executeTraining() - Training Worker timeout after ${elapsedMinutes1} minutes, percent complete ${trainingProgress.current}`);
-                            
-                            if (elapsedMinutes1 > WORKER_TIMEOUT) {
-                                console.log(`executeTraining() - elapsed time greater than timeout, likely went to sleep, using ${WORKER_TIMEOUT} for run time`);
-                                reductionFactor = THRESHOLD_TRAINING_MINUTES / WORKER_TIMEOUT;
-                            }
+                            reductionFactor = THRESHOLD_TRAINING_MINUTES / WORKER_TIMEOUT;
                             
                             if (trainingProgress.current) {
                                 reductionFactor = trainingProgress.current / 100
@@ -605,7 +650,7 @@ export const useAlignmentSuggestions = ({
                             
                             let newMaxComplexity = workerResults.maxComplexity
                             //Load the trained model and put it somewhere it can be used.
-                            const elapsedMinutes = getElapsedMinutes(trainingStartTime);
+                            const elapsedMinutes = _getMinuteCounter();
                             console.log(`executeTraining() - Training completed in ${elapsedMinutes} minutes`);
                             if (elapsedMinutes > THRESHOLD_TRAINING_MINUTES) {
                                 if (elapsedMinutes > WORKER_TIMEOUT) {
