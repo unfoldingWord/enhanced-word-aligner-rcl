@@ -1,6 +1,6 @@
 
 import { useState, useCallback } from 'react';
-import {THandleTrainingStateChange, TTrainingStateChange} from "@/common/classes";
+import {THandleTrainingStateChange, TTrainingStateChange} from '@/common/classes';
 
 interface TUseTrainingStateProps {
     translate: (key:string) => string;
@@ -70,16 +70,16 @@ export const useTrainingState = ({
             }
 
             if (currentTrainingError) {
-                trainingErrorStr = " - " + currentTrainingError;
+                trainingErrorStr = ' - ' + currentTrainingError;
             }
 
-            const trainingButtonStr = _training ? translate("suggestions.stop_training_button") : trainingComplete ? translate("suggestions.retrain_button") : translate("suggestions.train_button");
+            const trainingButtonStr = _training ? translate('suggestions.stop_training_button') : trainingComplete ? translate('suggestions.retrain_button') : translate('suggestions.train_button');
             const trainingButtonHintStr = _training ? '' : trainingComplete ? translate('suggestions.retrain_button_hint') : translate('suggestions.train_button_hint');
             
-            let trainingStatusStr_ = (_training ? translate("suggestions.status_training") : trainingComplete ? translate("suggestions.status_trained") : translate("suggestions.status_not_trained")) + trainingErrorStr;
+            let trainingStatusStr_ = (_training ? translate('suggestions.status_training') : trainingComplete ? translate('suggestions.status_trained') : translate('suggestions.status_not_trained')) + trainingErrorStr;
 
             if (percentComplete !== undefined) {
-                trainingStatusStr_ += ` ${percentComplete}${translate("suggestions.percent_complete")}`;
+                trainingStatusStr_ += ` ${percentComplete}${translate('suggestions.percent_complete')}`;
             }
 
             console.log(`useTrainingStateManagement.handleTrainingStateChange new state: training ${_training}, trainingComplete ${trainingComplete}, trainingStatusStr ${trainingStatusStr_}`);

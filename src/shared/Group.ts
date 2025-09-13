@@ -1,15 +1,15 @@
-import { is_number, parseUsfmHeaders } from "@/utils/usfm_misc";
-import Book, { TBookTestResults } from "./Book";
-import Verse from "./Verse";
+import { is_number, parseUsfmHeaders } from '@/utils/usfm_misc';
+import Book, { TBookTestResults } from './Book';
+import Verse from './Verse';
 import {
     TSourceTargetAlignment,
     TUsfmBook,
     TUsfmChapter,
     TWord,
-} from "word-aligner-rcl";
-import JSZip from "jszip";
-import { TTrainingAndTestingData } from "@/workers/WorkerComTypes";
-import {TState, TWordAlignerAlignmentResult} from "@/common/classes";
+} from 'word-aligner-rcl';
+import JSZip from 'jszip';
+import { TTrainingAndTestingData } from '@/workers/WorkerComTypes';
+import {TState, TWordAlignerAlignmentResult} from '@/common/classes';
 import { bibleHelpers } from 'word-aligner-rcl';
 
 export interface TGroupTestResults{
@@ -53,7 +53,7 @@ export default class Group {
 
         Object.entries(usfm_json).forEach(([filename,usfm_book])=>{
             const usfmHeaders = parseUsfmHeaders(usfm_book.headers);
-            const newBook = this.books[usfmHeaders.h] || new Book( {chapters:{},filename:"",toc3Name:"",targetUsfmBook:null,sourceUsfmBook:null} );
+            const newBook = this.books[usfmHeaders.h] || new Book( {chapters:{},filename:'',toc3Name:'',targetUsfmBook:null,sourceUsfmBook:null} );
             newBooks[usfmHeaders.h] = newBook.addTargetUsfm({filename,usfm_book,toc3Name:usfmHeaders.toc3});
         });
 
@@ -112,15 +112,15 @@ export default class Group {
     }
 
     static getListHeaders( scope:string ):string[]{
-        if( scope == "Group" ) return ["Group", "Books" ];
-        return ["Group"].concat( Book.getListHeaders(scope) );
+        if( scope == 'Group' ) return ['Group', 'Books' ];
+        return ['Group'].concat( Book.getListHeaders(scope) );
     }
 
     getListInfo( group_name: string, scope:string ):{ data:string[], keys:string[] }[]{
         const result: { data:string[], keys:string[] }[] = [];
-        if( scope == "Group" ){
+        if( scope == 'Group' ){
             result.push({
-                data:[group_name,""+Object.values(this.books).length],
+                data:[group_name,''+Object.values(this.books).length],
                 keys:[group_name],
             });
         }else{
@@ -150,8 +150,8 @@ export default class Group {
 
     updateAlignmentState( alignmentDialogResult: TWordAlignerAlignmentResult, selector: string[] ): Group{
 
-        if( selector.length < 1 ) throw new Error( "Book not selected." );
-        if( !(selector[0] in this.books ) ) throw new Error( "Book not found." );;
+        if( selector.length < 1 ) throw new Error( 'Book not selected.' );
+        if( !(selector[0] in this.books ) ) throw new Error( 'Book not found.' );;
 
         const newBook = this.books[selector[0]].updateAlignmentState( alignmentDialogResult, selector.slice(1) );
 

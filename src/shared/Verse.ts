@@ -4,15 +4,15 @@ import {
     parseUsfmToWordAlignerData_JSON,
     verseObjectsToTargetString,
     verseObjectsToTWordTokens,
-} from "@/utils/usfm_misc";
-import { TWordAlignmentTestScore } from "@/workers/WorkerComTypes";
-import { AlignmentHelpers, TUsfmVerse, TSourceTargetAlignment, TWord } from "word-aligner-rcl";
-import {UNALIGNED_THRESHOLD} from "@/common/constants";
-import {TState, TWordAlignerAlignmentResult} from "@/common/classes";
+} from '@/utils/usfm_misc';
+import { TWordAlignmentTestScore } from '@/workers/WorkerComTypes';
+import { AlignmentHelpers, TUsfmVerse, TSourceTargetAlignment, TWord } from 'word-aligner-rcl';
+import {UNALIGNED_THRESHOLD} from '@/common/constants';
+import {TState, TWordAlignerAlignmentResult} from '@/common/classes';
 
 export enum VerseState {
-    NoSource = "no-source",
-    NoTarget = "no-target",
+    NoSource = 'no-source',
+    NoTarget = 'no-target',
     Unaligned = 'unaligned',
     AlignedTrain = 'aligned-train',
     AlignedTest = 'aligned-test',
@@ -124,19 +124,19 @@ export default class Verse {
     }
 
     static getListHeaders():string[]{
-        return ["Verse","Status","Ratio Correct"];
+        return ['Verse','Status','Ratio Correct'];
     }
     getListInfo( verse_num: number|string ):{ data:string[], keys:string[] }[]{
         return [{data:[ 
-            "" + verse_num, 
+            '' + verse_num, 
             this.state, 
-            (this.state === VerseState.AlignedTest) ? "" + this.alignmentResults?.ratio_correct : "" 
-        ],keys:[""+verse_num]}];
+            (this.state === VerseState.AlignedTest) ? '' + this.alignmentResults?.ratio_correct : '' 
+        ],keys:[''+verse_num]}];
     }
 
     getAlignmentState( chapter: number, verse: string ): TState | null{
-        if( this.sourceVerse === null ) throw new Error( "No source text in verse" );
-        if( this.targetVerse === null ) throw new Error( "No target text in verse" );
+        if( this.sourceVerse === null ) throw new Error( 'No source text in verse' );
+        if( this.targetVerse === null ) throw new Error( 'No target text in verse' );
 
         //console.log( `potato: ${potato}`);
 
@@ -146,8 +146,8 @@ export default class Verse {
 
         return {
             aligned: this.state !== VerseState.Unaligned,
-            sourceLanguage: "sourceLang", //TODO: see if I can pull this information out of the usfm.
-            targetLanguage: "targetLang", //TODO: ditto
+            sourceLanguage: 'sourceLang', //TODO: see if I can pull this information out of the usfm.
+            targetLanguage: 'targetLang', //TODO: ditto
             reference: {
                 chapter, verse
             },

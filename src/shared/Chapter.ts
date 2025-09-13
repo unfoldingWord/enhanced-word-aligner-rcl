@@ -1,10 +1,10 @@
-import {getVerseList, isValidVerse, isVerseInRange} from "@/utils/usfm_misc";
-import Verse, { VerseState } from "./Verse";
-import { TSourceTargetAlignment, TUsfmChapter, TUsfmVerse, TWord } from "word-aligner-rcl";
-import { TTrainingAndTestingData, TWordAlignmentTestScore } from "@/workers/WorkerComTypes";
-import { TState, TWordAlignerAlignmentResult } from "@/common/classes";
+import {getVerseList, isValidVerse, isVerseInRange} from '@/utils/usfm_misc';
+import Verse, { VerseState } from './Verse';
+import { TSourceTargetAlignment, TUsfmChapter, TUsfmVerse, TWord } from 'word-aligner-rcl';
+import { TTrainingAndTestingData, TWordAlignmentTestScore } from '@/workers/WorkerComTypes';
+import { TState, TWordAlignerAlignmentResult } from '@/common/classes';
 // @ts-ignore
-import {referenceHelpers} from "bible-reference-range";
+import {referenceHelpers} from 'bible-reference-range';
 
 export interface TChapterTestResults{
     [key:string]: TWordAlignmentTestScore;
@@ -135,7 +135,7 @@ export default class Chapter {
                 verse.setTestReservation( reservedForTesting ) : 
                 verse];            
         }));
-        //now return the new "me"
+        //now return the new 'me'
         return new Chapter( newVerses, this.targetUsfm, this.sourceUsfm );
     }
 
@@ -147,23 +147,23 @@ export default class Chapter {
      * @return {string[]} - The list of headers.
      */
     static getListHeaders( scope:string ):string[]{
-        if( scope == "Chapter" ) return ["Chapter","Verses"];
-        return ["Chapter"].concat( Verse.getListHeaders() );
+        if( scope == 'Chapter' ) return ['Chapter','Verses'];
+        return ['Chapter'].concat( Verse.getListHeaders() );
     }
 
     getListInfo( chapter_num: number, scope:string ):{ data:string[], keys:string[] }[]{
         const result: { data:string[], keys:string[] }[] = [];
-        if( scope == "Chapter" ){
+        if( scope == 'Chapter' ){
             result.push( {
-                data:[""+chapter_num,""+Object.values(this.verses).length], 
-                keys: [""+chapter_num],
+                data:[''+chapter_num,''+Object.values(this.verses).length], 
+                keys: [''+chapter_num],
             } );
         }else{
             Object.entries(this.verses).forEach(([verse_number,verse])=>{
                 verse.getListInfo(verse_number).forEach((subResult) =>{
                     result.push( {
-                        data: [""+chapter_num].concat(subResult.data),
-                        keys: [""+chapter_num].concat(subResult.keys),
+                        data: [''+chapter_num].concat(subResult.data),
+                        keys: [''+chapter_num].concat(subResult.keys),
                     })
                 });
             });
@@ -181,9 +181,9 @@ export default class Chapter {
 
 
     getVerseAlignmentStateBySelector(chapter_num: number, selector: string[]): TState | null {
-        if( selector.length < 1 ) throw new Error( "Verse not selected for alignment." );
+        if( selector.length < 1 ) throw new Error( 'Verse not selected for alignment.' );
         const verse_num = selector[0];
-        if( !(verse_num in this.verses ) ) throw new Error( "Verse not found." );
+        if( !(verse_num in this.verses ) ) throw new Error( 'Verse not found.' );
         return this.verses[verse_num].getAlignmentState( chapter_num, verse_num );
     }
 

@@ -7,13 +7,13 @@ import {
     THandleTrainingStateChange,
     translationMemoryType,
     TTrainingStateChange
-} from "@/common/classes";
-import {Alignment, Suggestion} from "wordmap";
+} from '@/common/classes';
+import {Alignment, Suggestion} from 'wordmap';
 import {Token} from 'wordmap-lexer'
 
-import {TAlignmentCompletedInfo, useAlignmentSuggestions} from '@/hooks/useAlignmentSuggestions';
-import {createAlignmentTrainingWorker as createAlignmentTrainingWorker_} from "@/workers/utils/startAlignmentTrainer";
-import {TAlignmentSuggestionsConfig} from "@/workers/WorkerComTypes";
+import {useAlignmentSuggestions} from '@/hooks/useAlignmentSuggestions';
+import {createAlignmentTrainingWorker as createAlignmentTrainingWorker_} from '@/workers/utils/startAlignmentTrainer';
+import {TAlignmentCompletedInfo, TAlignmentSuggestionsConfig} from '@/workers/WorkerComTypes';
 
 interface EnhancedWordAlignerProps {
     asyncSuggester?: (
@@ -73,7 +73,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     addTranslationMemory,
     contextId,
     config,
-    createAlignmentTrainingWorker = createAlignmentTrainingWorker_, // TRICKY - the steps to create the training Worker are dependent on the platform, so this allows it to be overriden
+    createAlignmentTrainingWorker = createAlignmentTrainingWorker_, // TRICKY - the steps to create the training Worker are dependent on the platform, so this allows it to be overridden
     doTraining,
     lexiconCache,
     loadLexiconEntry,
@@ -95,7 +95,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     verseAlignments,
 }) => {
     const handleTrainingCompleted = (info: TAlignmentCompletedInfo) => {
-        console.log("handleTrainingCompleted", info);
+        console.log('handleTrainingCompleted', info);
     }
 
     const handleTrainingStateChange_ = (props: TTrainingStateChange) => {
@@ -104,7 +104,6 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     
     const {
         actions: {
-            areTrainingSameBook,
             cleanupWorker,
             getModelMetaData,
             isTraining,
@@ -125,7 +124,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     });
 
     function handleInfoClick_() {
-        // console.log("handleInfoClick");
+        // console.log('handleInfoClick');
         const info = getModelMetaData()
         handleInfoClick?.(info)
     }
@@ -137,7 +136,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
         }
     }, [addTranslationMemory]);
     
-    //here we cleanup on close of the component.  This is needed because the worker is not terminated when the component is unmounted.".
+    //here we cleanup on close of the component.  This is needed because the worker is not terminated when the component is unmounted..
     // TODO: this may not be desired
     useEffect(() => {
         return () => {

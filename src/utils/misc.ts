@@ -1,7 +1,7 @@
-import {MAX_COMPLEXITY, MIN_COMPLEXITY} from "@/common/constants";
+import {MAX_COMPLEXITY, MIN_COMPLEXITY} from '@/common/constants';
 // @ts-ignore
-import {referenceHelpers} from "bible-reference-range";
-import {getVerseList, isValidVerse} from "@/utils/usfm_misc";
+import {referenceHelpers} from 'bible-reference-range';
+import {getVerseList, isValidVerse} from '@/utils/usfm_misc';
 
 /**
    * Checks to see if a specific string array references a given resource.

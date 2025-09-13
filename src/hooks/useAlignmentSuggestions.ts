@@ -7,47 +7,42 @@ import {
 import { AbstractWordMapWrapper } from 'uw-wordmapbooster';
 import { bibleHelpers } from 'word-aligner-rcl';
 import usfm from 'usfm-js';
-import cloneDeep from "lodash.clonedeep";
+import cloneDeep from 'lodash.clonedeep';
 import isEqual from 'deep-equal'
-import { parseUsfmHeaders } from "@/utils/usfm_misc";
-import delay from "@/utils/delay";
-import Group from "@/shared/Group";
-import Book from "@/shared/Book";
-import GroupCollection from "@/shared/GroupCollection";
-import IndexedDBStorage from "@/shared/IndexedDBStorage";
-import { limitRangeOfComplexity } from "@/utils/misc";
+import { parseUsfmHeaders } from '@/utils/usfm_misc';
+import delay from '@/utils/delay';
+import Group from '@/shared/Group';
+import Book from '@/shared/Book';
+import GroupCollection from '@/shared/GroupCollection';
+import IndexedDBStorage from '@/shared/IndexedDBStorage';
+import { limitRangeOfComplexity } from '@/utils/misc';
 import {
     ContextId,
     TAlignmentSuggestionsState,
     THandleTrainingStateChange,
     TrainingState,
     translationMemoryType,
-} from "@/common/classes";
+} from '@/common/classes';
 import {
     DEFAULT_MAX_COMPLEXITY,
     DEFAULT_MAX_COMPLEXITY_OT,
     MIN_THRESHOLD_TRAINING_MINUTES,
     THRESHOLD_TRAINING_MINUTES,
     WORKER_TIMEOUT
-} from "@/common/constants";
+} from '@/common/constants';
 import {
+    TAlignmentCompletedInfo,
+    TAlignmentMetaData,
     TAlignmentSuggestionsConfig,
     TAlignmentTrainingWorkerData,
+    TBookVerseCounts,
     TTrainedWordAlignerModelWorkerResults,
     TTrainingAndTestingData,
     TVerseCounts,
-} from "@/workers/WorkerComTypes";
-import {makeTranslationMemory, START_TRAINING} from "@/workers/utils/AlignmentTrainerUtils";
+} from '@/workers/WorkerComTypes';
+import {makeTranslationMemory, START_TRAINING} from '@/workers/utils/AlignmentTrainerUtils';
 
-// console.log("useAlignmentSuggestions.ts AlignmentWorker", AlignmentWorker);
-
-export interface TAlignmentCompletedInfo {
-    modelKey: string;
-    model: AbstractWordMapWrapper | null;
-    sourceLanguageId: string;
-    targetLanguageId: string;
-    maxComplexity: number;
-}
+// console.log('useAlignmentSuggestions.ts AlignmentWorker', AlignmentWorker);
 
 type THandleTrainingCompleted = (info: TAlignmentCompletedInfo) => void;
 
@@ -78,7 +73,7 @@ interface TUseAlignmentSuggestionsReturn {
     actions: {
         areTrainingSameBook: (contextId: ContextId) => boolean;
         cleanupWorker: () => void;
-        getModelMetaData: () => TAlignmentCompletedInfo|null;
+        getModelMetaData: () => TAlignmentMetaData|null;
         getSuggester: () => TSuggester;
         getTrainingContextId: () => ContextId;
         isTraining: () => boolean;
@@ -119,7 +114,7 @@ function defaultTrainingState(contextId: ContextId): TrainingState {
         contextId,
         currentTrainingInstanceCount: -1,
         lastTrainedInstanceCount: -1,
-        trainingStatusOutput: "",
+        trainingStatusOutput: '',
     }
 }
 
@@ -130,7 +125,7 @@ function getElapsedMinutes(trainingStartTime: number) {
 /**
  * Generates a language pair string used for settings based on the target and source languages.
  *
- * @returns {string} A string representing the language pair in the format "settings_{targetLanguageId}_{sourceLanguageId}".
+ * @returns {string} A string representing the language pair in the format 'settings_{targetLanguageId}_{sourceLanguageId}'.
  */
 export const getLangPair = (sourceLanguageId: string, targetLanguageId: string): string => {
     return `settings_${targetLanguageId}_${sourceLanguageId}`;
@@ -159,7 +154,7 @@ function getTestamentStr(bookId: string) {
 export const getModelKey = (contextId: ContextId): string => {
     let modelKey_ = '';
     const bookId = contextId?.reference?.bookId;
-    const bibleId = contextId?.bibleId; // expected to be unique such as "unfoldingWord/en/ult"
+    const bibleId = contextId?.bibleId; // expected to be unique such as 'unfoldingWord/en/ult'
     if (bibleId && bookId) {
         const testament = getTestamentStr(bookId);
         modelKey_ = `Tmodel_${bibleId}_${testament}_${bookId}`;
@@ -178,7 +173,7 @@ export const getModelKey = (contextId: ContextId): string => {
  */
 async function storeLanguagePreferences(sourceLanguageId: string, targetLanguageId: string, maxComplexity: number, dbStorageRef: React.RefObject<IndexedDBStorage | null>) {
     if (!dbStorageRef?.current?.isReady()) {
-        console.log("storeLanguagePreferences() - storage not ready");
+        console.log('storeLanguagePreferences() - storage not ready');
         return
     }
 
@@ -280,7 +275,7 @@ export const useAlignmentSuggestions = ({
     function _startMinuteCounter():NodeJS.Timeout {
         minuteCounter.current = 0;
 
-        console.log("⏱️ Timer started");
+        console.log('⏱️ Timer started');
 
         minuteTimer.current = setInterval(() => {
             minuteCounter.current++;
@@ -349,7 +344,7 @@ export const useAlignmentSuggestions = ({
             const dbStorage = await getIndexedDbStorage();
             const key = getAlignmentMemoryKey(group_name);
             const groupStr: string | null = await dbStorage.getItem(key);
-            if (groupStr && groupStr !== "undefined") {
+            if (groupStr && groupStr !== 'undefined') {
                 const groupJson = JSON.parse(groupStr);
                 currentGroup = Group.load(group_name, groupJson);
             } else {
@@ -370,7 +365,7 @@ export const useAlignmentSuggestions = ({
     const loadTranslationMemory = useCallback(async (translationMemory: translationMemoryType) => {
         //ask the user to make a selection if no resources are selected.
         if (!translationMemory?.targetUsfms) {
-            throw new Error("loadTranslationMemory - No USFM source content to add");
+            throw new Error('loadTranslationMemory - No USFM source content to add');
         }
 
         let newGroupCollection_ = stateRef.current.groupCollection;
@@ -429,7 +424,7 @@ export const useAlignmentSuggestions = ({
         // load the source usfms.
         try {
             if (!translationMemory?.sourceUsfms) {
-                throw new Error("No USFM source content to add");
+                throw new Error('No USFM source content to add');
             }
 
             const usfm_json = Object.fromEntries(Object.entries(translationMemory?.sourceUsfms).map(([key, value]) => [key, usfm.toJSON(value, { convertToInt: ['occurrence', 'occurrences'] })]));
@@ -452,7 +447,7 @@ export const useAlignmentSuggestions = ({
             await saveCurrentGroup(group_name, newGroupCollection_.groups[group_name]);
         } catch (error) {
             console.error(`error importing ${error}`);
-            throw new Error("Failed to load source data");
+            throw new Error('Failed to load source data');
         }
     }, [contextId, stateRef]);
 
@@ -526,7 +521,7 @@ export const useAlignmentSuggestions = ({
         //https://stackoverflow.com/a/60643670
 
         if (!createAlignmentTrainingWorker) {
-            console.log("executeTraining() - createAlignmentTrainingWorker not defined");
+            console.log('executeTraining() - createAlignmentTrainingWorker not defined');
             return;
         }
         //make sure that lastUsedInstanceCount isn't still the same as groupCollection.instanceCount
@@ -675,12 +670,12 @@ export const useAlignmentSuggestions = ({
 
                             let abstractWordMapWrapper;
 
-                            if ("error" in workerResults) {
-                                console.log("executeTraining() - Error running alignment worker: " + workerResults.error);
+                            if ('error' in workerResults) {
+                                console.log('executeTraining() - Error running alignment worker: ' + workerResults.error);
                                 return;
                             }
 
-                            if ("trainedModel" in workerResults) {
+                            if ('trainedModel' in workerResults) {
                                 abstractWordMapWrapper = AbstractWordMapWrapper.load(workerResults.trainedModel);
                                 // @ts-ignore
                                 console.log(`executeTraining() - Number of alignments: ${abstractWordMapWrapper?.alignmentStash?.length}`)
@@ -705,11 +700,9 @@ export const useAlignmentSuggestions = ({
 
                             // save the model to local storage NOW
                             const alignmentCompletedInfo: TAlignmentCompletedInfo = {
+                                ...workerResults,
                                 modelKey,
                                 model: abstractWordMapWrapper,
-                                sourceLanguageId,
-                                targetLanguageId,
-                                maxComplexity: newMaxComplexity,
                             }
                             
                             saveModelAndSettings(
@@ -736,7 +729,7 @@ export const useAlignmentSuggestions = ({
                             data: alignmentTrainingData
                         });
                     } catch (error) {
-                        console.error("executeTraining() - Error during alignment training setup:", error);
+                        console.error('executeTraining() - Error during alignment training setup:', error);
                         console.log(`executeTraining() - Training failed after ${getElapsedMinutes(trainingStartTime)} minutes`);
                         cleanupWorker();
                         handleSetTrainingState?.({training: false, trainingFailed: 'Training Error'});
@@ -748,11 +741,11 @@ export const useAlignmentSuggestions = ({
                 }
 
             } else {
-                console.log("executeTraining() - Alignment training already running");
+                console.log('executeTraining() - Alignment training already running');
                 handleSetTrainingState?.({trainingFailed: 'Insufficient Training Data'});
             }
         } else {
-            console.log("executeTraining() - information not changed");
+            console.log('executeTraining() - information not changed');
             handleSetTrainingState?.({trainingFailed: 'Information not changed'});
         }
     };
@@ -774,14 +767,14 @@ export const useAlignmentSuggestions = ({
      * - Logs the successful stoppage of alignment training.
      */
     const _stopTraining = useCallback(() => {
-        console.log("stopTraining()");
+        console.log('stopTraining()');
         const trainingContextId = !!alignmentTrainingWorkerRef.current
         if (trainingContextId) {
             handleSetTrainingState?.({training: false, trainingFailed: 'Cancelled'});
             cleanupWorker();
-            console.log("useAlignmentSuggestions - stopTraining() - Alignment training stopped");
+            console.log('useAlignmentSuggestions - stopTraining() - Alignment training stopped');
         } else {
-            console.log("useAlignmentSuggestions - stopTraining() - training not running");
+            console.log('useAlignmentSuggestions - stopTraining() - training not running');
         }
     }, [handleSetTrainingState]);
 
@@ -917,7 +910,7 @@ export const useAlignmentSuggestions = ({
             //load the model.
             let predictorModel: AbstractWordMapWrapper | null = null; // default to null
             const modelMetaDataStr: string | null = await dbStorage.getItem(modelKey);
-            if (modelMetaDataStr && modelMetaDataStr !== "undefined") {
+            if (modelMetaDataStr && modelMetaDataStr !== 'undefined') {
                 const modelMetaData_:TAlignmentCompletedInfo = JSON.parse(modelMetaDataStr);
                 if (modelMetaData_?.model) {
                     try {
@@ -949,7 +942,7 @@ export const useAlignmentSuggestions = ({
             const langSettingsPair = getLangPair(sourceLanguageId, targetLanguageId);
             let settings_: string | null = await dbStorage.getItem(langSettingsPair);
             let maxComplexity_ = DEFAULT_MAX_COMPLEXITY; // default to max complexity
-            if (settings_ && settings_ !== "undefined") {
+            if (settings_ && settings_ !== 'undefined') {
                 const settings = JSON.parse(settings_);
                 if (settings?.maxComplexity) {
                     maxComplexity_ = settings.maxComplexity;
@@ -970,12 +963,59 @@ export const useAlignmentSuggestions = ({
     }, [handleSetTrainingState]);
 
     /**
+     * Retrieves the verse counts for all books within the group for contextId.
+     *
+     * This method accesses a group of books based on the current context and computes
+     * the verse counts for each book within the group.
+     *
+     * @param {ContextId} contextId - selected contextId
+     * @return {TBookVerseCounts} An object containing the verse counts of each book, where
+     * the keys are book IDs and the values are their respective verse counts.
+     */
+    function getGroupVerseCounts(contextId: ContextId):TBookVerseCounts {
+        const bookVerseCounts:TBookVerseCounts = {}
+        const groupName = getGroupName(contextId)
+        const groupCollection_ = stateRef?.current?.groupCollection;
+        const group = groupCollection_?.groups?.[groupName];
+        const books = group?.books || {};
+        Object.entries(books).forEach(([bookId, book]) => {
+            const verseCounts = book.getVerseCounts()
+            bookVerseCounts[bookId] = verseCounts
+        })
+        return bookVerseCounts
+    }
+    
+    /**
      * Retrieves the metadata for the current model.
      *
-     * @return {TAlignmentCompletedInfo} The metadata associated with the current model.
+     * @return {{ info:TAlignmentCompletedInfo, message:string}} The metadata associated with the current model.
      */
-    function getModelMetaData():TAlignmentCompletedInfo|null {
-        return modelMetaData?.current || null
+    function getModelMetaData():TAlignmentMetaData {
+        let info:TAlignmentCompletedInfo = modelMetaData?.current || null
+        info.bookVerseCounts = getGroupVerseCounts(contextId);
+        let message = ''
+
+        // @ts-ignore
+        const alignmentMemoryVerseCounts = info.trainingInfo?.alignmentMemoryVerseCounts;
+        const trained = alignmentMemoryVerseCounts?.trained;
+        if (trained) {
+            message = `Trained with aligned verses from Books: `
+            Object.entries(trained?.booksCount).forEach(([bookId, verseCount]) => {
+                message += ` ${verseCount} for ${bookId},`;
+            })
+        }
+        const untrained = alignmentMemoryVerseCounts?.untrained;
+        if (untrained) {
+            message = `\nUntrained Alignment Memory verses from Books: `
+            Object.entries(untrained.booksCount).forEach(([bookId, verseCount]) => {
+                message += ` ${verseCount} for ${bookId},`;
+            })
+        }
+        
+        return {
+            info,
+            message,
+        }
     }
 
     /**
@@ -1118,13 +1158,13 @@ export const useAlignmentSuggestions = ({
         const dbStorage = await getIndexedDbStorage();
         
         if (!dbStorage?.isReady()) {
-            console.log("saveModelAndSettings() - storage not ready");
+            console.log('saveModelAndSettings() - storage not ready');
             return
         }
 
         const modelKey_ = alignmentCompletedInfo.modelKey;
         if (!modelKey_) {
-            console.log("saveModelAndSettings() - modelKey not defined");
+            console.log('saveModelAndSettings() - modelKey not defined');
             return
         }
 
@@ -1132,13 +1172,19 @@ export const useAlignmentSuggestions = ({
 
         // save model to local storage
         const abstractWordMapWrapper: AbstractWordMapWrapper = alignmentCompletedInfo.model;
-        const saveData:object = {...alignmentCompletedInfo}
+        // @ts-ignore
+        delete alignmentCompletedInfo.trainedModel
+        const saveData:TAlignmentCompletedInfo = {...alignmentCompletedInfo}
         // @ts-ignore
         saveData.model = abstractWordMapWrapper?.save()
         await dbStorageRef.current.setItem(modelKey_, JSON.stringify(saveData));
 
+        // remove redundant items
+        // @ts-ignore
+        delete saveData.model
+        modelMetaData.current = saveData // keep latest
+            
         await storeLanguagePreferences(alignmentCompletedInfo.sourceLanguageId, alignmentCompletedInfo.targetLanguageId, alignmentCompletedInfo.maxComplexity, dbStorageRef);
-
         console.log(`saveModelAndSettings() - setting maxComplexity to ${alignmentCompletedInfo.maxComplexity}`);
 
         handleTrainingCompleted?.(alignmentCompletedInfo);

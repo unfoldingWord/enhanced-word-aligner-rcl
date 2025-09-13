@@ -1,6 +1,6 @@
-import {default as word_aligner_default} from "word-aligner";
-import _wordmapLexer, { Token } from "wordmap-lexer";
-import { TUsfmVerse, TWord, AlignmentHelpers, TUsfmHeader, TSourceTargetAlignment, TTopBottomAlignment } from "word-aligner-rcl";
+import {default as word_aligner_default} from 'word-aligner';
+import _wordmapLexer, { Token } from 'wordmap-lexer';
+import { TUsfmVerse, TWord, AlignmentHelpers, TUsfmHeader, TSourceTargetAlignment, TTopBottomAlignment } from 'word-aligner-rcl';
 import { migrateOriginalLanguageHelpers } from 'word-aligner-rcl';
 // @ts-ignore
 import { referenceHelpers } from 'bible-reference-range'
@@ -85,8 +85,8 @@ export function only_numbers(to_filter: string[]): string[] {
  */
 function convertOccurrences(wordList: TWord[]) {
     var wordList_ = wordList.map(function (item) {
-      var occurrence = parseInt("" + item.occurrence);
-      var occurrences = parseInt("" + item.occurrences);
+      var occurrence = parseInt('' + item.occurrence);
+      var occurrences = parseInt('' + item.occurrences);
       return { ...item, occurrence, occurrences };
     });
     return wordList_;
@@ -99,9 +99,9 @@ function convertOccurrences(wordList: TWord[]) {
    */
   export function verseObjectsToTargetString( verseObjects: TWord[] ): string{
     let result: string = verseObjects.map( (word: TWord):string => {
-      if( word.type == "text" || word.type == "word" ) return word.text || word.word || "";
-      if( word.type == "milestone" && word.children != undefined ) return verseObjectsToTargetString( word.children );
-      return "";
+      if( word.type == 'text' || word.type == 'word' ) return word.text || word.word || '';
+      if( word.type == 'milestone' && word.children != undefined ) return verseObjectsToTargetString( word.children );
+      return '';
     }).reduce( (previousValue: string, currentValue: string ): string => previousValue.concat( currentValue ) );
     return result;
   }
@@ -113,8 +113,8 @@ function convertOccurrences(wordList: TWord[]) {
    */
   export function verseObjectsToTWordTokens( verseObjects: TWord[] ): TWord[]{
     let result: TWord[] = verseObjects.reduce( (acc : TWord[], curr: TWord): TWord[] => {
-      if( curr.type == "word" ) acc.push( curr );
-      if( curr.type == "milestone" && curr.children != undefined ) acc = acc.concat( verseObjectsToTWordTokens( curr.children ) );
+      if( curr.type == 'word' ) acc.push( curr );
+      if( curr.type == 'milestone' && curr.children != undefined ) acc = acc.concat( verseObjectsToTWordTokens( curr.children ) );
       return acc;
     }, [] );
     return result;
@@ -255,7 +255,7 @@ export function mergeInAlignments(wordBankWords: TWord[], verseAlignments: TSour
       verseObjects = verseObjects_test;
     }
   } catch (e) {
-    console.log("addAlignmentsToTargetVerseUsingMerge_JSON() - invalid alignment", e);
+    console.log('addAlignmentsToTargetVerseUsingMerge_JSON() - invalid alignment', e);
   }
   return verseObjects;
 }

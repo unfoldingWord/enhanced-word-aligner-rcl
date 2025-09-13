@@ -1,5 +1,5 @@
-import GroupCollection from "@/shared/GroupCollection";
-import {TAlignerData, TSourceTargetAlignment, TWord} from "word-aligner-rcl";
+import GroupCollection from '@/shared/GroupCollection';
+import {TAlignerData, TSourceTargetAlignment, TWord} from 'word-aligner-rcl';
 import {Token} from 'wordmap-lexer'
 import {Suggestion} from 'wordmap'
 

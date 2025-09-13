@@ -1,10 +1,11 @@
-import { TSourceTargetAlignment, TWord } from "word-aligner-rcl";
-import {ContextId} from "@/common/classes";
-import {MorphJLBoostWordMap} from "uw-wordmapbooster";
+import { TSourceTargetAlignment, TWord } from 'word-aligner-rcl';
+import {ContextId} from '@/common/classes';
+import {AbstractWordMapWrapper, MorphJLBoostWordMap} from 'uw-wordmapbooster';
 
 export interface TVerseCounts {
     alignmentCompletedVerseCount: number;
     alignmentVerseCount: number;
+    percentTrained: number;
     sourceVerseCount: number;
     targetVerseCount: number;
 }
@@ -40,6 +41,10 @@ export type TAlignmentMemoryVerseCounts = {
     untrained: TAlignmentVerseCounts | null;
     trained: TAlignmentVerseCounts | null;
 };
+
+export interface TBookVerseCounts {
+    [bookId: string]: TVerseCounts;
+}
 
 export interface TTrainedWordAlignerModelResults {
     config: TAlignmentSuggestionsConfig;
@@ -119,3 +124,18 @@ export interface TAlignmentVerseCounts {
     booksCount: { [key: string]: number };
     chaptersCount: { [key: string]: number };
 }
+
+export interface TAlignmentCompletedInfo {
+    bookVerseCounts?: TBookVerseCounts;
+    maxComplexity: number;
+    modelKey: string;
+    model: AbstractWordMapWrapper | null;
+    sourceLanguageId: string;
+    targetLanguageId: string;
+}
+
+export interface TAlignmentMetaData {
+    info: TAlignmentCompletedInfo;
+    message: string;
+}
+
