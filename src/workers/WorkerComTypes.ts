@@ -5,7 +5,7 @@ import {AbstractWordMapWrapper, MorphJLBoostWordMap} from 'uw-wordmapbooster';
 export interface TVerseCounts {
     alignmentCompletedVerseCount: number;
     alignmentVerseCount: number;
-    percentTrained: number;
+    percentAligned: number;
     sourceVerseCount: number;
     targetVerseCount: number;
 }
@@ -126,16 +126,19 @@ export interface TAlignmentVerseCounts {
 }
 
 export interface TAlignmentCompletedInfo {
-    bookVerseCounts?: TBookVerseCounts;
     maxComplexity: number;
     modelKey: string;
     model: AbstractWordMapWrapper | null;
     sourceLanguageId: string;
     targetLanguageId: string;
+    trainingInfo?: {
+        alignmentMemoryVerseCounts: TAlignmentMemoryVerseCounts
+    };
 }
 
 export interface TAlignmentMetaData {
-    info: TAlignmentCompletedInfo;
+    currentBookAlignmentInfo?: TAlignmentCompletedInfo;
+    globalAlignmentBookVerseCounts?: TBookVerseCounts;
     message: string;
 }
 

@@ -192,7 +192,6 @@ export default class Book {
         let targetVerseCount = 0;
         let alignmentVerseCount = 0;
         let alignmentCompletedVerseCount = 0;
-        const totalVerseCounts = Math.max(sourceVerseCount, targetVerseCount);
         
         if (this.sourceUsfmBook?.chapters) {
             Object.entries(this.sourceUsfmBook?.chapters).forEach(([chapter_number, verses]) => {
@@ -231,13 +230,14 @@ export default class Book {
                 })
             }
         });
-        
-        const percentTrained = alignmentCompletedVerseCount / totalVerseCounts * 100;
+
+        const totalVerseCounts = Math.max(sourceVerseCount, targetVerseCount) || 0.0001;
+        const percentAligned = alignmentCompletedVerseCount / totalVerseCounts * 100;
         
         return {
             alignmentCompletedVerseCount,
             alignmentVerseCount,
-            percentTrained,
+            percentAligned,
             sourceVerseCount,
             targetVerseCount,
         };

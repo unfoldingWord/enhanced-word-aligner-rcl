@@ -972,17 +972,20 @@ export const useAlignmentSuggestions = ({
      * @return {TBookVerseCounts} An object containing the verse counts of each book, where
      * the keys are book IDs and the values are their respective verse counts.
      */
-    function getGroupVerseCounts(contextId: ContextId):TBookVerseCounts {
+    function getGroupVerseCounts(contextId: ContextId):TBookVerseCounts|null {
         const bookVerseCounts:TBookVerseCounts = {}
         const groupName = getGroupName(contextId)
         const groupCollection_ = stateRef?.current?.groupCollection;
         const group = groupCollection_?.groups?.[groupName];
         const books = group?.books || {};
-        Object.entries(books).forEach(([bookId, book]) => {
-            const verseCounts = book.getVerseCounts()
-            bookVerseCounts[bookId] = verseCounts
-        })
-        return bookVerseCounts
+        if (Object.keys(books).length > 0) {
+            Object.entries(books).forEach(([bookId, book]) => {
+                const verseCounts = book.getVerseCounts()
+                bookVerseCounts[bookId] = verseCounts
+            })
+            return bookVerseCounts
+        }
+        return null;
     }
     
     /**
@@ -991,29 +994,44 @@ export const useAlignmentSuggestions = ({
      * @return {{ info:TAlignmentCompletedInfo, message:string}} The metadata associated with the current model.
      */
     function getModelMetaData():TAlignmentMetaData {
-        let info:TAlignmentCompletedInfo = modelMetaData?.current || null
-        info.bookVerseCounts = getGroupVerseCounts(contextId);
-        let message = ''
-
-        // @ts-ignore
-        const alignmentMemoryVerseCounts = info.trainingInfo?.alignmentMemoryVerseCounts;
-        const trained = alignmentMemoryVerseCounts?.trained;
-        if (trained) {
-            message = `Trained with aligned verses from Books: `
-            Object.entries(trained?.booksCount).forEach(([bookId, verseCount]) => {
-                message += ` ${verseCount} for ${bookId},`;
-            })
+        let bookAlignmentInfo:TAlignmentCompletedInfo = modelMetaData?.current
+        let message = '';
+        const bookVerseCounts = getGroupVerseCounts(contextId);
+ 
+        if (bookAlignmentInfo) {
+            const alignmentMemoryVerseCounts = bookAlignmentInfo.trainingInfo?.alignmentMemoryVerseCounts;
+            const trained = alignmentMemoryVerseCounts?.trained;
+            if (trained) {
+                message = `Trained with aligned verses from Books:`
+                Object.entries(trained?.booksCount).forEach(([bookId, verseCount]) => {
+                    message += `\n  ${verseCount} verses for ${bookId},`;
+                })
+            }
+            const untrained = alignmentMemoryVerseCounts?.untrained;
+            if (untrained) {
+                message += `\nUntrained Alignment Memory verses from Books: `
+                Object.entries(untrained.booksCount).forEach(([bookId, verseCount]) => {
+                    message += `\n  ${verseCount} for ${bookId},`;
+                })
+            }
+        } else {
+            message = 'Alignment Data Not Loaded.';
         }
-        const untrained = alignmentMemoryVerseCounts?.untrained;
-        if (untrained) {
-            message = `\nUntrained Alignment Memory verses from Books: `
-            Object.entries(untrained.booksCount).forEach(([bookId, verseCount]) => {
-                message += ` ${verseCount} for ${bookId},`;
+
+        if (bookVerseCounts) {
+            message += `\nGlobal Alignment Memory for Books:`
+            Object.entries(bookVerseCounts).forEach(([bookId, verseCount]) => {
+                const totalVerseCounts = Math.max(verseCount.sourceVerseCount, verseCount.targetVerseCount);
+                const percentAligned = verseCount.percentAligned;
+                message += `\n  ${bookId} has ${totalVerseCounts} verses and is ${percentAligned.toFixed(0)}% aligned`;
             })
+        } else {
+            message += `\nGlobal Alignment Memory not loaded!`
         }
         
         return {
-            info,
+            currentBookAlignmentInfo: bookAlignmentInfo,
+            globalAlignmentBookVerseCounts: bookVerseCounts,
             message,
         }
     }
