@@ -1,4 +1,7 @@
-import {MAX_COMPLEXITY, MIN_COMPLEXITY} from "@/common/constants";
+import {MAX_COMPLEXITY, MIN_COMPLEXITY} from '@/common/constants';
+// @ts-ignore
+import {referenceHelpers} from 'bible-reference-range';
+import {getVerseList, isValidVerse} from '@/utils/usfm_misc';
 
 /**
    * Checks to see if a specific string array references a given resource.
@@ -143,10 +146,11 @@ import {MAX_COMPLEXITY, MIN_COMPLEXITY} from "@/common/constants";
    * Extracts USFM content for a specific chapter and verse
    * @param usfmContent The complete USFM content as a string
    * @param chapterNum The chapter number to extract (1-based)
-   * @param verseNum The verse number to extract (1-based)
+   * @param verseRef The verse number to extract (1-based)
    * @returns The USFM content for the specified verse, or empty string if not found
    */
-  export function extractVerseContent(usfmContent: string, chapterNum: number, verseNum: number): string {
+  export function extractVerseContent(usfmContent: string, chapterNum: number, verseRef: number|string): string {
+      const verseNum = parseInt(verseRef + '');
       if (!usfmContent || chapterNum < 1 || verseNum < 1) {
           return '';
       }
@@ -158,7 +162,7 @@ import {MAX_COMPLEXITY, MIN_COMPLEXITY} from "@/common/constants";
       }
 
       // Find the start of the requested verse
-      const startVerseRegex = new RegExp(`\\\\v\\s+${verseNum}(?:\\s|$)`, 'm');
+      const startVerseRegex = new RegExp(`\\\\v\\s+${verseRef}(?:\\s|$)`, 'm');
       const startMatch = chapterContent.match(startVerseRegex);
 
       if (!startMatch) {
@@ -200,7 +204,7 @@ import {MAX_COMPLEXITY, MIN_COMPLEXITY} from "@/common/constants";
       return chapterContent.substring(startIndex, endIndex).trim();
   }
 
-  /**
+ /**
    * Extracts USFM content for a range of verses within a chapter
    * @param usfmContent The complete USFM content as a string
    * @param chapterNum The chapter number to extract (1-based)
@@ -269,6 +273,20 @@ import {MAX_COMPLEXITY, MIN_COMPLEXITY} from "@/common/constants";
       return chapterContent.substring(startIndex, endIndex).trim();
   }
 
+
+    /**
+     * Extracts just the text content from a verse, removing verse markers
+     * Handles both single verse markers (\v 111) and verse span markers (\v 111-112)
+     * 
+     * @param verseContent The verse content containing verse marker and text
+     * @returns The verse text without the verse marker
+     */
+    export function getJustVerseText(verseContent: string) {
+        // Remove verse marker from the beginning, matching both single verse and verse span formats
+        const verseMarkerRegex = /^\\v\s+\d+(?:-\d+)?\s*/;
+        return verseContent.replace(verseMarkerRegex, '').trim();
+    }
+
   /**
    * Extracts just the text content of a verse (without the verse marker)
    * @param usfmContent The complete USFM content as a string
@@ -276,18 +294,33 @@ import {MAX_COMPLEXITY, MIN_COMPLEXITY} from "@/common/constants";
    * @param verseNum The verse number to extract (1-based)
    * @returns The text content of the verse without the USFM marker
    */
-  export function extractVerseText(usfmContent: string, chapterNum: number, verseNum: number): string {
-      const verseContent = extractVerseContent(usfmContent, chapterNum, verseNum);
-      if (!verseContent) {
+  export function extractVerseText(usfmContent: string, chapterNum: number, verseNum: number|string): string {
+      const verseNum_ = verseNum + ''
+      if (isValidVerse(verseNum_)) {
+          let content = ''
+          const isSpan = referenceHelpers.isVerseSpan(verseNum);
+          // look first for exact match
+          const verseContent = extractVerseContent(usfmContent, chapterNum, verseNum);
+          content = getJustVerseText(verseContent);
+          if (content) { // if exact match found
+              return content;
+          } 
+          
+          if (isSpan) { // try getting each verse in span
+              const verses = getVerseList(verseNum_);
+              verses.forEach((verse) => {
+                  const verseContent = extractVerseContent(usfmContent, chapterNum, verse)
+                  content += getJustVerseText(verseContent)
+              })
+              return content
+          }
+      } else {
+          console.log(`extractVerseContent not valid verse ${verseNum_}`);
           return '';
       }
-
-      // Remove the verse marker from the beginning
-      const verseMarkerRegex = /^\\v\s+\d+\s*/;
-      return verseContent.replace(verseMarkerRegex, '').trim();
   }
 
-  /**
+/**
    * Adjusts the complexity value to ensure it is within the allowable range.
    *
    * @param {number} newMaxComplexity - The proposed maximum complexity value that needs to be limited within predefined bounds.

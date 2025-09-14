@@ -1,15 +1,17 @@
-import { MorphJLBoostWordMap, updateTokenLocations } from "uw-wordmapbooster";
-import { Token } from "wordmap-lexer";
-import { Alignment, Ngram } from "wordmap";
+import { MorphJLBoostWordMap, updateTokenLocations } from 'uw-wordmapbooster';
+import { Token } from 'wordmap-lexer';
+import { Alignment, Ngram } from 'wordmap';
 import {
+    TAlignmentMemoryVerseCounts,
     TAlignmentSuggestionsConfig,
+    TAlignmentVerseCounts,
     TTrainedWordAlignerModelResults,
     TTrainedWordAlignerModelWorkerResults,
     TTrainingAndTestingData,
     TVerseCounts,
-} from "../WorkerComTypes";
-import {ContextId, translationMemoryType} from "@/common/classes";
-import {DEFAULT_MAX_COMPLEXITY} from "@/common/constants";
+} from '../WorkerComTypes';
+import {ContextId, translationMemoryType} from '@/common/classes';
+import {DEFAULT_MAX_COMPLEXITY} from '@/common/constants';
 
 enum ReduceType {
     anything,
@@ -64,17 +66,17 @@ interface RemoveComplexityResult {
  * Reduces the complexity of alignment data by selectively removing entries
  * until the aligned complexity count is below or equal to the maximum allowed complexity.
  *
- * @param {RemoveComplexityParams} params - Parameters object containing all necessary data for complexity reduction
- * @param {number} params.alignedComplexityCount - The current total complexity count of aligned data.
- * @param {number} params.maxComplexity - The maximum allowable aligned complexity count.
- * @param {number} params.keyCount - The total number of keys in the alignment data.
- * @param {string[]} params.keys - An array of keys representing verses or alignment entries.
- * @param {{ [key: string]: Token[] }} params.sourceVersesTokenized - A mapping of source verses to their tokenized content.
- * @param {{ [key: string]: Token[] }} params.targetVersesTokenized - A mapping of target verses to their tokenized content.
- * @param {{ [key: string]: Alignment[] }} params.alignments - A mapping of keys to their respective alignment data.
- * @param {number} params.trimmedVerseCount - Count of verses that have been trimmed or removed.
- * @param {ContextId} params.contextId - The context identifier associated with the alignment operations.
- * @param {ReduceType} params.reduceType - A parameter to define the type or strategy for reducing complexity.
+ * @param {RemoveComplexityParams} props - Parameters object containing all necessary data for complexity reduction
+ * @param {number} props.alignedComplexityCount - The current total complexity count of aligned data.
+ * @param {number} props.maxComplexity - The maximum allowable aligned complexity count.
+ * @param {number} props.keyCount - The total number of keys in the alignment data.
+ * @param {string[]} props.keys - An array of keys representing verses or alignment entries.
+ * @param {{ [key: string]: Token[] }} props.sourceVersesTokenized - A mapping of source verses to their tokenized content.
+ * @param {{ [key: string]: Token[] }} props.targetVersesTokenized - A mapping of target verses to their tokenized content.
+ * @param {{ [key: string]: Alignment[] }} props.alignments - A mapping of keys to their respective alignment data.
+ * @param {number} props.trimmedVerseCount - Count of verses that have been trimmed or removed.
+ * @param {ContextId} props.contextId - The context identifier associated with the alignment operations.
+ * @param {ReduceType} props.reduceType - A parameter to define the type or strategy for reducing complexity.
  */
 export function removeComplexity(props: RemoveComplexityParams) {
     let {
@@ -183,22 +185,38 @@ export function removeComplexity(props: RemoveComplexityParams) {
 }
 
 /**
- * Processes alignment data to display unique book and chapter references associated with a given subject.
+ * Processes alignment data to calculate the verse count of chapters and books,
+ * mapping chapters to the number of their occurrences and books to their chapter counts.
  *
- * @param {Object} alignmentData - An object containing key-value pairs where keys represent book and chapter references.
- * @param {string} subject - The subject for which alignment data is being displayed.
- * @return {void} Does not return a value.
+ * @param {Object} alignmentData - An object where keys represent book and chapter references and values hold alignment data.
+ * @param {string} subject - The subject string for which alignment data is being processed.
+ * @return {TAlignmentVerseCounts} An object consisting of two properties:
+ * 1. booksCount: A mapping of book identifiers to their respective verse counts.
+ * 2. chaptersCount: A mapping of book and chapter references to their verse counts.
  */
-function showAlignmentData(alignmentData: { [p: string]: any }, subject: string) {
-    const shown: string[] = []
+function getBookChapterData(alignmentData: { [p: string]: any }, subject: string):TAlignmentVerseCounts {
+    const chaptersCount: { [key: string]: number } = {}
+    const booksCount: { [key: string]: number } = {}
     const keys = Object.keys(alignmentData)
     keys.forEach(key => {
         const book_chapter = key.split(':')[0];
-        if (!shown.includes(book_chapter)) {
-            shown.push(book_chapter);
+        if (!chaptersCount[book_chapter]) {
+            chaptersCount[book_chapter] = 1;
             console.log(`'${subject}' includes ${book_chapter}`)
+        } else {
+            chaptersCount[book_chapter]++;
+        }
+        const bookId = book_chapter.split(' ')[0];
+        if (!booksCount[bookId]) {
+            booksCount[bookId] = 1;
+        } else {
+            booksCount[bookId]++;
         }
     })
+    return {
+        booksCount,
+        chaptersCount,
+    }
 }
 
 /**
@@ -283,13 +301,13 @@ export function addAlignmentCorpus(
     }
 
     if (alignedComplexityCount + unalignedComplexityCount < maxComplexity) {
-        console.log("The corpus is not too complex to train the word map.The corpus complexity is:", alignedComplexityCount);
+        console.log('The corpus is not too complex to train the word map.The corpus complexity is:', alignedComplexityCount);
         wordAlignerModel.appendKeyedCorpusTokens(sourceCorpusTokenized, targetCorpusTokenized);
 
         // Do a test to see if adding the alignment stuff as corpus as well helps.
         wordAlignerModel.appendKeyedCorpusTokens(sourceVersesTokenized, targetVersesTokenized);
     } else if (alignedComplexityCount > maxComplexity) {
-        console.warn("The corpus is too complex to train the word map.  Trimming. The corpus complexity is:", alignedComplexityCount);
+        console.warn('The corpus is too complex to train the word map.  Trimming. The corpus complexity is:', alignedComplexityCount);
 
         // remove from other books
         console.log(`reducing training complexity by removing corpus from other books`)
@@ -329,15 +347,16 @@ export function addAlignmentCorpus(
     //     console.log(`Excluding singleBookTrimCount of ${singleBookTrimCount} from trimmedVerseCount, now ${trimmedVerseCount}`);
     // }
 
-    showAlignmentData(targetVersesTokenized, 'Training Data');
+    const trainedAlignmentMemoryVerseCounts = getBookChapterData(targetVersesTokenized, 'Training Data');
 
     return {
         alignedComplexityCount,
-        percentBookAligned,
-        trimmedVerseCount,
         deletedAlignments,
         deletedBookTargetVerses,
         deletedBookSourceVerses,
+        percentBookAligned,
+        trainedAlignmentMemoryVerseCounts,
+        trimmedVerseCount,
     };
 }
 
@@ -362,7 +381,12 @@ export async function createTrainedWordAlignerModel(worker: Worker, data: TTrain
   let alignedComplexityCount = 0;
   let unalignedComplexityCount = 0;
 
- Object.entries(data.alignments).forEach(([reference, training_data]) => {
+  const alignmentMemoryVerseCounts:TAlignmentMemoryVerseCounts = {
+      untrained: null,
+      trained: null,
+  }
+  
+  Object.entries(data.alignments).forEach(([reference, training_data]) => {
    const tokenizedSourceVerse = training_data.sourceVerse.map(n => new Token(n));
    sourceVersesTokenized[reference] = tokenizedSourceVerse;
    const tokenizedTargetVerse = training_data.targetVerse.map(n => new Token(n));
@@ -408,12 +432,13 @@ export async function createTrainedWordAlignerModel(worker: Worker, data: TTrain
   // There are several different word map classes,
   // and there are different hyper parameters which can be passed into it as well.
     const wordMapOptions = {
-        targetNgramLength: 5,
-        warnings: false,
         forceOccurrenceOrder: false,
-        train_steps: 1000,
+        nGramWarnings: false,
         progress_callback,
-        verbose_training: false
+        targetNgramLength: 5,
+        train_steps: 1000,
+        verbose_training: false,
+        warnings: false,
     };
     const wordAlignerModel = new MorphJLBoostWordMap(wordMapOptions);
   
@@ -422,6 +447,7 @@ export async function createTrainedWordAlignerModel(worker: Worker, data: TTrain
       deletedBookTargetVerses,
       deletedBookSourceVerses,
       percentBookAligned,
+      trainedAlignmentMemoryVerseCounts,
       trimmedVerseCount,
   } = addAlignmentCorpus(alignedComplexityCount, unalignedComplexityCount, maxComplexity,
       wordAlignerModel, sourceCorpusTokenized, targetCorpusTokenized, sourceVersesTokenized,
@@ -447,9 +473,11 @@ export async function createTrainedWordAlignerModel(worker: Worker, data: TTrain
           map.appendAlignmentMemory(alignment);
           translationMemoryVersesAdded++;
       })
-      showAlignmentData(deletedAlignments, 'Other Translation Memory');
+      alignmentMemoryVerseCounts.untrained = getBookChapterData(deletedAlignments, 'Other Translation Memory');
       console.log(`translation Memory Verses Added back ${translationMemoryVersesAdded}`);
-  }
+    }
+
+  alignmentMemoryVerseCounts.trained = trainedAlignmentMemoryVerseCounts;
 
   delete wordMapOptions.progress_callback; // remove the progress callback since it will not pass well.
   return {
@@ -463,6 +491,9 @@ export async function createTrainedWordAlignerModel(worker: Worker, data: TTrain
       trimmedVerses: trimmedVerseCount,
       wordAlignerModel,
       wordMapOptions,
+      trainingInfo: {
+          alignmentMemoryVerseCounts
+      }
   };
 }
 
@@ -506,7 +537,7 @@ export function makeTranslationMemory(bookId: string, originalBibleBookUsfm: str
  */
 export async function processTrainingData(worker: Worker, data: TTrainingAndTestingData) {
     const contextId = data.contextId;
-    console.log("Training worker has started, contextId", contextId);
+    console.log('Training worker has started, contextId', contextId);
     worker.postMessage({ type: 'log', message: 'Training worker has started' });
 
     /**

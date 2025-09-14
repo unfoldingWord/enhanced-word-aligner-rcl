@@ -9,27 +9,32 @@ import {
   usfmHelpers
 } from "word-aligner-rcl";
 import usfm from 'usfm-js';
-import {EnhancedWordAligner} from './EnhancedWordAligner'
-import {extractVerseText} from "../utils/misc";
+import { EnhancedWordAligner } from './EnhancedWordAligner'
+import { extractVerseText } from "../utils/misc";
+import { useTrainingState } from '../hooks/useTrainingState'
 import delay from "../utils/delay";
 
 import {NT_ORIG_LANG} from "../common/constants";
 
 console.log('Loading WordAlignerComponent.md');
 
-const suggestionsOnly = true;  // set true to remove clear button and add suggestion label
+const doAutoTraining = false; // set true to enable auto training of alignment suggestions
+const suggestionsOnly = false;  // set true to remove clear button and add suggestion label
 const trainOnlyOnCurrentBook = true; // if true, then training is sped up for small books by just training on alignment memory data for current book
 const minTrainingVerseRatio = 1.1; // if trainOnlyOnCurrentBook, then this is protection for the case that the book is not completely aligned.  If a ratio such as 1.0 is set, then training will use the minimum number of verses for training.  This minimum is calculated by multiplying the number of verses in the book by this ratio
 const keepAllAlignmentMemory = false; // EXPERIMENTAL FEATURE - if true, then alignment data not used for training will be added back into wordMap after training.  This should improve alignment vocabulary, but may negatively impact accuracy in the case of fully aligned books.
 const keepAllAlignmentMinThreshold = 90; // EXPERIMENTAL FEATURE - if threshold percentage is set (such as value 60), then alignment data not used for training will be added back into wordMap after training, but only if the percentage of book alignment is less than this threshold.  This should improve alignment vocabulary for books not completely aligned
 
-const bookId = 'tit';
+const targetLanguageId = 'en';
+const bookId = 'eph';
+const chapter = 5;
+const verse = '22-23';
 
 // const alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1.json');
 // const alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1_partial.json');
 // const originalVerseJson = require('../__tests__/fixtures/alignments/grk_tit_1_1.json');
 const LexiconData = require("../__tests__/fixtures/lexicon/lexicons.json");
-const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory.json");
+// const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory.json");
 
 // limit to single book
 // translationMemory.targetUsfms = { "tit": translationMemory.targetUsfms.tit};
@@ -43,6 +48,7 @@ const translationMemory = require("../__tests__/fixtures/alignments/full_books/t
 // const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryMark.json");
 // const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryActs.json");
 // const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryRuth.json");
+const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryEphUST.json");
 
 const translate = (key) => {
   const lookup = {
@@ -55,17 +61,25 @@ const translate = (key) => {
     "alignments.clear_alignments"    : "Clear all alignments.",
     "alignments.clear"               : "Clear",
     "suggestions.title"              : "Suggestions:",
+    "suggestions.train_button"       : "Train",
+    "suggestions.train_button_hint"  : "Click to improve the quality of alignment suggestions based on currently loaded alignments",
+    "suggestions.stop_training_button" : "Stop Train",
+    "suggestions.status_training"    : "Currently Training ...",
+    "suggestions.status_trained"     : "Trained",
+    "suggestions.status_not_trained" : "Not Trained",
+    "suggestions.percent_complete"   : "% complete",
+    "suggestions.retrain_button"     : "Retrain",
+    "suggestions.retrain_button_hint": "Click to improve the quality of alignment suggestions based on current book alignments",
   };
   if (!(key in lookup)) {
-    console.log(`translate(${key})`)
+    const message = `translate(${key})`;
+    console.warn(`Not Translated ${key}`, message)
+    return message;
   } else {
     return lookup[key];
   }
 };
 
-const targetLanguageId = 'en';
-const chapter = 1;
-const verse = 1;
 var sourceUsfm = translationMemory.sourceUsfms[bookId] || '';
 var targetUsfm = translationMemory.targetUsfms[bookId] || '';
 const source_json = usfm.toJSON(sourceUsfm, {convertToInt: ['occurrence', 'occurrences']});
@@ -92,18 +106,12 @@ const WordAlignerPanel = ({
     lexicons,
     loadLexiconEntry,
     onChange,
-    getLexiconData,
     translationMemory,
     styles
 }) => {
   const [addTranslationMemory, setAddTranslationMemory] = useState(null);
   const [translationMemoryLoaded, setTranslationMemoryLoaded] = useState(false);
   const [doingTraining, setDoingTraining] = useState(false);
-  const [trained, setTrained] = useState(false);
-  const [training, setTraining] = useState(false);
-  const [message, setMessage] = useState('');
-  const [trainingError, setTrainingError] = useState('')
-  const [trainingButtonStr, setTrainingButtonStr] = useState('');
 
   // Handler for the load translation memory button
   const handleLoadTranslationMemory = () => {
@@ -118,66 +126,31 @@ const WordAlignerPanel = ({
     setDoingTraining(newTrainingState);
   };
 
-  const handleSetTrainingState = (props) => {
-    if (!props) {
-      console.log('handleSetTrainingState: no props');
-      return;
-    }
+  const handleInfoClick = (info) => {
+    console.log("handleInfoClick");
+    const message = (info && info.message) || JSON.stringify(info, null, 2)
+    window.prompt(`Training Model:\n${message}`)
+  }
 
-    let {
-      percentComplete,
-      training: _training,
-      trainingComplete,
-      trainingFailed,
-    } = props || {};
-
-    if (_training === undefined) {
-      _training = training;
-    } else {
-      // console.log('Updating training state: ' + _training);
+  const {
+    actions: {
+      handleTrainingStateChange
+    },
+    state: {
+      training,
+      trained,
+      trainingError,
+      trainingStatusStr,
+      trainingButtonStr,
     }
-    if (trainingComplete === undefined) {
-      trainingComplete = trained;
-    } else {
-      // console.log('Updating trainingComplete state: ' + trainingComplete);
-    }
-
-    if (_training !== training) {
-      setTraining(_training);
-    }
-    if (!_training && doingTraining) {
-      setDoingTraining(false);
-    }
-    if (trainingComplete !== trained) {
-      setTrained(trainingComplete);
-    }
-
-    let trainingErrorStr = ''
-    let currentTrainingError = trainingError;
-    if (typeof trainingFailed === 'string') {
-      currentTrainingError = trainingFailed;
-      setTrainingError(currentTrainingError)
-    }
-    if (currentTrainingError) {
-      trainingErrorStr = " - " + currentTrainingError;
-    }
-
-    const trainingButtonStr = _training ? "Stop Training" : "Start Training"
-    setTrainingButtonStr(trainingButtonStr);
-
-    let trainingStatusStr_ = (_training ? "Currently Training ..." : trainingComplete ? "Trained" : "Not Trained") + trainingErrorStr;
-
-    if (percentComplete !== undefined) {
-      trainingStatusStr_ += ` ${percentComplete}% complete`;
-    }
-    console.log(`handleSetTrainingState new state: training ${_training}, trainingComplete ${trainingComplete}, trainingStatusStr ${trainingStatusStr_}`);
-
-    setMessage(trainingStatusStr_);
-  };
-
+  } = useTrainingState({
+    translate,
+  })
+  
   const enableLoadTranslationMemory = !doingTraining;
   const enableTrainingToggle = trained || (translationMemoryLoaded && !doingTraining);
   const alignmentSuggestionsConfig = {
+    doAutoTraining,
     minTrainingVerseRatio,
     trainOnlyOnCurrentBook,
     keepAllAlignmentMemory,
@@ -186,6 +159,7 @@ const WordAlignerPanel = ({
 
   return (
     <>
+      <div>{targetLanguageId} - {bookId} {chapter}:{verse}</div>
       <div style={{display: 'flex', gap: '10px'}}>
         <button
           onClick={handleLoadTranslationMemory}
@@ -221,28 +195,28 @@ const WordAlignerPanel = ({
           {trainingButtonStr}
         </button>
 
-        <span style={{marginLeft: '8px', color: '#000'}}> {message} </span>
-
+        <span style={{marginLeft: '8px', color: '#000'}}> {trainingStatusStr} </span>
       </div>
+
       <EnhancedWordAligner
+        addTranslationMemory={addTranslationMemory}
         config={alignmentSuggestionsConfig}
-        suggestionsOnly={suggestionsOnly}
-        styles={{maxHeight: '450px', overflowY: 'auto', ...styles}}
-        verseAlignments={verseAlignments}
-        targetWords={targetWords}
-        translate={translate}
         contextId={contextId}
-        targetLanguageFont={targetLanguageFont}
-        sourceLanguageId={sourceLanguageId}
-        targetLanguageId={targetLanguageId}
-        showPopover={showPopover}
+        doTraining={doingTraining}
+        handleInfoClick={handleInfoClick}
+        handleTrainingStateChange={handleTrainingStateChange}
         lexicons={lexicons}
         loadLexiconEntry={loadLexiconEntry}
         onChange={onChange}
-        getLexiconData={getLexiconData}
-        addTranslationMemory={addTranslationMemory}
-        doTraining={doingTraining}
-        handleSetTrainingState={handleSetTrainingState}
+        showPopover={showPopover}
+        sourceLanguageId={sourceLanguageId}
+        styles={{...styles, maxHeight: '450px', overflowY: 'auto'}}
+        suggestionsOnly={suggestionsOnly}
+        targetLanguageFont={targetLanguageFont}
+        targetLanguageId={targetLanguageId}
+        targetWords={targetWords}
+        translate={translate}
+        verseAlignments={verseAlignments}
       />
     </>
   );
@@ -272,11 +246,6 @@ const App = () => {
     console.log(`loadLexiconEntry(${key})`)
     return LexiconData
   };
-  const getLexiconData_ = (lexiconId, entryId) => {
-    console.log(`loadLexiconEntry(${lexiconId}, ${entryId})`)
-    const entryData = (LexiconData && LexiconData[lexiconId]) ? LexiconData[lexiconId][entryId] : null;
-    return {[lexiconId]: {[entryId]: entryData}};
-  };
 
   function onChange(results) {
     console.log(`WordAligner() - alignment changed, results`, results);// merge alignments into target verse and convert to USFM
@@ -290,18 +259,18 @@ const App = () => {
   return (
     <div style={{height: '650px', width: '800px'}}>
       <WordAlignerPanel
-        verseAlignments={verseAlignments}
-        targetWords={targetWords}
-        translate={translate}
         contextId={contextId}
-        targetLanguageFont={targetLanguageFont}
-        sourceLanguageId={sourceLanguageId}
-        showPopover={showPopover}
         lexicons={lexicons}
         loadLexiconEntry={loadLexiconEntry}
         onChange={onChange}
-        getLexiconData={getLexiconData_}
+        showPopover={showPopover}
+        sourceLanguageId={sourceLanguageId}
+        styles={{}}
+        targetLanguageFont={targetLanguageFont}
+        targetWords={targetWords}
+        translate={translate}
         translationMemory={translationMemory}
+        verseAlignments={verseAlignments}
       />
     </div>
   );

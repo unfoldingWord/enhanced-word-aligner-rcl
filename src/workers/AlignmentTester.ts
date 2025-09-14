@@ -2,16 +2,16 @@ import {
   AbstractWordMapWrapper,
   is_correct_prediction,
   updateTokenLocations,
-} from "uw-wordmapbooster";
-import { Token } from "wordmap-lexer";
-import { Alignment, Ngram, Suggestion } from "wordmap";
-import { TTestingWorkerData } from "./WorkerComTypes";
+} from 'uw-wordmapbooster';
+import { Token } from 'wordmap-lexer';
+import { Alignment, Ngram, Suggestion } from 'wordmap';
+import { TTestingWorkerData } from './WorkerComTypes';
 
 
 
 self.addEventListener('message', (event: { data: TTestingWorkerData }) => {
 
-  console.log("Testing worker has started");
+  console.log('Testing worker has started');
 
 
   //Convert the data into the structure which the trained model expects.

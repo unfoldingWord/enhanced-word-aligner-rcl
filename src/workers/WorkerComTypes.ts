@@ -1,10 +1,11 @@
-import { TSourceTargetAlignment, TWord } from "word-aligner-rcl";
-import {ContextId} from "@/common/classes";
-import {MorphJLBoostWordMap} from "uw-wordmapbooster";
+import { TSourceTargetAlignment, TWord } from 'word-aligner-rcl';
+import {ContextId} from '@/common/classes';
+import {AbstractWordMapWrapper, MorphJLBoostWordMap} from 'uw-wordmapbooster';
 
 export interface TVerseCounts {
     alignmentCompletedVerseCount: number;
     alignmentVerseCount: number;
+    percentAligned: number;
     sourceVerseCount: number;
     targetVerseCount: number;
 }
@@ -36,6 +37,15 @@ export interface TTestingWorkerData{
     serializedModel: {[key: string]: any};
 }
 
+export type TAlignmentMemoryVerseCounts = {
+    untrained: TAlignmentVerseCounts | null;
+    trained: TAlignmentVerseCounts | null;
+};
+
+export interface TBookVerseCounts {
+    [bookId: string]: TVerseCounts;
+}
+
 export interface TTrainedWordAlignerModelResults {
     config: TAlignmentSuggestionsConfig;
     contextId: ContextId;
@@ -47,6 +57,9 @@ export interface TTrainedWordAlignerModelResults {
     trimmedVerses: number;
     wordAlignerModel: MorphJLBoostWordMap;
     wordMapOptions?: object;
+    trainingInfo: {
+        alignmentMemoryVerseCounts: TAlignmentMemoryVerseCounts
+    }
 }
 
 export interface TAlignmentTrainingWorkerData {
@@ -82,6 +95,9 @@ export interface TTrainedWordAlignerModelWorkerResults {
     trainedModel: TWordAlignerModelData;
     trimmedVerses: number;
     type: string;
+    modelInfo?: {
+        trainedOn: {[key: string]: { bookId: string, verseCount: number } };
+    }
 }
 
 export interface TWordAlignmentTestScore{
@@ -97,8 +113,32 @@ export interface TWordAlignmentTestResults{
 }
 
 export interface TAlignmentSuggestionsConfig {
+    doAutoTraining?: boolean; // set true to enable auto training of alignment suggestions
     trainOnlyOnCurrentBook?: boolean; // if true, then training is sped up for small books by just training on alignment memory data for current book
     minTrainingVerseRatio?: number; // if trainOnlyOnCurrentBook, then this is protection for the case that the book is not completely aligned.  If a ratio such as 1.0 is set, then training will use the minimum number of verses for training.  This minimum is calculated by multiplying the number of verses in the book by this ratio
     keepAllAlignmentMemory?: boolean; // EXPERIMENTAL FEATURE - if true, then alignment data not used for training will be added back into wordMap after training.  This should improve alignment vocabulary, but may negatively impact accuracy in the case of fully aligned books.
     keepAllAlignmentMinThreshold?: number; // EXPERIMENTAL FEATURE - if threshold percentage is set (such as value 60), then alignment data not used for training will be added back into wordMap after training, but only if the percentage of book alignment is less than this threshold.  This should improve alignment vocabulary for books not completely aligned
 }
+
+export interface TAlignmentVerseCounts {
+    booksCount: { [key: string]: number };
+    chaptersCount: { [key: string]: number };
+}
+
+export interface TAlignmentCompletedInfo {
+    maxComplexity: number;
+    modelKey: string;
+    model: AbstractWordMapWrapper | null;
+    sourceLanguageId: string;
+    targetLanguageId: string;
+    trainingInfo?: {
+        alignmentMemoryVerseCounts: TAlignmentMemoryVerseCounts
+    };
+}
+
+export interface TAlignmentMetaData {
+    currentBookAlignmentInfo?: TAlignmentCompletedInfo;
+    globalAlignmentBookVerseCounts?: TBookVerseCounts;
+    message: string;
+}
+

@@ -12,7 +12,7 @@ import JSZip from 'jszip';
 // @ts-ignore
 import usfm from 'usfm-js';
 import {TVerseCounts, TTrainingAndTestingData} from '@/workers/WorkerComTypes';
-import {TState, TWordAlignerAlignmentResult} from "@/common/classes";
+import {TState, TWordAlignerAlignmentResult} from '@/common/classes';
 
 export interface TBookTestResults{
     [key:number]: TChapterTestResults
@@ -37,6 +37,7 @@ export default class Book {
     /**
      * Loads a book object from its serialized form.
      *
+     * @param {string} book_name
      * @param {any} book - The serialized book object.
      * @return {Book} The revived Book object.
      */
@@ -50,11 +51,11 @@ export default class Book {
                 }
             });
         }
-        let filename = "unknown";
+        let filename = 'unknown';
         if( book.filename ){
             filename = book.filename;
         }
-        let toc3Name = "unknown";
+        let toc3Name = 'unknown';
         if( book.toc3Name ){
             toc3Name = book.toc3Name;
         }
@@ -78,7 +79,7 @@ export default class Book {
         const sourceUsfmAdded = targetUsfmAdded.addSourceUsfm({
             usfm_book:sourceUsfmBook as any,
             isResourceSelected:()=>true,
-            group_name:"", //This is used for the isResourceSelected which we don't need.
+            group_name:'', //This is used for the isResourceSelected which we don't need.
             book_name
         }).modifiedBook;
 
@@ -88,7 +89,9 @@ export default class Book {
     /**
      * This adds usfm chapters to this book object but returns a new
      * book object to maintain immutability for react's sake.
-     * @param usfm_book The usfm book content being added.
+     * @param {string} filename
+     * @param {string} usfm_book The usfm book content being added.
+     * @param {string} toc3Name
      * @returns a new copy of the Book object with the usfm content added.
      */
     addTargetUsfm( {filename,usfm_book,toc3Name}:{filename:string,usfm_book:TUsfmBook,toc3Name:string}):Book{
@@ -107,6 +110,20 @@ export default class Book {
         return new Book( {chapters:{...this.chapters,...newChapters}, filename, toc3Name, targetUsfmBook:usfm_book, sourceUsfmBook:this.sourceUsfmBook} );
     }
 
+    /**
+     * Adds source USFM data to the book object. This method updates the chapters of the book with data from the provided USFM book.
+     *
+     * @param {Object} options - An object containing the parameters for the method.
+     * @param {TUsfmBook} options.usfm_book - The USFM book containing chapters and verses to be merged into the current book.
+     * @param {Function} options.isResourceSelected - A function to determine if a resource is selected, based on its key.
+     * @param {string} options.group_name - The group name associated with this USFM data.
+     * @param {string} options.book_name - The name of the book being modified.
+     *
+     * @return {Object} An object containing the results of the modification.
+     * @return {number} return.addedVerseCount - The total count of verses added to the book.
+     * @return {number} return.droppedVerseCount - The total count of verses removed or considered dropped from the book.
+     * @return {Book} return.modifiedBook - A new instance of the modified book with updated chapters and metadata.
+     */
     addSourceUsfm( {usfm_book, isResourceSelected, group_name, book_name }:{usfm_book:TUsfmBook,isResourceSelected:( resourceKey: string[] )=>boolean,group_name:string,book_name:string} ):{ addedVerseCount:number, droppedVerseCount:number, modifiedBook:Book }{
         if( !usfm_book ) return { addedVerseCount:0, droppedVerseCount:0, modifiedBook:this };
 
@@ -146,15 +163,15 @@ export default class Book {
     }
 
     static getListHeaders( scope:string ):string[]{
-        if( scope == "Book" ) return ["Book", "Chapters"];
-        return ["Book"].concat( Chapter.getListHeaders(scope) );
+        if( scope == 'Book' ) return ['Book', 'Chapters'];
+        return ['Book'].concat( Chapter.getListHeaders(scope) );
     }
 
     getListInfo( book_name: string, scope:string ):{ data:string[], keys:string[] }[]{
         const result: { data:string[], keys:string[] }[] = [];
-        if( scope == "Book" ){
+        if( scope == 'Book' ){
             result.push({
-                data:[book_name,""+Object.values(this.chapters).length],
+                data:[book_name,''+Object.values(this.chapters).length],
                 keys:[book_name],
             })
         }else{
@@ -213,10 +230,14 @@ export default class Book {
                 })
             }
         });
+
+        const totalVerseCounts = Math.max(sourceVerseCount, targetVerseCount) || 0.0001;
+        const percentAligned = alignmentCompletedVerseCount / totalVerseCounts * 100;
         
         return {
             alignmentCompletedVerseCount,
             alignmentVerseCount,
+            percentAligned,
             sourceVerseCount,
             targetVerseCount,
         };
@@ -231,9 +252,9 @@ export default class Book {
 
 
     getVerseAlignmentStateBySelector(selector: string[]): TState | null {
-        if( selector.length < 1 ) throw new Error( "Chapter not selected for editing verse." );
+        if( selector.length < 1 ) throw new Error( 'Chapter not selected for editing verse.' );
         const chapter_num : number = parseInt(selector[0]);
-        if( !(chapter_num in this.chapters ) ) throw new Error( "Chapter not found in book." );
+        if( !(chapter_num in this.chapters ) ) throw new Error( 'Chapter not found in book.' );
         return this.chapters[chapter_num].getVerseAlignmentStateBySelector( chapter_num, selector.slice(1) );
     }
 
@@ -244,7 +265,7 @@ export default class Book {
 
         const newChapter = this.chapters[chapter_num].updateAlignmentState( alignmentDialogResult, selector.slice(1) );
 
-        if( this.targetUsfmBook == null ) throw new Error( "Target USFM not loaded" );
+        if( this.targetUsfmBook == null ) throw new Error( 'Target USFM not loaded' );
 
         //Going to deep clone the book before adding the new chapter in to preserve the immutability of the original structure.
         const newTargetUsfm: TUsfmBook = deepClone( this.targetUsfmBook );
@@ -260,9 +281,9 @@ export default class Book {
      * @param folder the zip folder to save to
      * @param bookKey the key for this book
      * @param isResourcePartiallySelected function to test if resource is partially selected
-     */ 
+     */
     saveSelectedResourcesToUsfmZip( folder: JSZip, bookKey: string[], isResourcePartiallySelected: ( resourceKey: string[] ) => boolean ): void {
-        if( this.targetUsfmBook == null ) throw new Error( "Target USFM not loaded" );
+        if( this.targetUsfmBook == null ) throw new Error( 'Target USFM not loaded' );
 
         //Deep clone the target usfm information that we have and then cut out of it the chapters and verses which are not selected.
         const newTargetUsfm = deepClone( this.targetUsfmBook );

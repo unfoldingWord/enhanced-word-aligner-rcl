@@ -1,7 +1,10 @@
-import {default as word_aligner_default} from "word-aligner";
-import _wordmapLexer, { Token } from "wordmap-lexer";
-import { TUsfmVerse, TWord, AlignmentHelpers, TUsfmHeader, TSourceTargetAlignment, TTopBottomAlignment } from "word-aligner-rcl";
+import {default as word_aligner_default} from 'word-aligner';
+import _wordmapLexer, { Token } from 'wordmap-lexer';
+import { TUsfmVerse, TWord, AlignmentHelpers, TUsfmHeader, TSourceTargetAlignment, TTopBottomAlignment } from 'word-aligner-rcl';
 import { migrateOriginalLanguageHelpers } from 'word-aligner-rcl';
+// @ts-ignore
+import { referenceHelpers } from 'bible-reference-range'
+
 export function parseUsfmHeaders(headers_section: TUsfmHeader[]) {
     const parsed_headers: { [key: string]: string } = headers_section.reduce((acc: { [key: string]: string }, entry: { tag: string, content: string }) => {
         if (entry.tag && entry.content) {
@@ -12,8 +15,60 @@ export function parseUsfmHeaders(headers_section: TUsfmHeader[]) {
     return parsed_headers;
 }
 
+/**
+ * Determines if the provided string value represents a valid number or at least starts with a number.
+ *
+ * @param {string} value - The string to be evaluated.
+ * @return {boolean} Returns true if the string can be parsed into a number, otherwise false.
+ */
 export function is_number( value: string ){
     return !isNaN(parseInt(value));
+}
+
+/**
+ * Determines if the provided verse reference is valid.
+ *
+ * @param {string} verse - The verse reference to validate.
+ * @return {boolean} Returns true if the verse reference is valid; otherwise, returns false.
+ */
+export function isValidVerse(verse: string) {
+    let isValid: boolean = referenceHelpers.isVerseSet(verse);
+    if (!isValid) {
+        isValid = is_number(verse);
+    }
+    return isValid;
+}
+
+/**
+ * Extracts a list of verse numbers from a given verse reference.  It will expand verse spans and lists.
+ *
+ * @param {string} verse - A string representing the verse reference in the format to be parsed.
+ * @return {number[]} An array of verse numbers extracted from the provided verse reference.
+ */
+export function getVerseList(verse: string) {
+    const verses:number[] = [];
+    const verseChunks: { verse:number, endVerse:number }[] = referenceHelpers.parseReferenceToList('1:' + verse)
+    verseChunks.forEach(chunk => {
+        const start = chunk.verse
+        const end = chunk.endVerse
+        for (let verse = start; verse <= end; verse++) {
+            verses.push(verse)
+        }
+    })
+    return verses;
+}
+
+/**
+ * Determines whether a given verse reference is within a specified verse range.
+ *
+ * @param {string} verseRange - A string representation of the verse range.
+ * @param {number} verseRef - The verse reference to check against the range.
+ * @return {boolean} True if the verse reference is within the range, false otherwise.
+ */
+export function isVerseInRange( verseRange:string, verseRef: number) {
+    const verses = getVerseList(verseRange);
+    const pos = verses.findIndex(v => (v === verseRef));
+    return pos >= 0;
 }
 
 export function only_numbers(to_filter: string[]): string[] {
@@ -23,9 +78,6 @@ export function only_numbers(to_filter: string[]): string[] {
     }, []);
 }
 
-
-
-
 /**
  * for each item in word list convert occurrence(s) to numbers
  * @param {array} wordList
@@ -33,8 +85,8 @@ export function only_numbers(to_filter: string[]): string[] {
  */
 function convertOccurrences(wordList: TWord[]) {
     var wordList_ = wordList.map(function (item) {
-      var occurrence = parseInt("" + item.occurrence);
-      var occurrences = parseInt("" + item.occurrences);
+      var occurrence = parseInt('' + item.occurrence);
+      var occurrences = parseInt('' + item.occurrences);
       return { ...item, occurrence, occurrences };
     });
     return wordList_;
@@ -47,9 +99,9 @@ function convertOccurrences(wordList: TWord[]) {
    */
   export function verseObjectsToTargetString( verseObjects: TWord[] ): string{
     let result: string = verseObjects.map( (word: TWord):string => {
-      if( word.type == "text" || word.type == "word" ) return word.text || word.word || "";
-      if( word.type == "milestone" && word.children != undefined ) return verseObjectsToTargetString( word.children );
-      return "";
+      if( word.type == 'text' || word.type == 'word' ) return word.text || word.word || '';
+      if( word.type == 'milestone' && word.children != undefined ) return verseObjectsToTargetString( word.children );
+      return '';
     }).reduce( (previousValue: string, currentValue: string ): string => previousValue.concat( currentValue ) );
     return result;
   }
@@ -61,8 +113,8 @@ function convertOccurrences(wordList: TWord[]) {
    */
   export function verseObjectsToTWordTokens( verseObjects: TWord[] ): TWord[]{
     let result: TWord[] = verseObjects.reduce( (acc : TWord[], curr: TWord): TWord[] => {
-      if( curr.type == "word" ) acc.push( curr );
-      if( curr.type == "milestone" && curr.children != undefined ) acc = acc.concat( verseObjectsToTWordTokens( curr.children ) );
+      if( curr.type == 'word' ) acc.push( curr );
+      if( curr.type == 'milestone' && curr.children != undefined ) acc = acc.concat( verseObjectsToTWordTokens( curr.children ) );
       return acc;
     }, [] );
     return result;
@@ -203,7 +255,7 @@ export function mergeInAlignments(wordBankWords: TWord[], verseAlignments: TSour
       verseObjects = verseObjects_test;
     }
   } catch (e) {
-    console.log("addAlignmentsToTargetVerseUsingMerge_JSON() - invalid alignment", e);
+    console.log('addAlignmentsToTargetVerseUsingMerge_JSON() - invalid alignment', e);
   }
   return verseObjects;
 }

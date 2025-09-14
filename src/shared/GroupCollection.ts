@@ -1,10 +1,10 @@
-import Group, { TGroupTestResults } from "./Group";
-import {parseUsfmHeaders} from "../utils/usfm_misc";
-import Verse from "./Verse";
-import { TSourceTargetAlignment, TUsfmBook, TWord } from "word-aligner-rcl";
-import JSZip from "jszip";
-import { TTrainingAndTestingData, TWordAlignmentTestScore } from "@/workers/WorkerComTypes";
-import {TState, TWordAlignerAlignmentResult} from "@/common/classes";
+import Group, { TGroupTestResults } from './Group';
+import {parseUsfmHeaders} from '../utils/usfm_misc';
+import Verse from './Verse';
+import { TSourceTargetAlignment, TUsfmBook, TWord } from 'word-aligner-rcl';
+import JSZip from 'jszip';
+import { TTrainingAndTestingData, TWordAlignmentTestScore } from '@/workers/WorkerComTypes';
+import {TState, TWordAlignerAlignmentResult} from '@/common/classes';
 
 export interface TGroupCollectionTestResults{
     [key:string]: TGroupTestResults
@@ -135,8 +135,8 @@ export default class GroupCollection {
     updateAlignmentState( alignmentDialogResult: TWordAlignerAlignmentResult, selector: string[] ): GroupCollection{
         //need to figure out if any group got hit and if so return a group collection which
         //has a modified version of it.
-        if( selector.length < 1 ) throw new Error( "Group not selected" );
-        if( !(selector[0] in this.groups ) ) new Error( "Group not found" );
+        if( selector.length < 1 ) throw new Error( 'Group not selected' );
+        if( !(selector[0] in this.groups ) ) new Error( 'Group not found' );
 
         const newGroup = this.groups[selector[0]].updateAlignmentState( alignmentDialogResult, selector.slice(1) );
 
@@ -157,7 +157,7 @@ export default class GroupCollection {
             const groupKey = [group_name];
             if( isResourcePartiallySelected( groupKey ) ){
                 //filter the group_name so it doesn't contain any invalid characters for a filename.
-                const groupFilename = group_name.replace(/[^a-zA-Z0-9 ]/g, "");
+                const groupFilename = group_name.replace(/[^a-zA-Z0-9 ]/g, '');
                 group.saveSelectedResourcesToUsfmZip(zip.folder(groupFilename)!,groupKey,isResourcePartiallySelected);
             }
         });
