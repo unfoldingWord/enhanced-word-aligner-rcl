@@ -1,7 +1,7 @@
 {
   "name": "enhanced-word-aligner-rcl",
   "description": "A React Component Library for UnfoldingWord Suggesting Word Aligner.",
-  "version": "1.1.0-beta.9",
+  "version": "1.1.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/unfoldingWord-box3/suggesting-word-aligner-rcl"
@@ -88,7 +88,7 @@
     "source-map-loader": "4",
     "styled-components": "^5.2.1",
     "ts-loader": "9",
-    "word-aligner-rcl": "1.2.1-beta",
+    "word-aligner-rcl": "1.2.1",
     "uw-wordmapbooster": "1.0.3"
   }
 }
