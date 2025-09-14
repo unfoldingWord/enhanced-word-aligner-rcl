@@ -995,14 +995,15 @@ export const useAlignmentSuggestions = ({
      */
     function getModelMetaData():TAlignmentMetaData {
         let bookAlignmentInfo:TAlignmentCompletedInfo = modelMetaData?.current
-        let message = '';
+        const bookId = contextId?.reference?.bookId;
+        let message = `Current Book ${bookId}:\n\n`;
         const bookVerseCounts = getGroupVerseCounts(contextId);
  
         if (bookAlignmentInfo) {
             const alignmentMemoryVerseCounts = bookAlignmentInfo.trainingInfo?.alignmentMemoryVerseCounts;
             const trained = alignmentMemoryVerseCounts?.trained;
             if (trained) {
-                message = `Trained with aligned verses from Books:`
+                message += `Trained with aligned verses from Books:`
                 Object.entries(trained?.booksCount).forEach(([bookId, verseCount]) => {
                     message += `\n  ${verseCount} verses for ${bookId},`;
                 })
@@ -1015,18 +1016,18 @@ export const useAlignmentSuggestions = ({
                 })
             }
         } else {
-            message = 'Alignment Data Not Loaded.';
+            message += 'Alignment Data Not Loaded.';
         }
 
         if (bookVerseCounts) {
-            message += `\nGlobal Alignment Memory for Books:`
+            message += `\n\nGlobal Alignment Memory for Books:`
             Object.entries(bookVerseCounts).forEach(([bookId, verseCount]) => {
                 const totalVerseCounts = Math.max(verseCount.sourceVerseCount, verseCount.targetVerseCount);
                 const percentAligned = verseCount.percentAligned;
                 message += `\n  ${bookId} has ${totalVerseCounts} verses and is ${percentAligned.toFixed(0)}% aligned`;
             })
         } else {
-            message += `\nGlobal Alignment Memory not loaded!`
+            message += `\n\nGlobal Alignment Memory not loaded!`
         }
         
         return {

@@ -129,7 +129,7 @@ const WordAlignerPanel = ({
   const handleInfoClick = (info) => {
     console.log("handleInfoClick");
     const message = (info && info.message) || JSON.stringify(info, null, 2)
-    window.prompt(`Training Model: ${message}`)
+    window.prompt(`Training Model:\n${message}`)
   }
 
   const {
