@@ -26,10 +26,11 @@ export interface TTrainingAndTestingData {
     };
     config?: TAlignmentSuggestionsConfig;
     contextId?: ContextId;
+    currentBookVerseCounts?: TVerseCounts;
+    currentSha?: string;
     maxComplexity?: number;
     sourceLanguageId?: string;
     targetLanguageId?: string;
-    currentBookVerseCounts?: TVerseCounts;
 }
 
 export interface TTestingWorkerData{
@@ -50,6 +51,7 @@ export interface TTrainedWordAlignerModelResults {
     config: TAlignmentSuggestionsConfig;
     contextId: ContextId;
     currentBookVerseCounts: TVerseCounts;
+    currentSha?: string;
     maxComplexity: number;
     percentBookAligned: number;
     sourceLanguageId: string;
@@ -126,6 +128,7 @@ export interface TAlignmentVerseCounts {
 }
 
 export interface TAlignmentCompletedInfo {
+    currentSha?: string;
     maxComplexity: number;
     modelKey: string;
     model: AbstractWordMapWrapper | null;

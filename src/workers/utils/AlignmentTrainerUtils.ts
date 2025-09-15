@@ -484,6 +484,7 @@ export async function createTrainedWordAlignerModel(worker: Worker, data: TTrain
       config: data.config,
       contextId: data.contextId,
       currentBookVerseCounts: data.currentBookVerseCounts,
+      currentSha: data.currentSha,
       maxComplexity,
       percentBookAligned,
       sourceLanguageId: data.sourceLanguageId,
