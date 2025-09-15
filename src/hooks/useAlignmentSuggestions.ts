@@ -18,10 +18,10 @@ import IndexedDBStorage from '@/shared/IndexedDBStorage';
 import { limitRangeOfComplexity } from '@/utils/misc';
 import {
     ContextId,
-    TAlignmentSuggestionsState,
+    TAlignmentSuggestionsState, TCurrentShas,
     THandleTrainingStateChange,
     TrainingState,
-    translationMemoryType,
+    TTranslationMemoryType,
 } from '@/common/classes';
 import {
     DEFAULT_MAX_COMPLEXITY,
@@ -55,13 +55,18 @@ interface TUseAlignmentSuggestionsProps {
     shown: boolean;
     sourceLanguageId: string;
     targetLanguageId: string;
-    targetUsfm?: string;
-    sourceUsfm?: string;
+    translationMemory?: TTranslationMemoryType;
 }
 
 type TSuggester =
     ((sourceSentence: any, targetSentence: any, maxSuggestions?: number, manuallyAligned?: any[]) => any[])
     | null;
+
+export interface TBookShaState {
+    trainedSha: string | undefined;
+    currentBookSha: string | undefined;
+    bookShaChanged: boolean;
+}
 
 interface TUseAlignmentSuggestionsReturn {
     state: {
@@ -73,11 +78,12 @@ interface TUseAlignmentSuggestionsReturn {
     actions: {
         areTrainingSameBook: (contextId: ContextId) => boolean;
         cleanupWorker: () => void;
+        getCurrentBookShaState: () => TBookShaState;
         getModelMetaData: () => TAlignmentMetaData|null;
         getSuggester: () => TSuggester;
         getTrainingContextId: () => ContextId;
         isTraining: () => boolean;
-        loadTranslationMemory: (translationMemory: translationMemoryType) => Promise<void>;
+        loadTranslationMemory: (translationMemory: TTranslationMemoryType) => Promise<void>;
         loadTranslationMemoryWithBook: (bookId: string, originalBibleBookUsfm: string, targetBibleBookUsfm: string) => void;
         suggester: TSuggester;
         startTraining: () => void;
@@ -236,8 +242,7 @@ export const useAlignmentSuggestions = ({
     shown,
     sourceLanguageId,
     targetLanguageId,
-    targetUsfm,
-    sourceUsfm,
+    translationMemory,
 }: TUseAlignmentSuggestionsProps): TUseAlignmentSuggestionsReturn => {
     const dbStorageRef = useRef<IndexedDBStorage | null>(null);
 
@@ -263,7 +268,7 @@ export const useAlignmentSuggestions = ({
     const modelMetaDataRef = useRef<TAlignmentCompletedInfo | null>(null);
     const minuteCounterRef = useRef<number>(0);
     const minuteTimerRef = useRef<NodeJS.Timeout|null>(null);
-    const currentShaRef = useRef<string>('');
+    const currentShasRef = useRef<TCurrentShas>({});
 
     /**
      * Starts a minute counter that increments every minute.  This is a work-around for issue where tab or computer goes to sleep.  In that case the system clock would be much greater than the actual run time.
@@ -379,7 +384,7 @@ export const useAlignmentSuggestions = ({
      * @param translationMemory Object containing source and target USFM translation data
      * @throws Error if no resources are selected or if USFM content is missing
      */
-    const loadTranslationMemory = useCallback(async (translationMemory: translationMemoryType) => {
+    const loadTranslationMemory = useCallback(async (translationMemory: TTranslationMemoryType) => {
         //ask the user to make a selection if no resources are selected.
         if (!translationMemory?.targetUsfms) {
             throw new Error('loadTranslationMemory - No USFM source content to add');
@@ -467,7 +472,9 @@ export const useAlignmentSuggestions = ({
             const alignedBookUsfm = translationMemory?.targetUsfms?.[bookId] || '0';
             const sha = await sha256Checksum(alignedBookUsfm); 
             console.log(`sha for alignments = ${sha}`);
-            currentShaRef.current = sha
+            currentShasRef.current = { ...currentShasRef.current, [bookId]:sha}
+            const trainingComplete_ = alignmentPredictorRef.current
+            handleSetTrainingState?.({})
             
         } catch (error) {
             console.error(`error importing ${error}`);
@@ -486,7 +493,7 @@ export const useAlignmentSuggestions = ({
      * @param {string} bookId - The identifier of the book (e.g., 'mat', 'mrk', 'luk')
      * @param {string} originalBibleBookUsfm - The USFM content of the original language Bible book
      * @param {string} targetBibleBookUsfm - The USFM content of the target language Bible book
-     * @returns {translationMemoryType} A structured object containing source and target USFM data
+     * @returns {TTranslationMemoryType} A structured object containing source and target USFM data
      */
     const loadTranslationMemoryWithBook = (bookId: string, originalBibleBookUsfm: string, targetBibleBookUsfm: string): void => {
         const translationMemory = makeTranslationMemory(bookId, originalBibleBookUsfm, targetBibleBookUsfm)
@@ -586,7 +593,7 @@ export const useAlignmentSuggestions = ({
                         config,
                         contextId: contextId_,
                         currentBookVerseCounts,
-                        currentSha: currentShaRef.current,
+                        currentSha: currentShasRef.current?.[bookId] || '',
                         maxComplexity,
                         sourceLanguageId,
                         targetLanguageId,
@@ -1074,11 +1081,33 @@ export const useAlignmentSuggestions = ({
         return dbStorageRef.current
     }
 
+    /**
+     * Retrieves the alignments for the current group based on the context ID.
+     *
+     * @return {Object|undefined} The group object containing alignments for the current group
+     *                            or undefined if the group is not found or the group collection is not initialized.
+     */
     function getAlignmentsForCurrentGroup() {
         const groupName = getGroupName(contextId)
         const groupCollection_ = stateRef?.current?.groupCollection;
         const group = groupCollection_?.groups?.[groupName];
         return group;
+    }
+
+    /**
+     * Determines the current SHA state of a book within the system, based on provided context and references.
+     *
+     * @return {TBookShaState} An object containing the trained SHA (`trainedSha`),
+     * the current SHA of the book (`currentBookSha`), and
+     * a boolean (`bookShaChanged`) indicating if the book's SHA has changed compared to the trained SHA.
+     */
+    function getCurrentBookShaState():TBookShaState {
+        const bookId = contextId?.reference?.bookId;
+        const trainedSha = modelMetaDataRef.current?.currentSha;
+        const currentBookSha = currentShasRef.current?.[bookId];
+        const bookShaChanged = !trainedSha && (currentBookSha !== trainedSha);
+
+        return {trainedSha, currentBookSha, bookShaChanged} as TBookShaState;
     }
 
     /**
@@ -1109,29 +1138,23 @@ export const useAlignmentSuggestions = ({
                 // add the usfm for current book to training memory
                 const bookId = contextId?.reference?.bookId;
                 if (cachedDataLoaded && bookId) {
-                    let translationMemoryLoaded:boolean = !!(sourceUsfm && targetUsfm);
-                    if (!translationMemoryLoaded) {
-                        let group = null
-                        if (!stateRef.current.groupCollection) {
-                            const group_name = getGroupName(contextId)
-                            const savedGroup = await loadCurrentGroup(group_name)
-                        }
-                        
-                        group = getAlignmentsForCurrentGroup();
-                        if (!group) {
-                            
-                        }
-                        const bookd = group?.books;
-                        translationMemoryLoaded = !!book
-                    } else {
-                        loadTranslationMemoryWithBook(bookId, sourceUsfm, targetUsfm);
+                    const group_name = getGroupName(contextId)
+                    const targetUsfm = translationMemory?.targetUsfms?.[bookId];
+                    const sourceUsfm = translationMemory?.sourceUsfms?.[bookId];
+                    let translationMemoryFound:boolean = !!(targetUsfm && sourceUsfm);
+                    if (!translationMemoryFound) {
+                        console.log(`useAlignmentSuggestions - translation Memory not found for book`);
+                    } else { // make sure current data loaded into alignment memory
+                        console.log(`useAlignmentSuggestions - translation Memory found for book, reload to make sure current`);
+                        await loadTranslationMemory(translationMemory);
                     }
                     
-                    if (translationMemoryLoaded) {
+                    if (translationMemoryFound) {
+                        console.log(`useAlignmentSuggestions - Alignment memory Loaded, checking for sha changes`);
                         //TODO blm: test if sha is changed, auto start retraining
-                        const trainedSha = modelMetaDataRef.current?.currentSha;
-                        if (!trainedSha && (currentShaRef.current !== trainedSha)) {
-                            console.log(`useAlignmentSuggestions - sha changed: current ${currentShaRef.current}, last trained sha ${trainedSha}`);
+                        const {trainedSha, currentBookSha, bookShaChanged} = getCurrentBookShaState();
+                        if (bookShaChanged) {
+                            console.log(`useAlignmentSuggestions - sha changed: current ${currentBookSha}, last trained sha ${trainedSha}`);
                         }
                     }
                 }
@@ -1274,6 +1297,7 @@ export const useAlignmentSuggestions = ({
         actions: {
             areTrainingSameBook,
             cleanupWorker,
+            getCurrentBookShaState,
             getModelMetaData,
             getSuggester,
             getTrainingContextId,

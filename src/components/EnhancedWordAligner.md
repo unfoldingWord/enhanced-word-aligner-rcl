@@ -216,6 +216,7 @@ const WordAlignerPanel = ({
         targetLanguageId={targetLanguageId}
         targetWords={targetWords}
         translate={translate}
+        translationMemory={translationMemory}
         verseAlignments={verseAlignments}
       />
     </>
