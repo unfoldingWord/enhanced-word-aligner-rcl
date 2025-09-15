@@ -561,9 +561,8 @@ export const useAlignmentSuggestions = ({
                 
                 //before creating the worker, check to see if there is any data to train on.
                 //get the information for the alignment to training.
-                const groupCollection_ = stateRef?.current?.groupCollection;
                 let alignmentTrainingData_:TTrainingAndTestingData|null = null;
-                const group = groupCollection_?.groups?.[groupName];
+                const group = getAlignmentsForCurrentGroup();
                 if (group) {
                     alignmentTrainingData_ = group.getAlignmentDataAndCorpusForTrainingOrTesting({
                         forTesting: false,
@@ -999,9 +998,7 @@ export const useAlignmentSuggestions = ({
      */
     function getGroupVerseCounts(contextId: ContextId):TBookVerseCounts|null {
         const bookVerseCounts:TBookVerseCounts = {}
-        const groupName = getGroupName(contextId)
-        const groupCollection_ = stateRef?.current?.groupCollection;
-        const group = groupCollection_?.groups?.[groupName];
+        const group = getAlignmentsForCurrentGroup();;
         const books = group?.books || {};
         if (Object.keys(books).length > 0) {
             Object.entries(books).forEach(([bookId, book]) => {
@@ -1077,6 +1074,13 @@ export const useAlignmentSuggestions = ({
         return dbStorageRef.current
     }
 
+    function getAlignmentsForCurrentGroup() {
+        const groupName = getGroupName(contextId)
+        const groupCollection_ = stateRef?.current?.groupCollection;
+        const group = groupCollection_?.groups?.[groupName];
+        return group;
+    }
+
     /**
      * Effect hook that loads model settings and data from IndexedDB storage when aligned is shown.
      *
@@ -1107,11 +1111,18 @@ export const useAlignmentSuggestions = ({
                 if (cachedDataLoaded && bookId) {
                     let translationMemoryLoaded:boolean = !!(sourceUsfm && targetUsfm);
                     if (!translationMemoryLoaded) {
-                        const groupName = getGroupName(contextId)
-                        const groupCollection_ = stateRef?.current?.groupCollection;
-                        const group = groupCollection_?.groups?.[groupName];
-                        const books = group?.books || {};
-                        translationMemoryLoaded = !!books?.[bookId]
+                        let group = null
+                        if (!stateRef.current.groupCollection) {
+                            const group_name = getGroupName(contextId)
+                            const savedGroup = await loadCurrentGroup(group_name)
+                        }
+                        
+                        group = getAlignmentsForCurrentGroup();
+                        if (!group) {
+                            
+                        }
+                        const bookd = group?.books;
+                        translationMemoryLoaded = !!book
                     } else {
                         loadTranslationMemoryWithBook(bookId, sourceUsfm, targetUsfm);
                     }
