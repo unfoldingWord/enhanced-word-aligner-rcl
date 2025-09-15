@@ -356,6 +356,22 @@ export const useAlignmentSuggestions = ({
         return currentGroup;
     }
 
+    /**
+     * Computes the SHA-256 checksum of the given input data.
+     *
+     * @param {string} data - The input data to hash.
+     * @return {Promise<string>} A promise that resolves to the SHA-256 hash as a hexadecimal string.
+     */
+    async function sha256Checksum(data) {
+        if (typeof data !== 'string') {
+            data = JSON.stringify(data);
+        }
+        const encoder = new TextEncoder();
+        const buffer = encoder.encode(data);
+        const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+    }
 
     /**
      * Loads translation memory data into the component state
@@ -445,6 +461,12 @@ export const useAlignmentSuggestions = ({
 
             // cache updated group settings
             await saveCurrentGroup(group_name, newGroupCollection_.groups[group_name]);
+
+            const bookId = contextId?.reference?.bookId;
+            const alignedBookUsfm = translationMemory?.targetUsfms?.[bookId] || '0';
+            const checksum = await sha256Checksum(alignedBookUsfm); 
+            console.log(`checksum for alignments = ${checksum}`);
+            
         } catch (error) {
             console.error(`error importing ${error}`);
             throw new Error('Failed to load source data');
