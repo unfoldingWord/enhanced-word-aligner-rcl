@@ -145,7 +145,8 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             const shaState: TBookShaState = getCurrentBookShaState()
             console.log(`Training complete: ${shaState?.bookShaChanged} trained sha ${shaState?.trainedSha} and current book sha ${shaState?.currentBookSha}`);
             if (shaState?.bookShaChanged) {
-                console.log(`Training complete: book changed`);
+                console.log(`Training complete: book changed, retraining`);
+                startTraining();
             }
         }
     },[checksumGenerated, translationMemoryLoaded, trainingComplete]);
