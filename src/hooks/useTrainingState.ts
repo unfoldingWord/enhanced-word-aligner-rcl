@@ -4,16 +4,19 @@ import {THandleTrainingStateChange, TTrainingStateChange} from '@/common/classes
 
 interface TUseTrainingStateProps {
     translate: (key:string) => string;
+    passThroughStateChange?: THandleTrainingStateChange;
 }
 
 interface TrainingState {
-    percentComplete?: number;
-    trained: boolean;
+    checksumGenerated: boolean;
+    percentComplete: number;
     training: boolean;
     trainingButtonStr: string;
     trainingButtonHintStr: string;
+    trainingComplete: boolean;
     trainingError: string;
     trainingStatusStr: string;
+    translationMemoryLoaded: boolean;
 }
 
 interface TUseTrainingStateReturn {
@@ -24,17 +27,20 @@ interface TUseTrainingStateReturn {
 }
 
 export const useTrainingState = ({
-    translate,
+     passThroughStateChange,
+     translate,
 }: TUseTrainingStateProps): TUseTrainingStateReturn => {
     // Training States
     const [trainingState, setTrainingState] = useState<TrainingState>({
+        checksumGenerated: false,
+        percentComplete: 0,
         training: false,
-        trained: false,
-        trainingError: '',
-        trainingStatusStr: '',
         trainingButtonStr: translate('suggestions.train_button'),
         trainingButtonHintStr: translate('suggestions.train_button_hint'),
-        percentComplete: 0,
+        trainingComplete: false,
+        trainingError: '',
+        trainingStatusStr: '',
+        translationMemoryLoaded: false,
     });
 
     /**
@@ -46,20 +52,30 @@ export const useTrainingState = ({
             return;
         }
 
+        passThroughStateChange?.(props);
+
         setTrainingState(prev => {
             let {
+                checksumGenerated: _checksumGenerated,
                 percentComplete,
                 training: _training,
-                trainingComplete,
+                trainingComplete: _trainingComplete,
                 trainingFailed,
+                translationMemoryLoaded: _translationMemoryLoaded
             } = props;
 
             // Use current state if new value is undefined
             if (_training === undefined) {
                 _training = prev.training;
             }
-            if (trainingComplete === undefined) {
-                trainingComplete = prev.trained;
+            if (_trainingComplete === undefined) {
+                _trainingComplete = prev.trainingComplete;
+            }
+            if (_checksumGenerated === undefined) {
+                _checksumGenerated = prev.checksumGenerated;
+            }
+            if (_translationMemoryLoaded === undefined) {
+                _translationMemoryLoaded = prev.translationMemoryLoaded;
             }
 
             let trainingErrorStr = '';
@@ -73,26 +89,43 @@ export const useTrainingState = ({
                 trainingErrorStr = ' - ' + currentTrainingError;
             }
 
-            const trainingButtonStr = _training ? translate('suggestions.stop_training_button') : trainingComplete ? translate('suggestions.retrain_button') : translate('suggestions.train_button');
-            const trainingButtonHintStr = _training ? '' : trainingComplete ? translate('suggestions.retrain_button_hint') : translate('suggestions.train_button_hint');
-            
-            let trainingStatusStr_ = (_training ? translate('suggestions.status_training') : trainingComplete ? translate('suggestions.status_trained') : translate('suggestions.status_not_trained')) + trainingErrorStr;
+            const trainingButtonStr = _training ? translate('suggestions.stop_training_button') : _trainingComplete ? translate('suggestions.retrain_button') : translate('suggestions.train_button');
+            const trainingButtonHintStr = _training ? '' : _trainingComplete ? translate('suggestions.retrain_button_hint') : translate('suggestions.train_button_hint');
 
-            if (percentComplete !== undefined) {
-                trainingStatusStr_ += ` ${percentComplete}${translate('suggestions.percent_complete')}`;
+            let _trainingStatusStr = '';
+            if (_training) {
+                if (_trainingComplete) {
+                    _trainingStatusStr = translate('suggestions.status_retraining');
+                } else {
+                    _trainingStatusStr = translate('suggestions.status_training');
+                }
+            } else {
+                if (_trainingComplete) {
+                    _trainingStatusStr = translate('suggestions.status_trained');
+                } else {
+                    _trainingStatusStr = translate('suggestions.status_not_trained');
+                }
             }
 
-            console.log(`useTrainingStateManagement.handleTrainingStateChange new state: training ${_training}, trainingComplete ${trainingComplete}, trainingStatusStr ${trainingStatusStr_}`);
+            _trainingStatusStr += trainingErrorStr;
+            if (percentComplete !== undefined) {
+                _trainingStatusStr += ` ${percentComplete}${translate('suggestions.percent_complete')}`;
+            }
 
-            return {
+            console.log(`useTrainingStateManagement.handleTrainingStateChange new state: training ${_training}, trainingComplete ${_trainingComplete}, trainingStatusStr ${_trainingStatusStr}`);
+
+            const newState = {
+                checksumGenerated: _checksumGenerated,
                 percentComplete,
-                trained: trainingComplete,
+                trainingComplete: _trainingComplete,
                 training: _training,
                 trainingButtonStr,
                 trainingButtonHintStr,
                 trainingError: currentTrainingError,
-                trainingStatusStr: trainingStatusStr_,
+                trainingStatusStr: _trainingStatusStr,
+                translationMemoryLoaded: _translationMemoryLoaded,
             };
+            return newState;
         });
     }, []);
 

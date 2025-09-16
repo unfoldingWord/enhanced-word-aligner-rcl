@@ -10,7 +10,7 @@ import {
 } from "word-aligner-rcl";
 import usfm from 'usfm-js';
 import { EnhancedWordAligner } from './EnhancedWordAligner'
-import { extractVerseText } from "../utils/misc";
+import { extractVerseText } from '../utils/misc';
 import { useTrainingState } from '../hooks/useTrainingState'
 import delay from "../utils/delay";
 
@@ -18,6 +18,7 @@ import {NT_ORIG_LANG} from "../common/constants";
 
 console.log('Loading WordAlignerComponent.md');
 
+const doAutoLoadCachedTraining = false; // set true to auto load previous cached training for book
 const doAutoTraining = false; // set true to enable auto training of alignment suggestions
 const suggestionsOnly = false;  // set true to remove clear button and add suggestion label
 const trainOnlyOnCurrentBook = true; // if true, then training is sped up for small books by just training on alignment memory data for current book
@@ -65,6 +66,7 @@ const translate = (key) => {
     "suggestions.train_button_hint"  : "Click to improve the quality of alignment suggestions based on currently loaded alignments",
     "suggestions.stop_training_button" : "Stop Train",
     "suggestions.status_training"    : "Currently Training ...",
+    "suggestions.status_retraining"  : "Currently Retraining ...",
     "suggestions.status_trained"     : "Trained",
     "suggestions.status_not_trained" : "Not Trained",
     "suggestions.percent_complete"   : "% complete",
@@ -138,7 +140,7 @@ const WordAlignerPanel = ({
     },
     state: {
       training,
-      trained,
+      trainingComplete,
       trainingError,
       trainingStatusStr,
       trainingButtonStr,
@@ -146,10 +148,11 @@ const WordAlignerPanel = ({
   } = useTrainingState({
     translate,
   })
-  
+
   const enableLoadTranslationMemory = !doingTraining;
-  const enableTrainingToggle = trained || (translationMemoryLoaded && !doingTraining);
+  const enableTrainingToggle = trainingComplete || (translationMemoryLoaded && !doingTraining);
   const alignmentSuggestionsConfig = {
+    doAutoLoadCachedTraining,
     doAutoTraining,
     minTrainingVerseRatio,
     trainOnlyOnCurrentBook,
@@ -216,6 +219,7 @@ const WordAlignerPanel = ({
         targetLanguageId={targetLanguageId}
         targetWords={targetWords}
         translate={translate}
+        translationMemory={translationMemory}
         verseAlignments={verseAlignments}
       />
     </>

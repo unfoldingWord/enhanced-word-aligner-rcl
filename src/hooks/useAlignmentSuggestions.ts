@@ -19,9 +19,10 @@ import { limitRangeOfComplexity } from '@/utils/misc';
 import {
     ContextId,
     TAlignmentSuggestionsState,
+    TCurrentShas,
     THandleTrainingStateChange,
     TrainingState,
-    translationMemoryType,
+    TTranslationMemoryType,
 } from '@/common/classes';
 import {
     DEFAULT_MAX_COMPLEXITY,
@@ -44,26 +45,31 @@ import {makeTranslationMemory, START_TRAINING} from '@/workers/utils/AlignmentTr
 
 // console.log('useAlignmentSuggestions.ts AlignmentWorker', AlignmentWorker);
 
-type THandleTrainingCompleted = (info: TAlignmentCompletedInfo) => void;
+export type THandleTrainingCompleted = (info: TAlignmentCompletedInfo) => void;
 
-interface TUseAlignmentSuggestionsProps {
+export interface TUseAlignmentSuggestionsProps {
     config?: TAlignmentSuggestionsConfig;
     contextId: ContextId;
     createAlignmentTrainingWorker?:() => Promise<Worker>; // needed to support alignment training in a web worker
-    handleSetTrainingState?: THandleTrainingStateChange;
+    handleTrainingStateChange?: THandleTrainingStateChange;
     handleTrainingCompleted?: THandleTrainingCompleted ;
     shown: boolean;
     sourceLanguageId: string;
     targetLanguageId: string;
-    targetUsfm?: string;
-    sourceUsfm?: string;
+    translationMemory?: TTranslationMemoryType;
 }
 
-type TSuggester =
+export type TSuggester =
     ((sourceSentence: any, targetSentence: any, maxSuggestions?: number, manuallyAligned?: any[]) => any[])
     | null;
 
-interface TUseAlignmentSuggestionsReturn {
+export interface TBookShaState {
+    trainedSha: string | undefined;
+    currentBookSha: string | undefined;
+    bookShaChanged: boolean;
+}
+
+export interface TUseAlignmentSuggestionsReturn {
     state: {
         failedToLoadCachedTraining: boolean;
         maxComplexity: number;
@@ -73,11 +79,12 @@ interface TUseAlignmentSuggestionsReturn {
     actions: {
         areTrainingSameBook: (contextId: ContextId) => boolean;
         cleanupWorker: () => void;
+        getCurrentBookShaState: () => TBookShaState;
         getModelMetaData: () => TAlignmentMetaData|null;
         getSuggester: () => TSuggester;
         getTrainingContextId: () => ContextId;
         isTraining: () => boolean;
-        loadTranslationMemory: (translationMemory: translationMemoryType) => Promise<void>;
+        loadTranslationMemory: (translationMemory: TTranslationMemoryType) => Promise<void>;
         loadTranslationMemoryWithBook: (bookId: string, originalBibleBookUsfm: string, targetBibleBookUsfm: string) => void;
         suggester: TSuggester;
         startTraining: () => void;
@@ -232,12 +239,11 @@ export const useAlignmentSuggestions = ({
     contextId,
     createAlignmentTrainingWorker,
     handleTrainingCompleted,
-    handleSetTrainingState,
+    handleTrainingStateChange,
     shown,
     sourceLanguageId,
     targetLanguageId,
-    targetUsfm,
-    sourceUsfm,
+    translationMemory,
 }: TUseAlignmentSuggestionsProps): TUseAlignmentSuggestionsReturn => {
     const dbStorageRef = useRef<IndexedDBStorage | null>(null);
 
@@ -255,14 +261,15 @@ export const useAlignmentSuggestions = ({
     const contextIdRef = useRef<ContextId>(null);
     const alignmentTrainingWorkerRef = useRef<TAlignmentTrainingWorkerData | null>(null);
     const workerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const trainingProgress = useRef<number>(0)
+    const trainingProgressRef = useRef<number>(0)
 
     const {groupCollection, maxComplexity, currentBookName, trainingState, kickOffTraining, failedToLoadCachedTraining} = state;
 
-    const alignmentPredictor = useRef<AbstractWordMapWrapper | null>(null);
-    const modelMetaData = useRef<TAlignmentCompletedInfo | null>(null);
-    const minuteCounter = useRef<number>(0);
-    const minuteTimer = useRef<NodeJS.Timeout|null>(null);
+    const alignmentPredictorRef = useRef<AbstractWordMapWrapper | null>(null);
+    const modelMetaDataRef = useRef<TAlignmentCompletedInfo | null>(null);
+    const minuteCounterRef = useRef<number>(0);
+    const minuteTimerRef = useRef<NodeJS.Timeout|null>(null);
+    const currentShasRef = useRef<TCurrentShas>({});
 
     /**
      * Starts a minute counter that increments every minute.  This is a work-around for issue where tab or computer goes to sleep.  In that case the system clock would be much greater than the actual run time.
@@ -273,19 +280,19 @@ export const useAlignmentSuggestions = ({
      * @return {NodeJS.Timeout} The interval ID for the minute timer, which can be used to stop the timer with `clearInterval`.
      */
     function _startMinuteCounter():NodeJS.Timeout {
-        minuteCounter.current = 0;
+        minuteCounterRef.current = 0;
 
         console.log('⏱️ Timer started');
 
-        minuteTimer.current = setInterval(() => {
-            minuteCounter.current++;
-            console.log(`Training ${minuteCounter.current} minute(s) elapsed`);
+        minuteTimerRef.current = setInterval(() => {
+            minuteCounterRef.current++;
+            console.log(`Training ${minuteCounterRef.current} minute(s) elapsed`);
 
             // Optional: stop after a certain number of minutes
             // if (minutes >= 10) clearInterval(timer);
         }, 60 * 1000); // 60,000 ms = 1 minute
 
-        return minuteTimer.current; // You can use this to stop the timer later
+        return minuteTimerRef.current; // You can use this to stop the timer later
     }
 
     /**
@@ -294,9 +301,9 @@ export const useAlignmentSuggestions = ({
      * @return {void} Does not return a value.
      */
     function _stopMinuteCounter() {
-        if (minuteTimer.current) {
-            clearInterval(minuteTimer.current);
-            minuteTimer.current = null;
+        if (minuteTimerRef.current) {
+            clearInterval(minuteTimerRef.current);
+            minuteTimerRef.current = null;
         }
     }
 
@@ -306,7 +313,7 @@ export const useAlignmentSuggestions = ({
      * @return {number} The current value of the minute counter.
      */
     function _getMinuteCounter():number {
-        return minuteCounter.current;
+        return minuteCounterRef.current;
     }
 
     /**
@@ -356,13 +363,29 @@ export const useAlignmentSuggestions = ({
         return currentGroup;
     }
 
+    /**
+     * Computes the SHA-256 checksum of the given input data.
+     *
+     * @param {string} data - The input data to hash.
+     * @return {Promise<string>} A promise that resolves to the SHA-256 hash as a hexadecimal string.
+     */
+    async function sha256Checksum(data) {
+        if (typeof data !== 'string') {
+            data = JSON.stringify(data);
+        }
+        const encoder = new TextEncoder();
+        const buffer = encoder.encode(data);
+        const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+    }
 
     /**
      * Loads translation memory data into the component state
      * @param translationMemory Object containing source and target USFM translation data
      * @throws Error if no resources are selected or if USFM content is missing
      */
-    const loadTranslationMemory = useCallback(async (translationMemory: translationMemoryType) => {
+    const loadTranslationMemory = useCallback(async (translationMemory: TTranslationMemoryType) => {
         //ask the user to make a selection if no resources are selected.
         if (!translationMemory?.targetUsfms) {
             throw new Error('loadTranslationMemory - No USFM source content to add');
@@ -445,6 +468,14 @@ export const useAlignmentSuggestions = ({
 
             // cache updated group settings
             await saveCurrentGroup(group_name, newGroupCollection_.groups[group_name]);
+
+            const bookId = contextId?.reference?.bookId;
+            const alignedBookUsfm = translationMemory?.targetUsfms?.[bookId] || '0';
+            const sha = await sha256Checksum(alignedBookUsfm); 
+            console.log(`sha for alignments = ${sha}`);
+            currentShasRef.current = { ...currentShasRef.current, [bookId]:sha}
+            const trainingComplete_ = alignmentPredictorRef.current
+            handleTrainingStateChange?.({checksumGenerated: true, translationMemoryLoaded: true})
         } catch (error) {
             console.error(`error importing ${error}`);
             throw new Error('Failed to load source data');
@@ -462,7 +493,7 @@ export const useAlignmentSuggestions = ({
      * @param {string} bookId - The identifier of the book (e.g., 'mat', 'mrk', 'luk')
      * @param {string} originalBibleBookUsfm - The USFM content of the original language Bible book
      * @param {string} targetBibleBookUsfm - The USFM content of the target language Bible book
-     * @returns {translationMemoryType} A structured object containing source and target USFM data
+     * @returns {TTranslationMemoryType} A structured object containing source and target USFM data
      */
     const loadTranslationMemoryWithBook = (bookId: string, originalBibleBookUsfm: string, targetBibleBookUsfm: string): void => {
         const translationMemory = makeTranslationMemory(bookId, originalBibleBookUsfm, targetBibleBookUsfm)
@@ -516,7 +547,7 @@ export const useAlignmentSuggestions = ({
         //because in the callback the objects are stale because they were
         //captured from a previous invocation of the function and don't
         //have later versions of the function in which things have been updated.
-        //startTraining itself gets called from within the callback so itself is
+        //executeTraining itself gets called indirectly from within the callback so itself is
         //a callback needs to use the Refs.
         //https://stackoverflow.com/a/60643670
 
@@ -537,9 +568,8 @@ export const useAlignmentSuggestions = ({
                 
                 //before creating the worker, check to see if there is any data to train on.
                 //get the information for the alignment to training.
-                const groupCollection_ = stateRef?.current?.groupCollection;
                 let alignmentTrainingData_:TTrainingAndTestingData|null = null;
-                const group = groupCollection_?.groups?.[groupName];
+                const group = getAlignmentsForCurrentGroup();
                 if (group) {
                     alignmentTrainingData_ = group.getAlignmentDataAndCorpusForTrainingOrTesting({
                         forTesting: false,
@@ -563,12 +593,13 @@ export const useAlignmentSuggestions = ({
                         config,
                         contextId: contextId_,
                         currentBookVerseCounts,
+                        currentSha: currentShasRef.current?.[bookId] || '',
                         maxComplexity,
                         sourceLanguageId,
                         targetLanguageId,
                     }
 
-                    handleSetTrainingState?.({training: true, trainingFailed: ''});
+                    handleTrainingStateChange?.({training: true, trainingFailed: ''});
 
                     const trainingStartTime = Date.now(); // Capture start time
 
@@ -594,11 +625,11 @@ export const useAlignmentSuggestions = ({
                         workerTimeoutRef.current = setTimeout(() => {
                             let reductionFactor = 0.5;
                             let elapsedMinutes1 = _getMinuteCounter();
-                            console.log(`executeTraining() - Training Worker timeout after ${elapsedMinutes1} minutes, percent complete ${trainingProgress.current}`);
+                            console.log(`executeTraining() - Training Worker timeout after ${elapsedMinutes1} minutes, percent complete ${trainingProgressRef.current}`);
                             reductionFactor = THRESHOLD_TRAINING_MINUTES / WORKER_TIMEOUT;
                             
-                            if (trainingProgress.current) {
-                                reductionFactor = trainingProgress.current / 100
+                            if (trainingProgressRef.current) {
+                                reductionFactor = trainingProgressRef.current / 100
                             }
 
                             const newMaxComplexity = adjustMaxComplexity(reductionFactor);
@@ -609,7 +640,7 @@ export const useAlignmentSuggestions = ({
                                 lastTrainedInstanceCount: trainingStateRef.current.currentTrainingInstanceCount
                             };
                             setState( { ...stateRef.current, trainingState: newTrainingState });
-                            handleSetTrainingState?.({training: false, trainingFailed: 'Timeout'});
+                            handleTrainingStateChange?.({training: false, trainingFailed: 'Timeout'});
 
                             storeLanguagePreferences(sourceLanguageId, targetLanguageId, newMaxComplexity, dbStorageRef).then(() => {
                                 // Restart training if needed
@@ -626,8 +657,8 @@ export const useAlignmentSuggestions = ({
                                 const contextId_ = event.data?.contextId;
                                 // console.log(`executeTraining() - trainingStatus received: ${percentComplete}%`)
                                 if (typeof percentComplete === 'number') {
-                                    trainingProgress.current = percentComplete; // keep track of progress
-                                    handleSetTrainingState?.({ percentComplete, training: true, contextId: contextId_ });
+                                    trainingProgressRef.current = percentComplete; // keep track of progress
+                                    handleTrainingStateChange?.({ percentComplete, training: true, contextId: contextId_ });
                                 }
                                 return
                             }
@@ -638,7 +669,7 @@ export const useAlignmentSuggestions = ({
                             }
 
                             console.log(`executeTraining() - alignment training worker completed: `, alignmentTrainingWorkerRef.current);
-                            handleSetTrainingState?.({ training: false })
+                            handleTrainingStateChange?.({ training: false })
                             
                             // Clear timeout since worker completed successfully
                             cleanupWorker();
@@ -687,13 +718,13 @@ export const useAlignmentSuggestions = ({
 
                             const forCurrentModel = currentModelKey == modelKey;
                             if (forCurrentModel) { // check if the current model is the same as the one we are training
-                                alignmentPredictor.current = abstractWordMapWrapper;
+                                alignmentPredictorRef.current = abstractWordMapWrapper;
                                 const newTrainingState = {
                                     ...trainingStateRef.current,
                                     lastTrainedInstanceCount: trainingStateRef.current.currentTrainingInstanceCount
                                 };
                                 setState( { ...stateRef.current, trainingState: newTrainingState });
-                                handleSetTrainingState?.({training: false, trainingComplete: true, trainingFailed: ''});
+                                handleTrainingStateChange?.({training: false, trainingComplete: true, trainingFailed: ''});
                             } else {
                                 console.log(`executeTraining() - currentModelKey: ${currentModelKey} != ${modelKey} - so not replacing current model`)
                             }
@@ -723,7 +754,7 @@ export const useAlignmentSuggestions = ({
                         });
 
                         // start the training worker
-                        trainingProgress.current = 0
+                        trainingProgressRef.current = 0
                         alignmentTrainingWorkerRef.current.worker.postMessage({
                             type: START_TRAINING,
                             data: alignmentTrainingData
@@ -732,21 +763,21 @@ export const useAlignmentSuggestions = ({
                         console.error('executeTraining() - Error during alignment training setup:', error);
                         console.log(`executeTraining() - Training failed after ${getElapsedMinutes(trainingStartTime)} minutes`);
                         cleanupWorker();
-                        handleSetTrainingState?.({training: false, trainingFailed: 'Training Error'});
+                        handleTrainingStateChange?.({training: false, trainingFailed: 'Training Error'});
                     }
 
                 } else {
                     console.log(`executeTraining() - Not enough training data for ${groupName}, count ${alignmentCount}`);
-                    handleSetTrainingState?.({training: false, trainingFailed: 'Insufficient Training Data'});
+                    handleTrainingStateChange?.({training: false, trainingFailed: 'Insufficient Training Data'});
                 }
 
             } else {
                 console.log('executeTraining() - Alignment training already running');
-                handleSetTrainingState?.({trainingFailed: 'Insufficient Training Data'});
+                handleTrainingStateChange?.({trainingFailed: 'Insufficient Training Data'});
             }
         } else {
             console.log('executeTraining() - information not changed');
-            handleSetTrainingState?.({trainingFailed: 'Information not changed'});
+            handleTrainingStateChange?.({trainingFailed: 'Information not changed'});
         }
     };
 
@@ -770,13 +801,13 @@ export const useAlignmentSuggestions = ({
         console.log('stopTraining()');
         const trainingContextId = !!alignmentTrainingWorkerRef.current
         if (trainingContextId) {
-            handleSetTrainingState?.({training: false, trainingFailed: 'Cancelled'});
+            handleTrainingStateChange?.({training: false, trainingFailed: 'Cancelled'});
             cleanupWorker();
             console.log('useAlignmentSuggestions - stopTraining() - Alignment training stopped');
         } else {
             console.log('useAlignmentSuggestions - stopTraining() - training not running');
         }
-    }, [handleSetTrainingState]);
+    }, [handleTrainingStateChange]);
 
     /**
      * Retrieves the training context ID from the alignment training worker reference.
@@ -837,7 +868,7 @@ export const useAlignmentSuggestions = ({
                 });
             });
         }
-    }, [handleSetTrainingState])
+    }, [handleTrainingStateChange])
     
     /**
      * Determines whether the alignment training process is currently running.
@@ -915,28 +946,35 @@ export const useAlignmentSuggestions = ({
                 if (modelMetaData_?.model) {
                     try {
                         predictorModel = AbstractWordMapWrapper.load(modelMetaData_?.model);
-                        console.log('loaded alignmentPredictor from local storage');
+                        console.log('loaded alignmentPredictorRef from local storage');
                     } catch (e) {
                         console.log(`error loading alignmentPredictor: ${(e as Error).message}`);
                     }
                 }
                 if (predictorModel) {
-                    alignmentPredictor.current = predictorModel;
+                    alignmentPredictorRef.current = predictorModel;
                     modelMetaData_.model = null
-                    modelMetaData.current = modelMetaData_;
-                } else if (!trainingRunning) { // if training is running, then don't reset the alignmentPredictor
-                    alignmentPredictor.current = null
-                    modelMetaData.current = null
+                    modelMetaDataRef.current = modelMetaData_;
+                    const bookId = modelMetaData_?.contextId?.reference?.bookId || '';
+                    const sha = modelMetaData_?.currentSha || '';
+                    currentShasRef.current = { ...currentShasRef.current, [bookId]:sha}
+                } else if (!trainingRunning) { // if training is running, then don't reset the alignmentPredictorRef
+                    alignmentPredictorRef.current = null
+                    modelMetaDataRef.current = null
                 }
             }
             const trainingComplete = !!predictorModel;
             if (!trainingComplete) {
-                console.log('no alignmentPredictor found in local storage');
+                console.log('no alignmentPredictorRef found in local storage');
                 setState( { ...stateRef.current, failedToLoadCachedTraining: true});
             } else {
                 success = true;
             }
-            handleSetTrainingState?.({training: false, trainingComplete, trainingFailed: ''});
+            handleTrainingStateChange?.({
+                training: false,
+                trainingComplete,
+                trainingFailed: '',
+            });
 
             // load language based settings
             const langSettingsPair = getLangPair(sourceLanguageId, targetLanguageId);
@@ -960,7 +998,7 @@ export const useAlignmentSuggestions = ({
             }
         }
         return success;
-    }, [handleSetTrainingState]);
+    }, [handleTrainingStateChange]);
 
     /**
      * Retrieves the verse counts for all books within the group for contextId.
@@ -974,9 +1012,7 @@ export const useAlignmentSuggestions = ({
      */
     function getGroupVerseCounts(contextId: ContextId):TBookVerseCounts|null {
         const bookVerseCounts:TBookVerseCounts = {}
-        const groupName = getGroupName(contextId)
-        const groupCollection_ = stateRef?.current?.groupCollection;
-        const group = groupCollection_?.groups?.[groupName];
+        const group = getAlignmentsForCurrentGroup();;
         const books = group?.books || {};
         if (Object.keys(books).length > 0) {
             Object.entries(books).forEach(([bookId, book]) => {
@@ -994,7 +1030,7 @@ export const useAlignmentSuggestions = ({
      * @return {{ info:TAlignmentCompletedInfo, message:string}} The metadata associated with the current model.
      */
     function getModelMetaData():TAlignmentMetaData {
-        let bookAlignmentInfo:TAlignmentCompletedInfo = modelMetaData?.current
+        let bookAlignmentInfo:TAlignmentCompletedInfo = modelMetaDataRef?.current
         const bookId = contextId?.reference?.bookId;
         let message = `Current Book ${bookId}:\n\n`;
         const bookVerseCounts = getGroupVerseCounts(contextId);
@@ -1053,6 +1089,35 @@ export const useAlignmentSuggestions = ({
     }
 
     /**
+     * Retrieves the alignments for the current group based on the context ID.
+     *
+     * @return {Object|undefined} The group object containing alignments for the current group
+     *                            or undefined if the group is not found or the group collection is not initialized.
+     */
+    function getAlignmentsForCurrentGroup() {
+        const groupName = getGroupName(contextId)
+        const groupCollection_ = stateRef?.current?.groupCollection;
+        const group = groupCollection_?.groups?.[groupName];
+        return group;
+    }
+
+    /**
+     * Determines the current SHA state of a book within the system, based on provided context and references.
+     *
+     * @return {TBookShaState} An object containing the trained SHA (`trainedSha`),
+     * the current SHA of the book (`currentBookSha`), and
+     * a boolean (`bookShaChanged`) indicating if the book's SHA has changed compared to the trained SHA.
+     */
+    function getCurrentBookShaState():TBookShaState {
+        const bookId = contextId?.reference?.bookId;
+        const trainedSha = modelMetaDataRef.current?.currentSha;
+        const currentBookSha = currentShasRef.current?.[bookId];
+        const bookShaChanged = !trainedSha || (currentBookSha !== trainedSha);
+
+        return {trainedSha, currentBookSha, bookShaChanged} as TBookShaState;
+    }
+
+    /**
      * Effect hook that loads model settings and data from IndexedDB storage when aligned is shown.
      *
      * Initializes IndexedDB storage if not already done and loads saved alignment model
@@ -1071,7 +1136,8 @@ export const useAlignmentSuggestions = ({
     useEffect(() => {
         (async () => {
             let cachedDataLoaded = false;
-            if (shown && modelKey && config?.doAutoTraining) {
+            const doAutoLoad = config?.doAutoTraining || config?.doAutoLoadCachedTraining
+            if (shown && modelKey && doAutoLoad) {
                 console.log(`useAlignmentSuggestions - modelKey changed to ${modelKey}`);
                 const dbStorage = await getIndexedDbStorage();
                 cachedDataLoaded = await loadSettingsFromStorage(dbStorage, modelKey);
@@ -1079,9 +1145,37 @@ export const useAlignmentSuggestions = ({
                 
                 // add the usfm for current book to training memory
                 const bookId = contextId?.reference?.bookId;
-                if (cachedDataLoaded && bookId && sourceUsfm && targetUsfm) {
-                    loadTranslationMemoryWithBook(bookId, sourceUsfm, targetUsfm);
+                if (cachedDataLoaded && bookId) {
+                    const group_name = getGroupName(contextId)
+                    const targetUsfm = translationMemory?.targetUsfms?.[bookId];
+                    const sourceUsfm = translationMemory?.sourceUsfms?.[bookId];
+                    let translationMemoryFound:boolean = !!(targetUsfm && sourceUsfm);
+                    if (!translationMemoryFound) {
+                        console.log(`useAlignmentSuggestions - translation Memory not found for book`);
+                    } else { // make sure current data loaded into alignment memory
+                        console.log(`useAlignmentSuggestions - translation Memory found for book, reload to make sure current`);
+                        await loadTranslationMemory(translationMemory);
+                    }
+                    
+                    if (translationMemoryFound) {
+                        console.log(`useAlignmentSuggestions - Alignment memory Loaded, checking for sha changes`);
+                        //TODO blm: test if sha is changed, auto start retraining
+                        const {trainedSha, currentBookSha, bookShaChanged} = getCurrentBookShaState();
+                        if (bookShaChanged) {
+                            console.log(`useAlignmentSuggestions - sha changed: current ${currentBookSha}, last trained sha ${trainedSha}`);
+                        }
+                    }
                 }
+            }
+            if (!shown) {
+                handleTrainingStateChange?.({
+                    checksumGenerated: false,
+                    percentComplete: 0,
+                    training: false,
+                    trainingComplete: false,
+                    trainingFailed: '',
+                    translationMemoryLoaded: false,
+                })
             }
             prepareForNewContext()
         })();
@@ -1162,7 +1256,7 @@ export const useAlignmentSuggestions = ({
      * @return {TSuggester} The suggester function bound to the current alignment predictor instance, or null if unavailable.
      */
     function getSuggester(): TSuggester {
-        return alignmentPredictor.current?.predict.bind(alignmentPredictor.current) || null;
+        return alignmentPredictorRef.current?.predict.bind(alignmentPredictorRef.current) || null;
     }
 
     /**
@@ -1201,7 +1295,7 @@ export const useAlignmentSuggestions = ({
         // remove redundant items
         // @ts-ignore
         delete saveData.model
-        modelMetaData.current = saveData // keep latest
+        modelMetaDataRef.current = saveData // keep latest
             
         await storeLanguagePreferences(alignmentCompletedInfo.sourceLanguageId, alignmentCompletedInfo.targetLanguageId, alignmentCompletedInfo.maxComplexity, dbStorageRef);
         console.log(`saveModelAndSettings() - setting maxComplexity to ${alignmentCompletedInfo.maxComplexity}`);
@@ -1221,6 +1315,7 @@ export const useAlignmentSuggestions = ({
         actions: {
             areTrainingSameBook,
             cleanupWorker,
+            getCurrentBookShaState,
             getModelMetaData,
             getSuggester,
             getTrainingContextId,

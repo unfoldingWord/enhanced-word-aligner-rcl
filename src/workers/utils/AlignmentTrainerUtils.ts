@@ -10,7 +10,7 @@ import {
     TTrainingAndTestingData,
     TVerseCounts,
 } from '../WorkerComTypes';
-import {ContextId, translationMemoryType} from '@/common/classes';
+import {ContextId, TTranslationMemoryType} from '@/common/classes';
 import {DEFAULT_MAX_COMPLEXITY} from '@/common/constants';
 
 enum ReduceType {
@@ -484,6 +484,7 @@ export async function createTrainedWordAlignerModel(worker: Worker, data: TTrain
       config: data.config,
       contextId: data.contextId,
       currentBookVerseCounts: data.currentBookVerseCounts,
+      currentSha: data.currentSha,
       maxComplexity,
       percentBookAligned,
       sourceLanguageId: data.sourceLanguageId,
@@ -503,10 +504,10 @@ export async function createTrainedWordAlignerModel(worker: Worker, data: TTrain
  * @param {string} bookId - The identifier for the book
  * @param {string} originalBibleBookUsfm - The USFM content for the original (source) Bible book
  * @param {string} targetBibleBookUsfm - The USFM content for the target Bible book
- * @returns {translationMemoryType} A translation memory object with sourceUsfms and targetUsfms
+ * @returns {TTranslationMemoryType} A translation memory object with sourceUsfms and targetUsfms
  */
-export function makeTranslationMemory(bookId: string, originalBibleBookUsfm: string, targetBibleBookUsfm: string): translationMemoryType {
-    const memory: translationMemoryType = {
+export function makeTranslationMemory(bookId: string, originalBibleBookUsfm: string, targetBibleBookUsfm: string): TTranslationMemoryType {
+    const memory: TTranslationMemoryType = {
         sourceUsfms: {},
         targetUsfms: {}
     };

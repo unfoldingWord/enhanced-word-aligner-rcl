@@ -5,17 +5,19 @@ import {Suggestion} from 'wordmap'
 
 export type usfmType = string; // Type definition for USFM content
 export type booksUsfmType = { [bibleId: string]: usfmType };
-export type translationMemoryType = {
+export type TTranslationMemoryType = {
     sourceUsfms: booksUsfmType;
     targetUsfms: booksUsfmType;
 };
 
 export interface TTrainingStateChange {
+    checksumGenerated?: boolean
+    contextId?: ContextId,
+    percentComplete?: number,
     training?: boolean,
     trainingComplete?: boolean,
     trainingFailed?: string,
-    percentComplete?: number,
-    contextId?: ContextId,
+    translationMemoryLoaded?: boolean
 }
 
 export type THandleTrainingStateChange = (state: TTrainingStateChange) => void;
@@ -27,10 +29,10 @@ export interface TWordAlignerAlignmentResult{
 
 export interface TState{
     aligned: boolean;
+    alignerData: TAlignerData;
+    reference: TReference;
     sourceLanguage: string;
     targetLanguage: string;
-    reference: TReference;
-    alignerData: TAlignerData;
 }
 
 interface TActions{
@@ -114,3 +116,5 @@ interface TReference{
 interface TContextId{
     reference: TReference;
 }
+
+export interface TCurrentShas{[key: string]: string };

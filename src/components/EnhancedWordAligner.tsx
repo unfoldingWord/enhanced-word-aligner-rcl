@@ -1,19 +1,20 @@
-import React, {useEffect} from 'react'
+import React, {useEffect, useState} from 'react'
 import {SuggestingWordAligner} from 'word-aligner-rcl'
 import {
     ContextId,
     SourceWord,
     TargetWordBank,
     THandleTrainingStateChange,
-    translationMemoryType,
-    TTrainingStateChange
+    TTranslationMemoryType,
 } from '@/common/classes';
 import {Alignment, Suggestion} from 'wordmap';
 import {Token} from 'wordmap-lexer'
 
-import {useAlignmentSuggestions} from '@/hooks/useAlignmentSuggestions';
+import {TBookShaState, useAlignmentSuggestions} from '@/hooks/useAlignmentSuggestions';
 import {createAlignmentTrainingWorker as createAlignmentTrainingWorker_} from '@/workers/utils/startAlignmentTrainer';
 import {TAlignmentCompletedInfo, TAlignmentSuggestionsConfig} from '@/workers/WorkerComTypes';
+import delay from "@/utils/delay";
+import {useTrainingState} from '@/hooks/useTrainingState';
 
 interface EnhancedWordAlignerProps {
     asyncSuggester?: (
@@ -22,7 +23,7 @@ interface EnhancedWordAlignerProps {
         maxSuggestions?: number,
         manuallyAligned?: Alignment[]
     ) => Promise<Suggestion[]>;
-    addTranslationMemory?: translationMemoryType;
+    addTranslationMemory?: TTranslationMemoryType;
     contextId: ContextId;
     createAlignmentTrainingWorker: () => Promise<Worker>;
     doTraining: boolean;
@@ -63,7 +64,8 @@ interface EnhancedWordAlignerProps {
     targetLanguageFont?: string;
     targetFontSizePercent?: number;
     targetWords: TargetWordBank[];
-    translate: (key: string) => void;
+    translate: (key: string) => string;
+    translationMemory?: TTranslationMemoryType;
     verseAlignments: Alignment[];
     config?: TAlignmentSuggestionsConfig;
 }
@@ -78,7 +80,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     lexiconCache,
     loadLexiconEntry,
     handleInfoClick,
-    handleTrainingStateChange,
+    handleTrainingStateChange: handleTrainingStateChange_,
     hasRenderedSuggestions,
     onChange,
     suggestionsOnly,
@@ -92,19 +94,31 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     targetFontSizePercent,
     targetWords,
     translate,
+    translationMemory,
     verseAlignments,
 }) => {
     const handleTrainingCompleted = (info: TAlignmentCompletedInfo) => {
         console.log('handleTrainingCompleted', info);
     }
 
-    const handleTrainingStateChange_ = (props: TTrainingStateChange) => {
-        handleTrainingStateChange?.(props);
-    }
-    
+    const {
+        actions: {
+            handleTrainingStateChange
+        },
+        state: {
+            checksumGenerated,
+            trainingComplete,
+            translationMemoryLoaded,
+        }
+    } = useTrainingState({
+        passThroughStateChange: handleTrainingStateChange_,
+        translate
+    })
+
     const {
         actions: {
             cleanupWorker,
+            getCurrentBookShaState,
             getModelMetaData,
             isTraining,
             loadTranslationMemory,
@@ -116,13 +130,26 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
         config,
         contextId,
         createAlignmentTrainingWorker,
-        handleSetTrainingState: handleTrainingStateChange_,
+        handleTrainingStateChange,
         handleTrainingCompleted,
         shown: true,
         sourceLanguageId,
         targetLanguageId,
+        translationMemory,
     });
 
+    useEffect(() => {
+        console.log(`checksumGenerated = ${checksumGenerated}, translationMemoryLoaded = ${translationMemoryLoaded}`);
+        if (checksumGenerated && translationMemoryLoaded && trainingComplete && config?.doAutoTraining) {
+            const shaState: TBookShaState = getCurrentBookShaState()
+            console.log(`Training complete: ${shaState?.bookShaChanged} trained sha ${shaState?.trainedSha} and current book sha ${shaState?.currentBookSha}`);
+            if (shaState?.bookShaChanged) {
+                console.log(`Training complete: book changed, retraining`);
+                startTraining();
+            }
+        }
+    },[checksumGenerated, translationMemoryLoaded, trainingComplete]);
+    
     function handleInfoClick_() {
         // console.log('handleInfoClick');
         const info = getModelMetaData()
@@ -173,6 +200,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             translate={translate}
             targetLanguageFont={targetLanguageFont}
             targetFontSizePercent={targetFontSizePercent}
+            translationMemory={translationMemory}
             verseAlignments={verseAlignments}
         />
     )
