@@ -6,7 +6,6 @@ import {
     TargetWordBank,
     THandleTrainingStateChange,
     TTranslationMemoryType,
-    TTrainingStateChange, TAlignmentSuggestionsState
 } from '@/common/classes';
 import {Alignment, Suggestion} from 'wordmap';
 import {Token} from 'wordmap-lexer'
