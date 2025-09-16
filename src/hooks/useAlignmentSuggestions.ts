@@ -1111,7 +1111,7 @@ export const useAlignmentSuggestions = ({
         const bookId = contextId?.reference?.bookId;
         const trainedSha = modelMetaDataRef.current?.currentSha;
         const currentBookSha = currentShasRef.current?.[bookId];
-        const bookShaChanged = !trainedSha && (currentBookSha !== trainedSha);
+        const bookShaChanged = !trainedSha || (currentBookSha !== trainedSha);
 
         return {trainedSha, currentBookSha, bookShaChanged} as TBookShaState;
     }
