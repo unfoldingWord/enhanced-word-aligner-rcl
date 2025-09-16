@@ -18,7 +18,8 @@ import IndexedDBStorage from '@/shared/IndexedDBStorage';
 import { limitRangeOfComplexity } from '@/utils/misc';
 import {
     ContextId,
-    TAlignmentSuggestionsState, TCurrentShas,
+    TAlignmentSuggestionsState,
+    TCurrentShas,
     THandleTrainingStateChange,
     TrainingState,
     TTranslationMemoryType,
