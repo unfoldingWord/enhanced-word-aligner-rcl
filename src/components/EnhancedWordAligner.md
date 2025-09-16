@@ -18,6 +18,7 @@ import {NT_ORIG_LANG} from "../common/constants";
 
 console.log('Loading WordAlignerComponent.md');
 
+const doAutoLoadCachedTraining = false; // set true to auto load previous cached training for book
 const doAutoTraining = false; // set true to enable auto training of alignment suggestions
 const suggestionsOnly = false;  // set true to remove clear button and add suggestion label
 const trainOnlyOnCurrentBook = true; // if true, then training is sped up for small books by just training on alignment memory data for current book
@@ -151,6 +152,7 @@ const WordAlignerPanel = ({
   const enableLoadTranslationMemory = !doingTraining;
   const enableTrainingToggle = trainingComplete || (translationMemoryLoaded && !doingTraining);
   const alignmentSuggestionsConfig = {
+    doAutoLoadCachedTraining,
     doAutoTraining,
     minTrainingVerseRatio,
     trainOnlyOnCurrentBook,

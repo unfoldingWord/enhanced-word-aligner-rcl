@@ -115,6 +115,7 @@ export interface TWordAlignmentTestResults{
 }
 
 export interface TAlignmentSuggestionsConfig {
+    doAutoLoadCachedTraining?: boolean; // set true to auto load previous cached training for book
     doAutoTraining?: boolean; // set true to enable auto training of alignment suggestions
     trainOnlyOnCurrentBook?: boolean; // if true, then training is sped up for small books by just training on alignment memory data for current book
     minTrainingVerseRatio?: number; // if trainOnlyOnCurrentBook, then this is protection for the case that the book is not completely aligned.  If a ratio such as 1.0 is set, then training will use the minimum number of verses for training.  This minimum is calculated by multiplying the number of verses in the book by this ratio

@@ -1135,7 +1135,8 @@ export const useAlignmentSuggestions = ({
     useEffect(() => {
         (async () => {
             let cachedDataLoaded = false;
-            if (shown && modelKey && config?.doAutoTraining) {
+            const doAutoLoad = config?.doAutoTraining || config?.doAutoLoadCachedTraining
+            if (shown && modelKey && doAutoLoad) {
                 console.log(`useAlignmentSuggestions - modelKey changed to ${modelKey}`);
                 const dbStorage = await getIndexedDbStorage();
                 cachedDataLoaded = await loadSettingsFromStorage(dbStorage, modelKey);
