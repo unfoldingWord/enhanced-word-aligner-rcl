@@ -10,7 +10,7 @@ import {
 } from "word-aligner-rcl";
 import usfm from 'usfm-js';
 import { EnhancedWordAligner } from './EnhancedWordAligner'
-import { extractVerseText } from "../utils/misc";
+import { extractVerseText } from '../utils/misc';
 import { useTrainingState } from '../hooks/useTrainingState'
 import delay from "../utils/delay";
 
@@ -65,6 +65,7 @@ const translate = (key) => {
     "suggestions.train_button_hint"  : "Click to improve the quality of alignment suggestions based on currently loaded alignments",
     "suggestions.stop_training_button" : "Stop Train",
     "suggestions.status_training"    : "Currently Training ...",
+    "suggestions.status_retraining"  : "Currently Retraining ...",
     "suggestions.status_trained"     : "Trained",
     "suggestions.status_not_trained" : "Not Trained",
     "suggestions.percent_complete"   : "% complete",
@@ -138,7 +139,7 @@ const WordAlignerPanel = ({
     },
     state: {
       training,
-      trained,
+      trainingComplete,
       trainingError,
       trainingStatusStr,
       trainingButtonStr,
@@ -146,9 +147,9 @@ const WordAlignerPanel = ({
   } = useTrainingState({
     translate,
   })
-  
+
   const enableLoadTranslationMemory = !doingTraining;
-  const enableTrainingToggle = trained || (translationMemoryLoaded && !doingTraining);
+  const enableTrainingToggle = trainingComplete || (translationMemoryLoaded && !doingTraining);
   const alignmentSuggestionsConfig = {
     doAutoTraining,
     minTrainingVerseRatio,

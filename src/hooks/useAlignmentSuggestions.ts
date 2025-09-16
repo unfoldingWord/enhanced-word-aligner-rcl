@@ -44,13 +44,13 @@ import {makeTranslationMemory, START_TRAINING} from '@/workers/utils/AlignmentTr
 
 // console.log('useAlignmentSuggestions.ts AlignmentWorker', AlignmentWorker);
 
-type THandleTrainingCompleted = (info: TAlignmentCompletedInfo) => void;
+export type THandleTrainingCompleted = (info: TAlignmentCompletedInfo) => void;
 
-interface TUseAlignmentSuggestionsProps {
+export interface TUseAlignmentSuggestionsProps {
     config?: TAlignmentSuggestionsConfig;
     contextId: ContextId;
     createAlignmentTrainingWorker?:() => Promise<Worker>; // needed to support alignment training in a web worker
-    handleSetTrainingState?: THandleTrainingStateChange;
+    handleTrainingStateChange?: THandleTrainingStateChange;
     handleTrainingCompleted?: THandleTrainingCompleted ;
     shown: boolean;
     sourceLanguageId: string;
@@ -58,7 +58,7 @@ interface TUseAlignmentSuggestionsProps {
     translationMemory?: TTranslationMemoryType;
 }
 
-type TSuggester =
+export type TSuggester =
     ((sourceSentence: any, targetSentence: any, maxSuggestions?: number, manuallyAligned?: any[]) => any[])
     | null;
 
@@ -68,7 +68,7 @@ export interface TBookShaState {
     bookShaChanged: boolean;
 }
 
-interface TUseAlignmentSuggestionsReturn {
+export interface TUseAlignmentSuggestionsReturn {
     state: {
         failedToLoadCachedTraining: boolean;
         maxComplexity: number;
@@ -238,7 +238,7 @@ export const useAlignmentSuggestions = ({
     contextId,
     createAlignmentTrainingWorker,
     handleTrainingCompleted,
-    handleSetTrainingState,
+    handleTrainingStateChange,
     shown,
     sourceLanguageId,
     targetLanguageId,
@@ -474,8 +474,7 @@ export const useAlignmentSuggestions = ({
             console.log(`sha for alignments = ${sha}`);
             currentShasRef.current = { ...currentShasRef.current, [bookId]:sha}
             const trainingComplete_ = alignmentPredictorRef.current
-            handleSetTrainingState?.({})
-            
+            handleTrainingStateChange?.({checksumGenerated: true, translationMemoryLoaded: true})
         } catch (error) {
             console.error(`error importing ${error}`);
             throw new Error('Failed to load source data');
@@ -599,7 +598,7 @@ export const useAlignmentSuggestions = ({
                         targetLanguageId,
                     }
 
-                    handleSetTrainingState?.({training: true, trainingFailed: ''});
+                    handleTrainingStateChange?.({training: true, trainingFailed: ''});
 
                     const trainingStartTime = Date.now(); // Capture start time
 
@@ -640,7 +639,7 @@ export const useAlignmentSuggestions = ({
                                 lastTrainedInstanceCount: trainingStateRef.current.currentTrainingInstanceCount
                             };
                             setState( { ...stateRef.current, trainingState: newTrainingState });
-                            handleSetTrainingState?.({training: false, trainingFailed: 'Timeout'});
+                            handleTrainingStateChange?.({training: false, trainingFailed: 'Timeout'});
 
                             storeLanguagePreferences(sourceLanguageId, targetLanguageId, newMaxComplexity, dbStorageRef).then(() => {
                                 // Restart training if needed
@@ -658,7 +657,7 @@ export const useAlignmentSuggestions = ({
                                 // console.log(`executeTraining() - trainingStatus received: ${percentComplete}%`)
                                 if (typeof percentComplete === 'number') {
                                     trainingProgressRef.current = percentComplete; // keep track of progress
-                                    handleSetTrainingState?.({ percentComplete, training: true, contextId: contextId_ });
+                                    handleTrainingStateChange?.({ percentComplete, training: true, contextId: contextId_ });
                                 }
                                 return
                             }
@@ -669,7 +668,7 @@ export const useAlignmentSuggestions = ({
                             }
 
                             console.log(`executeTraining() - alignment training worker completed: `, alignmentTrainingWorkerRef.current);
-                            handleSetTrainingState?.({ training: false })
+                            handleTrainingStateChange?.({ training: false })
                             
                             // Clear timeout since worker completed successfully
                             cleanupWorker();
@@ -724,7 +723,7 @@ export const useAlignmentSuggestions = ({
                                     lastTrainedInstanceCount: trainingStateRef.current.currentTrainingInstanceCount
                                 };
                                 setState( { ...stateRef.current, trainingState: newTrainingState });
-                                handleSetTrainingState?.({training: false, trainingComplete: true, trainingFailed: ''});
+                                handleTrainingStateChange?.({training: false, trainingComplete: true, trainingFailed: ''});
                             } else {
                                 console.log(`executeTraining() - currentModelKey: ${currentModelKey} != ${modelKey} - so not replacing current model`)
                             }
@@ -763,21 +762,21 @@ export const useAlignmentSuggestions = ({
                         console.error('executeTraining() - Error during alignment training setup:', error);
                         console.log(`executeTraining() - Training failed after ${getElapsedMinutes(trainingStartTime)} minutes`);
                         cleanupWorker();
-                        handleSetTrainingState?.({training: false, trainingFailed: 'Training Error'});
+                        handleTrainingStateChange?.({training: false, trainingFailed: 'Training Error'});
                     }
 
                 } else {
                     console.log(`executeTraining() - Not enough training data for ${groupName}, count ${alignmentCount}`);
-                    handleSetTrainingState?.({training: false, trainingFailed: 'Insufficient Training Data'});
+                    handleTrainingStateChange?.({training: false, trainingFailed: 'Insufficient Training Data'});
                 }
 
             } else {
                 console.log('executeTraining() - Alignment training already running');
-                handleSetTrainingState?.({trainingFailed: 'Insufficient Training Data'});
+                handleTrainingStateChange?.({trainingFailed: 'Insufficient Training Data'});
             }
         } else {
             console.log('executeTraining() - information not changed');
-            handleSetTrainingState?.({trainingFailed: 'Information not changed'});
+            handleTrainingStateChange?.({trainingFailed: 'Information not changed'});
         }
     };
 
@@ -801,13 +800,13 @@ export const useAlignmentSuggestions = ({
         console.log('stopTraining()');
         const trainingContextId = !!alignmentTrainingWorkerRef.current
         if (trainingContextId) {
-            handleSetTrainingState?.({training: false, trainingFailed: 'Cancelled'});
+            handleTrainingStateChange?.({training: false, trainingFailed: 'Cancelled'});
             cleanupWorker();
             console.log('useAlignmentSuggestions - stopTraining() - Alignment training stopped');
         } else {
             console.log('useAlignmentSuggestions - stopTraining() - training not running');
         }
-    }, [handleSetTrainingState]);
+    }, [handleTrainingStateChange]);
 
     /**
      * Retrieves the training context ID from the alignment training worker reference.
@@ -868,7 +867,7 @@ export const useAlignmentSuggestions = ({
                 });
             });
         }
-    }, [handleSetTrainingState])
+    }, [handleTrainingStateChange])
     
     /**
      * Determines whether the alignment training process is currently running.
@@ -955,6 +954,9 @@ export const useAlignmentSuggestions = ({
                     alignmentPredictorRef.current = predictorModel;
                     modelMetaData_.model = null
                     modelMetaDataRef.current = modelMetaData_;
+                    const bookId = modelMetaData_?.contextId?.reference?.bookId || '';
+                    const sha = modelMetaData_?.currentSha || '';
+                    currentShasRef.current = { ...currentShasRef.current, [bookId]:sha}
                 } else if (!trainingRunning) { // if training is running, then don't reset the alignmentPredictorRef
                     alignmentPredictorRef.current = null
                     modelMetaDataRef.current = null
@@ -967,7 +969,11 @@ export const useAlignmentSuggestions = ({
             } else {
                 success = true;
             }
-            handleSetTrainingState?.({training: false, trainingComplete, trainingFailed: ''});
+            handleTrainingStateChange?.({
+                training: false,
+                trainingComplete,
+                trainingFailed: '',
+            });
 
             // load language based settings
             const langSettingsPair = getLangPair(sourceLanguageId, targetLanguageId);
@@ -991,7 +997,7 @@ export const useAlignmentSuggestions = ({
             }
         }
         return success;
-    }, [handleSetTrainingState]);
+    }, [handleTrainingStateChange]);
 
     /**
      * Retrieves the verse counts for all books within the group for contextId.
@@ -1158,6 +1164,16 @@ export const useAlignmentSuggestions = ({
                         }
                     }
                 }
+            }
+            if (!shown) {
+                handleTrainingStateChange?.({
+                    checksumGenerated: false,
+                    percentComplete: 0,
+                    training: false,
+                    trainingComplete: false,
+                    trainingFailed: '',
+                    translationMemoryLoaded: false,
+                })
             }
             prepareForNewContext()
         })();

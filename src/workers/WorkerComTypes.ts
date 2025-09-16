@@ -128,6 +128,7 @@ export interface TAlignmentVerseCounts {
 }
 
 export interface TAlignmentCompletedInfo {
+    contextId: ContextId;
     currentSha?: string;
     maxComplexity: number;
     modelKey: string;

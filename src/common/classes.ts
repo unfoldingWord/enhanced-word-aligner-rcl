@@ -11,12 +11,13 @@ export type TTranslationMemoryType = {
 };
 
 export interface TTrainingStateChange {
+    checksumGenerated?: boolean
     contextId?: ContextId,
     percentComplete?: number,
     training?: boolean,
     trainingComplete?: boolean,
     trainingFailed?: string,
-    translationMemoryLoaded?: {}
+    translationMemoryLoaded?: boolean
 }
 
 export type THandleTrainingStateChange = (state: TTrainingStateChange) => void;
