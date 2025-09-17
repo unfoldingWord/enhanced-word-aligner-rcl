@@ -79,6 +79,7 @@ export interface TUseAlignmentSuggestionsReturn {
     actions: {
         areTrainingSameBook: (contextId: ContextId) => boolean;
         cleanupWorker: () => void;
+        deleteBookFromGroup: (bookId: string) => Promise<void>;
         getCurrentBookShaState: () => TBookShaState;
         getModelMetaData: () => TAlignmentMetaData|null;
         getSuggester: () => TSuggester;
@@ -378,6 +379,42 @@ export const useAlignmentSuggestions = ({
         const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
         const hashArray = Array.from(new Uint8Array(hashBuffer));
         return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+    }
+    
+    /**
+     * Deletes a book from a specific group within the current context.
+     * This function identifies a group using a derived group name and removes the book
+     * associated with the provided `bookId` if it exists within the group's book collection.
+     * It also updates the application state and caches the new group settings.
+     *
+     * @async
+     * @param {string} bookId - The unique identifier of the book to be removed from the group.
+     * @throws Will log an error message if the book is not found or if the group does not exist.
+     */
+    const deleteBookFromGroup = async (bookId: string) => {
+        console.log(`deleteBookFromGroup - ${bookId}`);
+        const group_name = getGroupName(contextId)
+        let newGroupCollection_ = stateRef.current?.groupCollection;
+        const group = newGroupCollection_?.groups?.[group_name];
+        if (group) {
+            if (group.books?.[bookId]) {
+                const newBooks_ = {...group.books}
+                delete newBooks_[bookId]; // remove specified book
+                const newGroup_ = new Group(newBooks_);
+                const newGroups = {...newGroupCollection_.groups, [group_name]: newGroup_};
+                newGroupCollection_ = new GroupCollection(newGroups, newGroupCollection_.instanceCount + 1);
+
+                setState( { ...stateRef.current, groupCollection: newGroupCollection_ });
+
+                // cache updated group settings
+                await saveCurrentGroup(group_name, newGroupCollection_.groups[group_name]);
+                console.log(`deleteBookFromGroup - deleted alignment memory for {bookId}`);
+            } else {
+                console.error(`deleteBookFromGroup - ERROR book not found ${bookId}`);
+            }
+        } else {
+            console.error(`deleteBookFromGroup - ERROR group not found: ${group_name}`);
+        }
     }
 
     /**
@@ -1315,6 +1352,7 @@ export const useAlignmentSuggestions = ({
         actions: {
             areTrainingSameBook,
             cleanupWorker,
+            deleteBookFromGroup,
             getCurrentBookShaState,
             getModelMetaData,
             getSuggester,
