@@ -427,22 +427,26 @@ export async function createTrainedWordAlignerModel(worker: Worker, data: TTrain
   console.log(`createTrainedWordAlignerModel: aligned verses complexity: ${alignedComplexityCount}`);
   console.log(`createTrainedWordAlignerModel: unaligned verses complexity: ${unalignedComplexityCount}`);
   console.log(`createTrainedWordAlignerModel: max complexity: ${maxComplexity}`);
-    
-  // Create the training object.
-  // There are several different word map classes,
-  // and there are different hyper parameters which can be passed into it as well.
+
+  const config = data.config;
+
+    // Create the training object.
+    // There are several different word map classes,
+    // and there are different hyper parameters which can be passed into it as well.
     const wordMapOptions = {
         forceOccurrenceOrder: false,
         nGramWarnings: false,
         progress_callback,
-        targetNgramLength: 5,
-        train_steps: 1000,
+        sourceNgramLength: config.sourceNgramLength ?? 3,
+        targetNgramLength: config.targetNgramLength ?? 5,
+        train_steps: config.train_steps ?? 1000,
         verbose_training: false,
         warnings: false,
     };
+    console.log('createTrainedWordAlignerModel: current settings', wordMapOptions);
+
     const wordAlignerModel = new MorphJLBoostWordMap(wordMapOptions);
-  
-  const {
+    const {
       deletedAlignments,
       deletedBookTargetVerses,
       deletedBookSourceVerses,
@@ -451,14 +455,14 @@ export async function createTrainedWordAlignerModel(worker: Worker, data: TTrain
       trimmedVerseCount,
   } = addAlignmentCorpus(alignedComplexityCount, unalignedComplexityCount, maxComplexity,
       wordAlignerModel, sourceCorpusTokenized, targetCorpusTokenized, sourceVersesTokenized,
-      targetVersesTokenized, alignments, data.contextId, data.config, data.currentBookVerseCounts);
+      targetVersesTokenized, alignments, data.contextId, config, data.currentBookVerseCounts);
 
   // Train the model and return it
   await wordAlignerModel.add_alignments_2(sourceVersesTokenized, targetVersesTokenized, alignments);
 
-  let keepAllAlignmentMemory = data.config.keepAllAlignmentMemory
-  if (!keepAllAlignmentMemory && data.config.keepAllAlignmentMinThreshold) {
-      if (percentBookAligned < data.config.keepAllAlignmentMinThreshold) {
+  let keepAllAlignmentMemory = config.keepAllAlignmentMemory
+  if (!keepAllAlignmentMemory && config.keepAllAlignmentMinThreshold) {
+      if (percentBookAligned < config.keepAllAlignmentMinThreshold) {
           keepAllAlignmentMemory = true
       }
   }
@@ -481,7 +485,7 @@ export async function createTrainedWordAlignerModel(worker: Worker, data: TTrain
 
   delete wordMapOptions.progress_callback; // remove the progress callback since it will not pass well.
   return {
-      config: data.config,
+      config,
       contextId: data.contextId,
       currentBookVerseCounts: data.currentBookVerseCounts,
       currentSha: data.currentSha,

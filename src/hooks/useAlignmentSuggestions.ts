@@ -79,6 +79,7 @@ export interface TUseAlignmentSuggestionsReturn {
     actions: {
         areTrainingSameBook: (contextId: ContextId) => boolean;
         cleanupWorker: () => void;
+        deleteBookFromGroup: (bookId: string) => Promise<void>;
         getCurrentBookShaState: () => TBookShaState;
         getModelMetaData: () => TAlignmentMetaData|null;
         getSuggester: () => TSuggester;
@@ -86,6 +87,7 @@ export interface TUseAlignmentSuggestionsReturn {
         isTraining: () => boolean;
         loadTranslationMemory: (translationMemory: TTranslationMemoryType) => Promise<void>;
         loadTranslationMemoryWithBook: (bookId: string, originalBibleBookUsfm: string, targetBibleBookUsfm: string) => void;
+        saveChangedSettings: (config: TAlignmentSuggestionsConfig) => Promise<void>;
         suggester: TSuggester;
         startTraining: () => void;
         stopTraining: () => void;
@@ -176,9 +178,16 @@ export const getModelKey = (contextId: ContextId): string => {
  * @param {string} targetLanguageId - The identifier for the target language.
  * @param {number} maxComplexity - The maximum complexity level for the language preferences.
  * @param {React.RefObject<IndexedDBStorage | null>} dbStorageRef - A React reference object pointing to the IndexedDB storage instance.
+ * @param {TAlignmentSuggestionsConfig} config
  * @return {Promise<void>} A promise that resolves when the language preferences have been successfully stored, or returns early if the storage is not ready.
  */
-async function storeLanguagePreferences(sourceLanguageId: string, targetLanguageId: string, maxComplexity: number, dbStorageRef: React.RefObject<IndexedDBStorage | null>) {
+async function storeLanguagePreferences(
+    sourceLanguageId: string,
+    targetLanguageId: string,
+    maxComplexity: number,
+    dbStorageRef: React.RefObject<IndexedDBStorage | null>,
+    config: TAlignmentSuggestionsConfig,
+) {
     if (!dbStorageRef?.current?.isReady()) {
         console.log('storeLanguagePreferences() - storage not ready');
         return
@@ -188,6 +197,7 @@ async function storeLanguagePreferences(sourceLanguageId: string, targetLanguage
     const langSettingsPair = getLangPair(sourceLanguageId, targetLanguageId);
     const settings = {
         maxComplexity,
+        config,
     }
     await dbStorageRef.current.setItem(langSettingsPair, JSON.stringify(settings));
 }
@@ -216,6 +226,30 @@ function getAlignmentMemoryKey(group_name: string) {
     return `memory_${group_name}`;
 }
 
+function getDefaultConfig(config_: TAlignmentSuggestionsConfig) {
+    const defaultConfig = {
+        ...config_,
+        doAutoLoadCachedTraining: config_.doAutoLoadCachedTraining ?? true,
+        doAutoTraining: config_.doAutoTraining ?? false,
+        keepAllAlignmentMemory: config_.keepAllAlignmentMemory ?? true,
+        keepAllAlignmentMinThreshold: config_.keepAllAlignmentMinThreshold ?? 90,
+        minTrainingVerseRatio: config_.minTrainingVerseRatio ?? 1.1,
+        sourceNgramLength: config_.sourceNgramLength ?? 3,
+        targetNgramLength: config_.targetNgramLength ?? 5,
+        train_steps: config_.train_steps ?? 1000,
+        trainOnlyOnCurrentBook: config_.trainOnlyOnCurrentBook ?? false,
+    }
+    // if (!isEqual(config_, defaultConfig)) {
+    //     // Compare each property in the configs
+    //     for (const key in defaultConfig) {
+    //         if (!isEqual(defaultConfig[key], config_[key])) {
+    //             console.log(`getDefaultConfig - value for '${key}' changed from ${config_[key]} to ${defaultConfig[key]}`);
+    //         }
+    //     }
+    // }
+    return defaultConfig;
+}
+
 /**
  * Handles alignment suggestions and manages their state, training process, and updates.
  *
@@ -228,14 +262,14 @@ function getAlignmentMemoryKey(group_name: string) {
  * @param {Object} useAlignmentSuggestionsProps - Object containing properties for alignment suggestions.
  * @param {string} useAlignmentSuggestionsProps.contextId - Identifier for the current alignment context.
  * @param {function} useAlignmentSuggestionsProps.createAlignmentTrainingWorker - Function to create a web worker for training.
- * @param {function} useAlignmentSuggestionsProps.handleSetTrainingState - Callback to handle updates to the training state.
+ * @param {function} useAlignmentSuggestionsProps.handleTrainingStateChange - Callback to handle updates to the training state.
  * @param {boolean} useAlignmentSuggestionsProps.shown - Indicator whether the alignment suggestions are visible.
  * @param {string} useAlignmentSuggestionsProps.sourceLanguageId - Identifier for the source language.
  * @param {string} useAlignmentSuggestionsProps.targetLanguageId - Identifier for the target language.
  * @return {Object} useAlignmentSuggestionsReturn - An object containing state, utilities, and actions related to alignment suggestions.
  */
 export const useAlignmentSuggestions = ({
-    config,
+    config: config_,
     contextId,
     createAlignmentTrainingWorker,
     handleTrainingCompleted,
@@ -247,6 +281,7 @@ export const useAlignmentSuggestions = ({
 }: TUseAlignmentSuggestionsProps): TUseAlignmentSuggestionsReturn => {
     const dbStorageRef = useRef<IndexedDBStorage | null>(null);
 
+    const configRef = useRef<TAlignmentSuggestionsConfig>(getDefaultConfig(config_));
     const [state, _setState] = useState<TAlignmentSuggestionsState>(defaultAppState(contextId));
     //also hold the state in a ref so that callbacks can get the up-to-date information.
     //https://stackoverflow.com/a/60643670
@@ -378,6 +413,42 @@ export const useAlignmentSuggestions = ({
         const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
         const hashArray = Array.from(new Uint8Array(hashBuffer));
         return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+    }
+    
+    /**
+     * Deletes a book from a specific group within the current context.
+     * This function identifies a group using a derived group name and removes the book
+     * associated with the provided `bookId` if it exists within the group's book collection.
+     * It also updates the application state and caches the new group settings.
+     *
+     * @async
+     * @param {string} bookId - The unique identifier of the book to be removed from the group.
+     * @throws Will log an error message if the book is not found or if the group does not exist.
+     */
+    const deleteBookFromGroup = async (bookId: string) => {
+        console.log(`deleteBookFromGroup - ${bookId}`);
+        const group_name = getGroupName(contextId)
+        let newGroupCollection_ = stateRef.current?.groupCollection;
+        const group = newGroupCollection_?.groups?.[group_name];
+        if (group) {
+            if (group.books?.[bookId]) {
+                const newBooks_ = {...group.books}
+                delete newBooks_[bookId]; // remove specified book
+                const newGroup_ = new Group(newBooks_);
+                const newGroups = {...newGroupCollection_.groups, [group_name]: newGroup_};
+                newGroupCollection_ = new GroupCollection(newGroups, newGroupCollection_.instanceCount + 1);
+
+                setState( { ...stateRef.current, groupCollection: newGroupCollection_ });
+
+                // cache updated group settings
+                await saveCurrentGroup(group_name, newGroupCollection_.groups[group_name]);
+                console.log(`deleteBookFromGroup - deleted alignment memory for {bookId}`);
+            } else {
+                console.error(`deleteBookFromGroup - ERROR book not found ${bookId}`);
+            }
+        } else {
+            console.error(`deleteBookFromGroup - ERROR group not found: ${group_name}`);
+        }
     }
 
     /**
@@ -590,7 +661,7 @@ export const useAlignmentSuggestions = ({
                     
                     const alignmentTrainingData: TTrainingAndTestingData = {
                         ...alignmentTrainingData_,
-                        config,
+                        config: configRef.current,
                         contextId: contextId_,
                         currentBookVerseCounts,
                         currentSha: currentShasRef.current?.[bookId] || '',
@@ -642,7 +713,7 @@ export const useAlignmentSuggestions = ({
                             setState( { ...stateRef.current, trainingState: newTrainingState });
                             handleTrainingStateChange?.({training: false, trainingFailed: 'Timeout'});
 
-                            storeLanguagePreferences(sourceLanguageId, targetLanguageId, newMaxComplexity, dbStorageRef).then(() => {
+                            storeLanguagePreferences(sourceLanguageId, targetLanguageId, newMaxComplexity, dbStorageRef, configRef.current).then(() => {
                                 // Restart training if needed
                                 executeTraining();
                             })
@@ -991,6 +1062,9 @@ export const useAlignmentSuggestions = ({
                         maxComplexity_ = limitComplexity;
                     }
                 }
+                if (settings.config) {
+                    configRef.current = getDefaultConfig(settings.config);
+                }
             }
             setState( { ...stateRef.current, maxComplexity: maxComplexity_});
             if (maxComplexity_ === DEFAULT_MAX_COMPLEXITY) {
@@ -1067,6 +1141,7 @@ export const useAlignmentSuggestions = ({
         }
         
         return {
+            config: configRef.current,
             currentBookAlignmentInfo: bookAlignmentInfo,
             globalAlignmentBookVerseCounts: bookVerseCounts,
             message,
@@ -1136,6 +1211,7 @@ export const useAlignmentSuggestions = ({
     useEffect(() => {
         (async () => {
             let cachedDataLoaded = false;
+            const config = configRef.current;
             const doAutoLoad = config?.doAutoTraining || config?.doAutoLoadCachedTraining
             if (shown && modelKey && doAutoLoad) {
                 console.log(`useAlignmentSuggestions - modelKey changed to ${modelKey}`);
@@ -1183,7 +1259,7 @@ export const useAlignmentSuggestions = ({
 
     // Effect to load translation memory and start training when failure to load cached training Model
     useEffect(() => {
-        if (failedToLoadCachedTraining && config?.doAutoTraining) {
+        if (failedToLoadCachedTraining && configRef.current?.doAutoTraining) {
             console.log('useAlignmentSuggestions - failedToLoadCachedTraining', {failedToLoadCachedTraining, contextId, shown})
             const haveBook = contextId?.reference?.bookId;
             const autoTrainingCompleted = stateRef.current?.autoTrainingCompleted;
@@ -1258,11 +1334,23 @@ export const useAlignmentSuggestions = ({
     function getSuggester(): TSuggester {
         return alignmentPredictorRef.current?.predict.bind(alignmentPredictorRef.current) || null;
     }
+    
+    async function saveChangedSettings(config: TAlignmentSuggestionsConfig) {
+        if (config) {
+            configRef.current = config;
+            await storeLanguagePreferences(
+                sourceLanguageId,
+                targetLanguageId,
+                maxComplexity,
+                dbStorageRef,
+                config
+            );
+        }
+    }
 
     /**
      * Saves the trained model and associated settings into local storage and invokes a callback function upon completion.
      *
-     * @param {React.RefObject<IndexedDBStorage | null>} dbStorageRef - A reference to the IndexedDBStorage object used for saving data.
      * @param {TAlignmentCompletedInfo} alignmentCompletedInfo - An object containing information about the completed model alignment, including model key and metadata.
      * @param {THandleTrainingCompleted | null} handleTrainingCompleted - A nullable callback function to handle post-training completion logic.
      * @return {Promise<void>} A promise that resolves once the model and settings have been successfully saved, or if the storage is not ready.
@@ -1297,7 +1385,13 @@ export const useAlignmentSuggestions = ({
         delete saveData.model
         modelMetaDataRef.current = saveData // keep latest
             
-        await storeLanguagePreferences(alignmentCompletedInfo.sourceLanguageId, alignmentCompletedInfo.targetLanguageId, alignmentCompletedInfo.maxComplexity, dbStorageRef);
+        await storeLanguagePreferences(
+            alignmentCompletedInfo.sourceLanguageId,
+            alignmentCompletedInfo.targetLanguageId,
+            alignmentCompletedInfo.maxComplexity,
+            dbStorageRef,
+            configRef.current,
+        );
         console.log(`saveModelAndSettings() - setting maxComplexity to ${alignmentCompletedInfo.maxComplexity}`);
 
         handleTrainingCompleted?.(alignmentCompletedInfo);
@@ -1315,6 +1409,7 @@ export const useAlignmentSuggestions = ({
         actions: {
             areTrainingSameBook,
             cleanupWorker,
+            deleteBookFromGroup,
             getCurrentBookShaState,
             getModelMetaData,
             getSuggester,
@@ -1322,6 +1417,7 @@ export const useAlignmentSuggestions = ({
             isTraining,
             loadTranslationMemory,
             loadTranslationMemoryWithBook,
+            saveChangedSettings,
             startTraining,
             stopTraining: _stopTraining,
             suggester,

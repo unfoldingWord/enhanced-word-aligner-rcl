@@ -12,9 +12,10 @@ import {Token} from 'wordmap-lexer'
 
 import {TBookShaState, useAlignmentSuggestions} from '@/hooks/useAlignmentSuggestions';
 import {createAlignmentTrainingWorker as createAlignmentTrainingWorker_} from '@/workers/utils/startAlignmentTrainer';
-import {TAlignmentCompletedInfo, TAlignmentSuggestionsConfig} from '@/workers/WorkerComTypes';
-import delay from "@/utils/delay";
+import {TAlignmentCompletedInfo, TAlignmentSuggestionsConfig, TAlignmentMetaData} from '@/workers/WorkerComTypes';
 import {useTrainingState} from '@/hooks/useTrainingState';
+import ModelInfoDialog from './ModelInfoDialog';
+import delay from "@/utils/delay";
 
 interface EnhancedWordAlignerProps {
     asyncSuggester?: (
@@ -27,7 +28,6 @@ interface EnhancedWordAlignerProps {
     contextId: ContextId;
     createAlignmentTrainingWorker: () => Promise<Worker>;
     doTraining: boolean;
-    handleInfoClick: (TAlignmentCompletedInfo) => void;
     handleTrainingStateChange?: THandleTrainingStateChange;
     hasRenderedSuggestions?: boolean;
     lexiconCache?: Record<string, any>;
@@ -79,7 +79,6 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     doTraining,
     lexiconCache,
     loadLexiconEntry,
-    handleInfoClick,
     handleTrainingStateChange: handleTrainingStateChange_,
     hasRenderedSuggestions,
     onChange,
@@ -97,6 +96,9 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     translationMemory,
     verseAlignments,
 }) => {
+    const [showModelDialog, setShowModelDialog] = useState(false);
+    const [modelInfo, setModelInfo] = useState<TAlignmentMetaData | null>(null);
+
     const handleTrainingCompleted = (info: TAlignmentCompletedInfo) => {
         console.log('handleTrainingCompleted', info);
     }
@@ -118,10 +120,12 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     const {
         actions: {
             cleanupWorker,
+            deleteBookFromGroup,
             getCurrentBookShaState,
             getModelMetaData,
             isTraining,
             loadTranslationMemory,
+            saveChangedSettings,
             suggester,
             startTraining,
             stopTraining,
@@ -138,6 +142,27 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
         translationMemory,
     });
 
+    const handleConfigChange = (newConfig: TAlignmentSuggestionsConfig) => {
+        // setShowModelDialog(false);
+        saveChangedSettings(newConfig).then(() => {
+            handleInfoClick_()
+        });
+    };
+
+    function handleInfoClick_() {
+        // console.log('handleInfoClick');
+        const info = getModelMetaData()
+        setModelInfo(info);
+        setShowModelDialog(true);
+    }
+    
+    const handleDeleteBook = (bookId: string) => {
+        console.log(`Delete alignment data for book: ${bookId}`);
+        deleteBookFromGroup(bookId).then(() => {
+            handleInfoClick_()
+        });
+    };
+
     useEffect(() => {
         console.log(`checksumGenerated = ${checksumGenerated}, translationMemoryLoaded = ${translationMemoryLoaded}`);
         if (checksumGenerated && translationMemoryLoaded && trainingComplete && config?.doAutoTraining) {
@@ -149,12 +174,6 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             }
         }
     },[checksumGenerated, translationMemoryLoaded, trainingComplete]);
-    
-    function handleInfoClick_() {
-        // console.log('handleInfoClick');
-        const info = getModelMetaData()
-        handleInfoClick?.(info)
-    }
     
     // Effect to load translation memory when it changes
     useEffect(() => {
@@ -182,26 +201,36 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     },[doTraining]);
 
     return (
-        <SuggestingWordAligner
-            contextId={contextId}
-            handleInfoClick={handleInfoClick_}
-            hasRenderedSuggestions={hasRenderedSuggestions}
-            lexiconCache={lexiconCache}
-            loadLexiconEntry={loadLexiconEntry}
-            onChange={onChange}
-            showPopover={showPopover}
-            sourceLanguage={sourceLanguageId}
-            sourceLanguageFont={sourceLanguageFont}
-            sourceFontSizePercent={sourceFontSizePercent}
-            suggestionsOnly={suggestionsOnly}
-            style={styles}
-            suggester={suggester}
-            targetWords={targetWords}
-            translate={translate}
-            targetLanguageFont={targetLanguageFont}
-            targetFontSizePercent={targetFontSizePercent}
-            translationMemory={translationMemory}
-            verseAlignments={verseAlignments}
-        />
+        <>
+            <SuggestingWordAligner
+                contextId={contextId}
+                handleInfoClick={handleInfoClick_}
+                hasRenderedSuggestions={hasRenderedSuggestions}
+                lexiconCache={lexiconCache}
+                loadLexiconEntry={loadLexiconEntry}
+                onChange={onChange}
+                showPopover={showPopover}
+                sourceLanguage={sourceLanguageId}
+                sourceLanguageFont={sourceLanguageFont}
+                sourceFontSizePercent={sourceFontSizePercent}
+                suggestionsOnly={suggestionsOnly}
+                style={styles}
+                suggester={suggester}
+                targetWords={targetWords}
+                translate={translate}
+                targetLanguageFont={targetLanguageFont}
+                targetFontSizePercent={targetFontSizePercent}
+                translationMemory={translationMemory}
+                verseAlignments={verseAlignments}
+            />
+            {showModelDialog && modelInfo && (
+                <ModelInfoDialog
+                    onConfigChange={handleConfigChange}
+                    handleDeleteBook={handleDeleteBook}
+                    info={modelInfo}
+                    onClose={() => setShowModelDialog(false)} 
+                />
+            )}
+        </>
     )
 }

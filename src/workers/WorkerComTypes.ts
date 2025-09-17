@@ -117,10 +117,13 @@ export interface TWordAlignmentTestResults{
 export interface TAlignmentSuggestionsConfig {
     doAutoLoadCachedTraining?: boolean; // set true to auto load previous cached training for book
     doAutoTraining?: boolean; // set true to enable auto training of alignment suggestions
-    trainOnlyOnCurrentBook?: boolean; // if true, then training is sped up for small books by just training on alignment memory data for current book
-    minTrainingVerseRatio?: number; // if trainOnlyOnCurrentBook, then this is protection for the case that the book is not completely aligned.  If a ratio such as 1.0 is set, then training will use the minimum number of verses for training.  This minimum is calculated by multiplying the number of verses in the book by this ratio
     keepAllAlignmentMemory?: boolean; // EXPERIMENTAL FEATURE - if true, then alignment data not used for training will be added back into wordMap after training.  This should improve alignment vocabulary, but may negatively impact accuracy in the case of fully aligned books.
     keepAllAlignmentMinThreshold?: number; // EXPERIMENTAL FEATURE - if threshold percentage is set (such as value 60), then alignment data not used for training will be added back into wordMap after training, but only if the percentage of book alignment is less than this threshold.  This should improve alignment vocabulary for books not completely aligned
+    minTrainingVerseRatio?: number; // if trainOnlyOnCurrentBook, then this is protection for the case that the book is not completely aligned.  If a ratio such as 1.0 is set, then training will use the minimum number of verses for training.  This minimum is calculated by multiplying the number of verses in the book by this ratio
+    sourceNgramLength?: number; // wordMAP setting - maximum number of target words used for alignment memory default is 3
+    targetNgramLength?: number; // wordMAP setting - maximum number of target words used for alignment memory default is 5
+    train_steps: number; // Model Training setting - number passes at tweaking wordMap tunings, default is 1000
+    trainOnlyOnCurrentBook?: boolean; // if true, then training is sped up for small books by just training on alignment memory data for current book
 }
 
 export interface TAlignmentVerseCounts {
@@ -142,6 +145,7 @@ export interface TAlignmentCompletedInfo {
 }
 
 export interface TAlignmentMetaData {
+    config: TAlignmentSuggestionsConfig,
     currentBookAlignmentInfo?: TAlignmentCompletedInfo;
     globalAlignmentBookVerseCounts?: TBookVerseCounts;
     message: string;
