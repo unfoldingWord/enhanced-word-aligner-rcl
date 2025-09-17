@@ -96,7 +96,7 @@ const IntegerInput: React.FC<{
                     onChange={handleChange}
                     onBlur={handleBlur}
                     style={{
-                        width: '60px',
+                        width: 'fit-content',
                         padding: '4px 8px',
                         border: '1px solid #ddd',
                         borderRadius: '4px',
@@ -352,7 +352,7 @@ export const ModelInfoDialog: React.FC<{
             />;
         }
 
-        function createValueChange(props: {
+        function createValueInput(props: {
             id: string;
             label: string;
             variable: string;
@@ -405,7 +405,7 @@ export const ModelInfoDialog: React.FC<{
                     description: "Keep All Alignment Memory even alignments not used for training.  This should improve alignment vocabulary, but may negatively impact accuracy in the case of fully aligned books."
                 })}
 
-                {createValueChange({
+                {createValueInput({
                     id: "targetNgramLength",
                     label: "Target N-gram Length",
                     variable: "targetNgramLength",
@@ -414,7 +414,7 @@ export const ModelInfoDialog: React.FC<{
                     description: "Maximum number of target words used for alignment memory"
                 })}
 
-                {createValueChange({
+                {createValueInput({
                     id: "train_steps",
                     label: "Training Steps",
                     variable: "train_steps",
