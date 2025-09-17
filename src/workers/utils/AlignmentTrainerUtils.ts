@@ -437,9 +437,9 @@ export async function createTrainedWordAlignerModel(worker: Worker, data: TTrain
         forceOccurrenceOrder: false,
         nGramWarnings: false,
         progress_callback,
-        sourceNgramLength: config.targetNgramLength || 3,
-        targetNgramLength: config.targetNgramLength || 5,
-        train_steps: config.train_steps || 1000,
+        sourceNgramLength: config.sourceNgramLength ?? 3,
+        targetNgramLength: config.targetNgramLength ?? 5,
+        train_steps: config.train_steps ?? 1000,
         verbose_training: false,
         warnings: false,
     };

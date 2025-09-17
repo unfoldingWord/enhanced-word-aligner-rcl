@@ -21,9 +21,9 @@ console.log('Loading WordAlignerComponent.md');
 const doAutoLoadCachedTraining = false; // set true to auto load previous cached training for book
 const doAutoTraining = false; // set true to enable auto training of alignment suggestions
 const suggestionsOnly = false;  // set true to remove clear button and add suggestion label
-const trainOnlyOnCurrentBook = true; // if true, then training is sped up for small books by just training on alignment memory data for current book
+const trainOnlyOnCurrentBook = true; // if true, then training is sped up for small books by just training on alignment memory data for current book. This could improve suggestions if book is fully aligned, but will have no vocabulary from other books.
 const minTrainingVerseRatio = 1.1; // if trainOnlyOnCurrentBook, then this is protection for the case that the book is not completely aligned.  If a ratio such as 1.0 is set, then training will use the minimum number of verses for training.  This minimum is calculated by multiplying the number of verses in the book by this ratio
-const keepAllAlignmentMemory = false; // EXPERIMENTAL FEATURE - if true, then alignment data not used for training will be added back into wordMap after training.  This should improve alignment vocabulary, but may negatively impact accuracy in the case of fully aligned books.
+const keepAllAlignmentMemory = true; // EXPERIMENTAL FEATURE - if true, then alignment data not used for training will be added back into wordMap after training.  This should improve alignment vocabulary, but may negatively impact accuracy in the case of fully aligned books.
 const keepAllAlignmentMinThreshold = 90; // EXPERIMENTAL FEATURE - if threshold percentage is set (such as value 60), then alignment data not used for training will be added back into wordMap after training, but only if the percentage of book alignment is less than this threshold.  This should improve alignment vocabulary for books not completely aligned
 
 const targetLanguageId = 'en';

@@ -15,6 +15,7 @@ import {createAlignmentTrainingWorker as createAlignmentTrainingWorker_} from '@
 import {TAlignmentCompletedInfo, TAlignmentSuggestionsConfig, TAlignmentMetaData} from '@/workers/WorkerComTypes';
 import {useTrainingState} from '@/hooks/useTrainingState';
 import ModelInfoDialog from './ModelInfoDialog';
+import delay from "@/utils/delay";
 
 interface EnhancedWordAlignerProps {
     asyncSuggester?: (
@@ -124,6 +125,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             getModelMetaData,
             isTraining,
             loadTranslationMemory,
+            saveChangedSettings,
             suggester,
             startTraining,
             stopTraining,
@@ -140,13 +142,18 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
         translationMemory,
     });
 
+    const handleConfigChange = (newConfig: TAlignmentSuggestionsConfig) => {
+        // setShowModelDialog(false);
+        saveChangedSettings(newConfig).then(() => {
+            handleInfoClick_()
+        });
+    };
+
     function handleInfoClick_() {
         // console.log('handleInfoClick');
         const info = getModelMetaData()
         setModelInfo(info);
         setShowModelDialog(true);
-
-        // handleInfoClick?.(info)
     }
     
     const handleDeleteBook = (bookId: string) => {
@@ -218,6 +225,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             />
             {showModelDialog && modelInfo && (
                 <ModelInfoDialog
+                    onConfigChange={handleConfigChange}
                     handleDeleteBook={handleDeleteBook}
                     info={modelInfo}
                     onClose={() => setShowModelDialog(false)} 
