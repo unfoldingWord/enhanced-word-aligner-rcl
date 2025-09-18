@@ -1,3 +1,38 @@
+
+/**
+ * useAlignmentSuggestions Hook
+ * ============================
+ *
+ * @synopsis
+ * A React hook that manages the training and application of word alignment suggestions 
+ * for Bible translation projects using machine learning techniques.
+ *
+ * @description
+ * This hook is the core engine behind automated word alignment suggestions, managing the 
+ * entire lifecycle of alignment models - from training to application. It handles 
+ * translation memory loading, model training via web workers, persistence of trained 
+ * models, and generation of alignment suggestions. The hook maintains state about 
+ * training progress and provides methods to control the alignment process.
+ *
+ * Key features:
+ * - Translation memory management for source and target texts
+ * - Web worker-based training of alignment models
+ * - Caching of trained models in IndexedDB for persistence
+ * - Dynamic complexity adjustment based on performance
+ * - Suggestion generation for word alignments
+ * - Book-specific and language-pair-specific training
+ * - Training progress monitoring and status reporting
+ *
+ * @properties
+ * The hook accepts configuration and context information and returns state and actions
+ *
+ * @requirements
+ * - React 16.8+ (uses hooks)
+ * - Web Worker support in the browser
+ * - IndexedDB support for model caching
+ * - Access to cryptographic functions for checksums
+ */
+
 import {
     useCallback,
     useEffect,
@@ -43,19 +78,35 @@ import {
 } from '@/workers/WorkerComTypes';
 import {makeTranslationMemory, START_TRAINING} from '@/workers/utils/AlignmentTrainerUtils';
 
-// console.log('useAlignmentSuggestions.ts AlignmentWorker', AlignmentWorker);
-
 export type THandleTrainingCompleted = (info: TAlignmentCompletedInfo) => void;
 
 export interface TUseAlignmentSuggestionsProps {
+    /** Configuration options for alignment suggestions behavior */
     config?: TAlignmentSuggestionsConfig;
+    
+    /** Current Bible reference context (bible, book, chapter, verse) */
     contextId: ContextId;
-    createAlignmentTrainingWorker?:() => Promise<Worker>; // needed to support alignment training in a web worker
+    
+    /** Function to create a web worker for alignment training, this allows to override
+     * default behavior to support other platforms such as nextJS */
+    createAlignmentTrainingWorker?:() => Promise<Worker>;
+    
+    /** Callback for training state changes */
     handleTrainingStateChange?: THandleTrainingStateChange;
-    handleTrainingCompleted?: THandleTrainingCompleted ;
+    
+    /** Callback for training completion */
+    handleTrainingCompleted?: THandleTrainingCompleted;
+    
+    /** Flag indicating if the alignment suggestions are visible */
     shown: boolean;
+    
+    /** ID of the source language (e.g., 'hbo' for Hebrew) */
     sourceLanguageId: string;
+    
+    /** ID of the target language (e.g., 'es' for Spanish) */
     targetLanguageId: string;
+    
+    /** Pre-loaded translation memory for alignment */
     translationMemory?: TTranslationMemoryType;
 }
 
@@ -64,32 +115,74 @@ export type TSuggester =
     | null;
 
 export interface TBookShaState {
+    /** SHA hash of the previously trained book content */
     trainedSha: string | undefined;
+    
+    /** SHA hash of the current book content */
     currentBookSha: string | undefined;
+    
+    /** Flag indicating if the book content has changed since last training */
     bookShaChanged: boolean;
 }
 
 export interface TUseAlignmentSuggestionsReturn {
+    /** Current state values for alignment suggestions */
     state: {
+        /** Flag indicating if loading cached training data failed */
         failedToLoadCachedTraining: boolean;
+        
+        /** Maximum complexity level for alignment processing */
         maxComplexity: number;
+        
+        /** Current training state information */
         trainingState: TrainingState;
+        
+        /** Flag indicating if training is currently running */
         trainingRunning: boolean;
     },
+    
+    /** Actions available to interact with alignment suggestions */
     actions: {
+        /** Checks if current training is for the same book as specified context */
         areTrainingSameBook: (contextId: ContextId) => boolean;
+        
+        /** Terminates worker and cleans up resources */
         cleanupWorker: () => void;
+        
+        /** Removes a book from the alignment memory */
         deleteBookFromGroup: (bookId: string) => Promise<void>;
+        
+        /** Gets the SHA state of the current book */
         getCurrentBookShaState: () => TBookShaState;
+        
+        /** Retrieves metadata about the current alignment model */
         getModelMetaData: () => TAlignmentMetaData|null;
+        
+        /** Returns the current suggestion function */
         getSuggester: () => TSuggester;
+        
+        /** Gets the context ID used for the current training */
         getTrainingContextId: () => ContextId;
+        
+        /** Checks if alignment training is currently running */
         isTraining: () => boolean;
+        
+        /** Loads translation memory from provided data */
         loadTranslationMemory: (translationMemory: TTranslationMemoryType) => Promise<void>;
+        
+        /** Loads translation memory from book content */
         loadTranslationMemoryWithBook: (bookId: string, originalBibleBookUsfm: string, targetBibleBookUsfm: string) => void;
+        
+        /** Saves updated configuration settings */
         saveChangedSettings: (config: TAlignmentSuggestionsConfig) => Promise<void>;
+        
+        /** Current suggestion function for generating alignment suggestions */
         suggester: TSuggester;
+        
+        /** Initiates the alignment training process */
         startTraining: () => void;
+        
+        /** Stops the currently running alignment training */
         stopTraining: () => void;
     };
 }
@@ -101,6 +194,13 @@ function getSelectionFromContext(contextId: ContextId) {
     return currentSelection;
 }
 
+/**
+ * Initializes and returns the default state for alignment suggestions
+ * based on the provided context identifier.
+ *
+ * @param {ContextId} contextId - The context identifier used to derive specific state values.
+ * @return {TAlignmentSuggestionsState} - The default state for alignment suggestions.
+ */
 function defaultAppState(contextId: ContextId): TAlignmentSuggestionsState {
     const newGroups : {[key:string]: Group} = {};
     const groupCollection = new GroupCollection(newGroups, 0);
@@ -118,6 +218,14 @@ function defaultAppState(contextId: ContextId): TAlignmentSuggestionsState {
     }
 }
 
+/**
+ * Creates and returns the default training state for a given context ID.
+ *
+ * @param {ContextId} contextId - The unique identifier for the training context.
+ * @return {TrainingState} The default training state object containing the context ID,
+ *                          current and last trained instance counts initialized to -1,
+ *                          and an empty training status output.
+ */
 function defaultTrainingState(contextId: ContextId): TrainingState {
     return {
         contextId,
@@ -749,6 +857,8 @@ export const useAlignmentSuggestions = ({
                             //Load the trained model and put it somewhere it can be used.
                             const elapsedMinutes = _getMinuteCounter();
                             console.log(`executeTraining() - Training completed in ${elapsedMinutes} minutes`);
+                            console.log(`executeTraining() - Training completed after ${getElapsedMinutes(trainingStartTime)} actual minutes`);
+
                             if (elapsedMinutes > THRESHOLD_TRAINING_MINUTES) {
                                 if (elapsedMinutes > WORKER_TIMEOUT) {
                                     console.log(`executeTraining() - elapsed time greater than timeout, likely went to sleep`);
