@@ -68,7 +68,7 @@ class Localization {
      * @returns The translated string or the key if no translation is found
      */
     public translate(key: string, params?: Record<string, string | number>): string {
-        const localeMap = this.localeData[this.currentLanguage];
+        const localeMap = this.localeData?.[this.currentLanguage];
         const localeString = localeMap?.[key];
         if (localeString) {
             return this.substituteParams(localeString, params);
