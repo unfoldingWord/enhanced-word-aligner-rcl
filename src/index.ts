@@ -6,6 +6,7 @@ import { useTrainingState } from './hooks/useTrainingState';
 import * as AlignmentTrainerUtils from './workers/utils/AlignmentTrainerUtils'
 import AlignmentTrainerWorker from './workers/AlignmentTrainer.worker'
 import { createAlignmentTrainingWorker } from './workers/utils/startAlignmentTrainer'
+import * as Localization  from "./utils/localization";
 import {
     AlignmentHelpers,
     bibleHelpers,
@@ -21,6 +22,7 @@ export {
     bibleHelpers,
     createAlignmentTrainingWorker,
     EnhancedWordAligner,
+    Localization,
     SuggestingWordAligner,
     useAlignmentSuggestions,
     useTrainingState,
