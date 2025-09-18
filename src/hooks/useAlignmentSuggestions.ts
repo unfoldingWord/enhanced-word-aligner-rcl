@@ -565,7 +565,6 @@ export const useAlignmentSuggestions = ({
      * @throws Error if no resources are selected or if USFM content is missing
      */
     const loadTranslationMemory = useCallback(async (translationMemory: TTranslationMemoryType) => {
-        //ask the user to make a selection if no resources are selected.
         const targetUsfms = translationMemory?.targetUsfms;
         if (!targetUsfms) {
             throw new Error('loadTranslationMemory - No USFM source content to add');

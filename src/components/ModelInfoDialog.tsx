@@ -1,3 +1,36 @@
+
+/**
+ * ModelInfoDialog Component
+ * =========================
+ *
+ * @synopsis
+ * A React dialog component that displays information about trained alignment models
+ * and provides configuration controls for alignment settings.
+ *
+ * @description
+ * ModelInfoDialog presents detailed information about trained alignment models, including
+ * book-specific statistics, alignment memory usage, and training status. It also provides
+ * a user interface for configuring alignment behavior through toggles and input fields.
+ * 
+ * The dialog allows users to:
+ * - View current book alignment information
+ * - See training statistics for aligned verses
+ * - Configure alignment settings like auto-training and n-gram length
+ * - Delete alignment data for specific books
+ * - View global alignment memory statistics
+ *
+ * The component uses styled dialog elements with a modal overlay and supports both
+ * boolean toggles and numeric input fields for configuration options.
+ *
+ * @properties
+ * The component accepts props for model information, callbacks, and localization
+ *
+ * @requirements
+ * - Requires TAlignmentMetaData from WorkerComTypes
+ * - Needs translation function for internationalization
+ * - Requires callbacks for configuration changes and book deletion
+ */
+
 import React from 'react';
 import {
     TAlignmentMetaData,
@@ -42,13 +75,21 @@ const DialogOverlay: React.FC<{children: React.ReactNode, onClose: () => void}> 
 
 // Add this component for the integer input
 const IntegerInput: React.FC<{
+    /** Unique identifier for the input field */
     id: string,
+    /** Display label for the input field */
     label: string,
+    /** Minimum allowed value */
     min: number,
+    /** Maximum allowed value */
     max: number,
-    variable: string
+    /** Configuration variable name to update */
+    variable: string,
+    /** Current value of the input */
     value: number | undefined,
+    /** Callback when value changes */
     onChange: (variable: string, value: number) => void,
+    /** Optional description text shown below the input */
     description?: string
 }> = ({ id, label, min, max, variable, value, onChange, description }) => {
     const [inputValue, setInputValue] = React.useState(value?.toString() || '');
@@ -114,11 +155,17 @@ const IntegerInput: React.FC<{
 };
 
 const ToggleSwitch: React.FC<{
+    /** Unique identifier for the toggle */
     id: string,
+    /** Display label for the toggle */
     label: string,
+    /** Configuration variable name to update */
     variable: string,
+    /** Current state of the toggle */
     isChecked: boolean,
+    /** Callback when toggle state changes */
     onChange: (id: string, checked: boolean) => void,
+    /** Optional description text shown below the toggle */
     description?: string
 }> = ({ id, label, variable, isChecked, onChange, description }) => {
     // Fixed toggle implementation
@@ -191,10 +238,15 @@ const ToggleSwitch: React.FC<{
 };
 
 export const ModelInfoDialog: React.FC<{
+    /** Function to handle book deletion from alignment memory */
     handleDeleteBook: (bookId: string) => void,
+    /** Model metadata and information to display */
     info: TAlignmentMetaData,
+    /** Function to close the dialog */
     onClose: () => void,
+    /** Optional callback for configuration changes */
     onConfigChange?: (config: TAlignmentSuggestionsConfig) => void,
+    /** Translation function for internationalization */
     translate: (key: string, params?: Record<string, string | number>) => string,
 }> = ({handleDeleteBook, info, onClose, onConfigChange,translate}) => {
     const {
@@ -417,11 +469,20 @@ export const ModelInfoDialog: React.FC<{
                 })}
 
                 {createValueInput({
+                    id: "sourceNgramLength",
+                    label: translate('training.source_ngram_label'),
+                    variable: "sourceNgramLength",
+                    min: 3,
+                    max: 10,
+                    description: translate('training.source_ngram_hint')
+                })}
+
+                {createValueInput({
                     id: "train_steps",
                     label: translate('training.training_steps_label'),
                     variable: "train_steps",
                     min: 100,
-                    max: 1000,
+                    max: 2000,
                     description: translate('training.training_steps_hint')
                 })}
 
