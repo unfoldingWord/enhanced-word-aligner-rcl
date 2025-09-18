@@ -143,7 +143,7 @@ interface EnhancedWordAlignerProps {
     targetWords: TargetWordBank[];
     
     /** Function to translate UI strings */
-    translate: (key: string) => string;
+    translate: (key: string, params?: Record<string, string | number>) => string;
     
     /** Existing translation memory for alignment suggestions */
     translationMemory?: TTranslationMemoryType;
@@ -395,7 +395,8 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
                     onConfigChange={handleConfigChange}
                     handleDeleteBook={handleDeleteBook}
                     info={modelInfo}
-                    onClose={() => setShowModelDialog(false)} 
+                    onClose={() => setShowModelDialog(false)}
+                    translate={translate}
                 />
             )}
         </>

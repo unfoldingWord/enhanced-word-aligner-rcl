@@ -100,12 +100,12 @@ const IntegerInput: React.FC<{
                         padding: '4px 8px',
                         border: '1px solid #ddd',
                         borderRadius: '4px',
-                        fontSize: '14px'
+                        fontSize: '16px'
                     }}
                 />
             </div>
             {description && (
-                <div style={{ fontSize: '12px', color: '#7f8c8d', marginTop: '4px', paddingLeft: '4px' }}>
+                <div style={{ fontSize: '14px', color: '#7f8c8d', marginTop: '4px', paddingLeft: '4px' }}>
                     {description}
                 </div>
             )}
@@ -140,7 +140,8 @@ const ToggleSwitch: React.FC<{
                     style={{ 
                         marginRight: '8px', 
                         fontWeight: 500,
-                        color: '#2c3e50' 
+                        color: '#2c3e50',
+                        fontSize: '16px',
                     }}
                 >
                     {label}
@@ -181,7 +182,7 @@ const ToggleSwitch: React.FC<{
                 </div>
             </div>
             {description && (
-                <div style={{ fontSize: '12px', color: '#7f8c8d', marginTop: '4px', paddingLeft: '4px' }}>
+                <div style={{ fontSize: '14px', color: '#7f8c8d', marginTop: '4px', paddingLeft: '4px' }}>
                     {description}
                 </div>
             )}
@@ -193,9 +194,9 @@ export const ModelInfoDialog: React.FC<{
     handleDeleteBook: (bookId: string) => void,
     info: TAlignmentMetaData,
     onClose: () => void,
-    onConfigChange?: (config: TAlignmentSuggestionsConfig) => void
-
-}> = ({handleDeleteBook, info, onClose, onConfigChange}) => {
+    onConfigChange?: (config: TAlignmentSuggestionsConfig) => void,
+    translate: (key: string, params?: Record<string, string | number>) => string,
+}> = ({handleDeleteBook, info, onClose, onConfigChange,translate}) => {
     const {
         config,
         currentBookAlignmentInfo,
@@ -228,11 +229,12 @@ export const ModelInfoDialog: React.FC<{
  
         let content: React.ReactNode[] = [];
 
-        if (currentBookAlignmentInfo?.contextId?.reference?.bookId) {
+        const bookId_ = currentBookAlignmentInfo?.contextId?.reference?.bookId;
+        if (bookId_) {
             content.push(
                 <div key="current-book" style={{marginBottom: '20px'}}>
                     <h3 style={{color: '#2c3e50', marginBottom: '10px', fontSize: '16px'}}>
-                        Current Book: {currentBookAlignmentInfo.contextId.reference.bookId}
+                        {translate('training.current_book_title', {bookId: bookId_})}
                     </h3>
                 </div>
             );
@@ -242,11 +244,11 @@ export const ModelInfoDialog: React.FC<{
             const trained = currentBookAlignmentInfo.trainingInfo.alignmentMemoryVerseCounts.trained;
             content.push(
                 <div key="trained" style={{marginBottom: '20px'}}>
-                    <h4 style={{color: '#34495e', marginBottom: '8px'}}>Trained with aligned verses from Books:</h4>
+                    <h4 style={{color: '#34495e', marginBottom: '8px', fontSize: '16px'}}>{translate('training.trained_books_title')}</h4>
                     <div style={{paddingLeft: '16px'}}>
                         {Object.entries(trained.booksCount).map(([bookId, verseCount]) => (
                             <div key={bookId} style={{marginBottom: '4px', fontFamily: 'monospace'}}>
-                                {bookId} has {verseCount} aligned verses
+                                {translate('training.aligned_verse_count', {bookId, verseCount})}
                             </div>
                         ))}
                     </div>
@@ -258,11 +260,11 @@ export const ModelInfoDialog: React.FC<{
             const untrained = currentBookAlignmentInfo.trainingInfo.alignmentMemoryVerseCounts.untrained;
             content.push(
                 <div key="untrained" style={{marginBottom: '20px'}}>
-                    <h4 style={{color: '#34495e', marginBottom: '8px'}}>Untrained Alignment Memory verses from Books:</h4>
+                    <h4 style={{color: '#34495e', marginBottom: '8px', fontSize: '16px'}}>{translate('training.untrained_books_title')}</h4>
                     <div style={{paddingLeft: '16px'}}>
                         {Object.entries(untrained.booksCount).map(([bookId, verseCount]) => (
                             <div key={bookId} style={{marginBottom: '4px', fontFamily: 'monospace'}}>
-                                {bookId} has {verseCount} aligned verses
+                                {translate('training.aligned_verse_count', {bookId, verseCount})}
                             </div>
                         ))}
                     </div>
@@ -273,7 +275,7 @@ export const ModelInfoDialog: React.FC<{
         if (content.length === 0 && !currentBookAlignmentInfo) {
             content.push(
                 <div key="no-data" style={{color: '#e74c3c', fontStyle: 'italic'}}>
-                    Alignment Data Not Loaded.
+                    {translate('training.alignment_not_loaded')}
                 </div>
             );
         }
@@ -296,7 +298,7 @@ export const ModelInfoDialog: React.FC<{
                                     paddingRight: '8px'
                                 }}>
                                     <span>
-                                        {bookId} has {totalVerseCounts} verses and is {percentAligned.toFixed(0)}% aligned
+                                        {translate('training.book_alignment_states', {bookId, totalVerseCounts, percentAligned: percentAligned.toFixed(0)})}
                                     </span>
                                     <button
                                         onClick={() => handleDeleteBook(bookId)}
@@ -313,9 +315,9 @@ export const ModelInfoDialog: React.FC<{
                                         }}
                                         onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#c0392b'}
                                         onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#e74c3c'}
-                                        title={`Delete alignment data for ${bookId}`}
+                                        title={translate('training.delete_book_hint', {bookId})}
                                     >
-                                        Delete
+                                        {translate('delete')}
                                     </button>
                                 </div>
                             );
@@ -328,7 +330,7 @@ export const ModelInfoDialog: React.FC<{
         if (content.length === 0 && !globalAlignmentBookVerseCounts) {
             content.push(
                 <div key="no-global" style={{color: '#e74c3c', fontStyle: 'italic'}}>
-                    Global Alignment Memory not loaded!
+                    {translate('training.alignment_memory_not_loaded')}
                 </div>
             );
         }
@@ -361,16 +363,16 @@ export const ModelInfoDialog: React.FC<{
             max: number;
         }) {
             const { id, label, variable, description, min, max } = props;
-            const description_ = `${description} (${min}-${max})`;
+            const label_ = `${label} (${min}-${max})`;
             return <IntegerInput
                 id={id}
-                label={label}
+                label={label_}
                 variable={variable}
                 min={min}
                 max={max}
                 value={config?.[variable]}
                 onChange={handleConfigTrainingChange}
-                description={description_}
+                description={description}
             />;
         }
 
@@ -382,45 +384,45 @@ export const ModelInfoDialog: React.FC<{
                 borderRadius: '6px',
                 border: '1px solid #eee'
             }}>
-                <h4 style={{color: '#2c3e50', marginTop: 0, marginBottom: '12px'}}>Alignment Settings</h4>
+                <h3 style={{color: '#2c3e50', marginTop: 0, marginBottom: '12px'}}>{translate('training.settings title')}</h3>
 
                 {createToggleSwitch({
                     id: "autoTrainingToggle",
-                    label: "Auto Training",
+                    label: translate('training.auto_training_label'),
                     variable: "doAutoTraining",
-                    description: "Automatically retrain alignment model when content changes"
+                    description: translate('training.auto_training_hint')
                 })}
 
                 {createToggleSwitch({
                     id: "trainOnlyOnCurrentBookToggle",
-                    label: "Train Only Current Book",
+                    label: translate('training.only_current_label'),
                     variable: "trainOnlyOnCurrentBook",
-                    description: "Run training using only alignments in current book.  Will speed up training for small books by just training on alignment memory data for current book. This could improve suggestions if book is fully aligned, but will have no vocabulary from other books."
+                    description: translate('training.only_current_hint'),
                 })}
 
                 {createToggleSwitch({
                     id: "keepAllAlignmentMemoryToggle",
-                    label: "Keep All Alignment Memory",
+                    label: translate('training.all_memory_label'),
                     variable: "keepAllAlignmentMemory",
-                    description: "Keep All Alignment Memory even alignments not used for training.  This should improve alignment vocabulary, but may negatively impact accuracy in the case of fully aligned books."
+                    description: translate('training.all_memory_hint'),
                 })}
 
                 {createValueInput({
                     id: "targetNgramLength",
-                    label: "Target N-gram Length",
+                    label: translate('training.target_ngram_label'),
                     variable: "targetNgramLength",
                     min: 3,
                     max: 10,
-                    description: "Maximum number of target words used for alignment memory"
+                    description: translate('training.target_ngram_hint')
                 })}
 
                 {createValueInput({
                     id: "train_steps",
-                    label: "Training Steps",
+                    label: translate('training.training_steps_label'),
                     variable: "train_steps",
                     min: 100,
                     max: 1000,
-                    description: "Number of training steps used for tweaking wordMap settings"
+                    description: translate('training.training_steps_label')
                 })}
 
             </div>;
@@ -444,7 +446,7 @@ export const ModelInfoDialog: React.FC<{
                     alignItems: 'center',
                     marginBottom: '20px'
                 }}>
-                    <h3 style={{margin: 0, color: '#2c3e50', fontSize: '20px'}}>Alignment Model Information</h3>
+                    <h3 style={{margin: 0, color: '#2c3e50', fontSize: '20px'}}>{translate('training.model_info_title')}</h3>
                     <button
                         onClick={onClose}
                         style={{

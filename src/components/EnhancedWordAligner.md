@@ -12,6 +12,7 @@ import usfm from 'usfm-js';
 import { EnhancedWordAligner } from './EnhancedWordAligner'
 import { extractVerseText } from '../utils/misc';
 import { useTrainingState } from '../hooks/useTrainingState'
+import { t } from '../utils/localization'
 import delay from "../utils/delay";
 
 import {NT_ORIG_LANG} from "../common/constants";
@@ -50,37 +51,9 @@ const LexiconData = require("../__tests__/fixtures/lexicon/lexicons.json");
 // const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryActs.json");
 // const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryRuth.json");
 const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryEphUST.json");
+const translations = require("../common/locales.json")
 
-const translate = (key) => {
-  const lookup = {
-    "suggestions.refresh_suggestions": "Refresh suggestions.",
-    "suggestions.refresh"            : "Refresh",
-    "suggestions.accept_suggestions" : "Accept all suggestions.",
-    "suggestions.accept"             : "Accept",
-    "suggestions.reject_suggestions" : "Reject all suggestions.",
-    "suggestions.reject"             : "Reject",
-    "alignments.clear_alignments"    : "Clear all alignments.",
-    "alignments.clear"               : "Clear",
-    "suggestions.title"              : "Suggestions:",
-    "suggestions.train_button"       : "Train",
-    "suggestions.train_button_hint"  : "Click to improve the quality of alignment suggestions based on currently loaded alignments",
-    "suggestions.stop_training_button" : "Stop Train",
-    "suggestions.status_training"    : "Currently Training ...",
-    "suggestions.status_retraining"  : "Currently Retraining ...",
-    "suggestions.status_trained"     : "Trained",
-    "suggestions.status_not_trained" : "Not Trained",
-    "suggestions.percent_complete"   : "% complete",
-    "suggestions.retrain_button"     : "Retrain",
-    "suggestions.retrain_button_hint": "Click to improve the quality of alignment suggestions based on current book alignments",
-  };
-  if (!(key in lookup)) {
-    const message = `translate(${key})`;
-    console.warn(`Not Translated ${key}`, message)
-    return message;
-  } else {
-    return lookup[key];
-  }
-};
+const translate = t;
 
 var sourceUsfm = translationMemory.sourceUsfms[bookId] || '';
 var targetUsfm = translationMemory.targetUsfms[bookId] || '';
