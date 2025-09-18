@@ -566,7 +566,8 @@ export const useAlignmentSuggestions = ({
      */
     const loadTranslationMemory = useCallback(async (translationMemory: TTranslationMemoryType) => {
         //ask the user to make a selection if no resources are selected.
-        if (!translationMemory?.targetUsfms) {
+        const targetUsfms = translationMemory?.targetUsfms;
+        if (!targetUsfms) {
             throw new Error('loadTranslationMemory - No USFM source content to add');
         }
 
@@ -577,11 +578,11 @@ export const useAlignmentSuggestions = ({
 
         // need to get the books from targetUsfms
         const newBooks: { [key: string]: Book } = {};
-        Object.entries(translationMemory?.targetUsfms).forEach(([bookId, usfm_book]) => {
+        Object.entries(targetUsfms).forEach(([bookId, usfm_book]) => {
             const usfm_json = usfm.toJSON(usfm_book, { convertToInt: ['occurrence', 'occurrences'] });
 
             const usfmHeaders = parseUsfmHeaders(usfm_json.headers);
-            const toc3Name = usfmHeaders.toc3; //label to use
+            const toc3Name = usfmHeaders.toc3 || bookId; //label to use
             const currentBookId = contextId?.reference?.bookId;
             if (bookId === currentBookId) {
                 currentBookName_ = usfmHeaders.h;
@@ -649,7 +650,7 @@ export const useAlignmentSuggestions = ({
             await saveCurrentGroup(group_name, newGroupCollection_.groups[group_name]);
 
             const bookId = contextId?.reference?.bookId;
-            const alignedBookUsfm = translationMemory?.targetUsfms?.[bookId] || '0';
+            const alignedBookUsfm = targetUsfms?.[bookId] || '0';
             const sha = await sha256Checksum(alignedBookUsfm); 
             console.log(`sha for alignments = ${sha}`);
             currentShasRef.current = { ...currentShasRef.current, [bookId]:sha}

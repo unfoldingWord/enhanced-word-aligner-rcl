@@ -74,9 +74,10 @@ export default class Group {
         //Now run through each of the imported books and match them up.
         Object.entries(usfm_json).forEach( ([filename,usfm_book]:[book_name:string,book_json:TUsfmBook]) => {
             const parsedUsfmHeaders = parseUsfmHeaders(usfm_book.headers);
-            
-            if( parsedUsfmHeaders.toc3 in toc3_books ){
-                const [bookName,book]:[string,Book] = toc3_books[parsedUsfmHeaders.toc3];
+
+            const toc3 = parsedUsfmHeaders.toc3 || filename;
+            if( toc3 in toc3_books ){
+                const [bookName,book]:[string,Book] = toc3_books[toc3];
                 const{ addedVerseCount, droppedVerseCount, modifiedBook } = book.addSourceUsfm( {usfm_book, isResourceSelected, group_name, book_name:bookName} )
                 totalAddedVerseCount += addedVerseCount;
                 totalDroppedVerseCount += droppedVerseCount;
