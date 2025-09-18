@@ -227,6 +227,15 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
         translationMemory,
     });
 
+    /**
+     * Handles changes to the configuration for alignment suggestions.
+     *
+     * This method is responsible for applying the new configuration settings
+     * and executing necessary actions upon successful save. It saves the updated
+     * settings and triggers an informational action once the save operation is completed.
+     *
+     * @param {TAlignmentSuggestionsConfig} newConfig - The updated configuration object for alignment suggestions.
+     */
     const handleConfigChange = (newConfig: TAlignmentSuggestionsConfig) => {
         // setShowModelDialog(false);
         saveChangedSettings(newConfig).then(() => {
@@ -234,20 +243,54 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
         });
     };
 
+    /**
+     * Handles the logic to display model information when the associated event is triggered.
+     * Retrieves model metadata, updates the model info state,
+     * and toggles the display of the model dialog.
+     *
+     * @return {void} No return value.
+     */
     function handleInfoClick_() {
         // console.log('handleInfoClick');
         const info = getModelMetaData()
         setModelInfo(info);
         setShowModelDialog(true);
     }
-    
+
+    /**
+     * Deletes a book by its identifier and performs subsequent actions.
+     *
+     * This function is used to delete the alignment data associated with a specific book
+     * identified by the provided `bookId`. Once the deletion process is successful,
+     * it triggers an informational action.
+     *
+     * @param {string} bookId - The unique identifier of the book to be deleted.
+     */
     const handleDeleteBook = (bookId: string) => {
         console.log(`Delete alignment data for book: ${bookId}`);
         deleteBookFromGroup(bookId).then(() => {
             handleInfoClick_()
         });
     };
-
+    
+     /**
+     * Auto-Training Effect
+     * ====================
+     * 
+     * @synopsis
+     * Monitors training prerequisites and automatically initiates training when content changes.
+     * 
+     * @requirements
+     * - Training prerequisites (checksumGenerated, translationMemoryLoaded, trainingComplete) must be true
+     * - Auto-training must be enabled in configuration (config.doAutoTraining)
+     * - Book content must have changed since last training (via SHA comparison)
+     * 
+     * @dependencies
+     * - checksumGenerated, translationMemoryLoaded, trainingComplete - Training state flags
+     * - config.doAutoTraining - Configuration setting
+     * - getCurrentBookShaState() - Function to check content changes
+     * - startTraining() - Function to initiate training
+     */
     useEffect(() => {
         console.log(`checksumGenerated = ${checksumGenerated}, translationMemoryLoaded = ${translationMemoryLoaded}`);
         if (checksumGenerated && translationMemoryLoaded && trainingComplete && config?.doAutoTraining) {
@@ -260,21 +303,61 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
         }
     },[checksumGenerated, translationMemoryLoaded, trainingComplete]);
     
-    // Effect to load translation memory when it changes
+    /**
+     * Translation Memory Loading Effect
+     * =================================
+     * 
+     * @synopsis
+     * Loads translation memory data when it becomes available or changes.
+     * 
+     * @requirements
+     * - Valid translation memory data must be provided
+     * - Translation memory object must contain at least one entry
+     * 
+     * @dependencies
+     * - addTranslationMemory - Object containing translation memory data
+     * - loadTranslationMemory() - Function to process the memory data
+     */
     useEffect(() => {
         if (addTranslationMemory && Object.keys(addTranslationMemory).length > 0) {
             loadTranslationMemory(addTranslationMemory);
         }
     }, [addTranslationMemory]);
     
-    //here we cleanup on close of the component.  This is needed because the worker is not terminated when the component is unmounted..
-    // TODO: this may not be desired
+    /**
+     * Component Cleanup Effect
+     * ========================
+     * 
+     * @synopsis
+     * Performs cleanup operations when the component unmounts.
+     * 
+     * @requirements
+     * - None (runs only during component unmount)
+     * 
+     * @dependencies
+     * - cleanupWorker() - Function to terminate workers and clear timeouts
+     */
     useEffect(() => {
         return () => {
             cleanupWorker();
         };
     },[]);
 
+    /**
+     * Training Control Effect
+     * ======================
+     * 
+     * @synopsis
+     * Controls alignment training based on the doTraining prop.
+     * 
+     * @requirements
+     * - doTraining prop must reflect desired training state
+     * 
+     * @dependencies
+     * - doTraining - Boolean flag indicating whether training should be active
+     * - isTraining() - Function to check current training status
+     * - startTraining(), stopTraining() - Functions to control training process
+     */
     useEffect(() => {
         const training = isTraining()
         console.log(`doTraining changed state to ${doTraining} but training is now ${training}`)
@@ -284,7 +367,6 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             stopTraining()
         }
     },[doTraining]);
-
     return (
         <>
             <SuggestingWordAligner

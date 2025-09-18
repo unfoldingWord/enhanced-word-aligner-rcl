@@ -92,7 +92,34 @@ export const useTrainingState = ({
     });
 
     /**
-     * Handles setting training state based on provided props
+     * Updates the training state based on the provided properties.
+     * This function handles changes in the training state by computing the new state,
+     * including properties like the training status, error messages, button labels,
+     * and percentage completion of the training progress. The updated state is then
+     * applied to the training state management system.
+     *
+     * If certain properties in the update are undefined, the current state values for those
+     * properties will be retained. Additionally, the function computes meaningful status
+     * strings and button hints based on the training progress or errors during training.
+     *
+     * Logs a message to the console if no `props` are provided or to display the new state
+     * upon updates.
+     *
+     * Dependencies:
+     * - `passThroughStateChange` (optional): A function that can process the incoming
+     *   training state change before the state update.
+     * - `setTrainingState`: State update function for managing the training-related state.
+     * - `translate`: Function utilized for obtaining localized strings for training status
+     *   descriptions and button labels.
+     *
+     * @param {TTrainingStateChange} props - Contains the properties that describe the new
+     * training state. Includes fields such as:
+     *   - `training` (boolean): Whether training is currently in progress.
+     *   - `trainingComplete` (boolean): Whether the training has completed.
+     *   - `checksumGenerated` (boolean): Indicates if the checksum has been generated.
+     *   - `percentComplete` (number): The percentage of the training process that is complete.
+     *   - `trainingFailed` (string|null): Details of any training failure, if applicable.
+     *   - `translationMemoryLoaded` (boolean): Indicates if the translation memory is loaded.
      */
     const handleTrainingStateChange:THandleTrainingStateChange = useCallback((props: TTrainingStateChange) => {
         if (!props) {

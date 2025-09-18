@@ -194,6 +194,13 @@ function getSelectionFromContext(contextId: ContextId) {
     return currentSelection;
 }
 
+/**
+ * Initializes and returns the default state for alignment suggestions
+ * based on the provided context identifier.
+ *
+ * @param {ContextId} contextId - The context identifier used to derive specific state values.
+ * @return {TAlignmentSuggestionsState} - The default state for alignment suggestions.
+ */
 function defaultAppState(contextId: ContextId): TAlignmentSuggestionsState {
     const newGroups : {[key:string]: Group} = {};
     const groupCollection = new GroupCollection(newGroups, 0);
@@ -211,6 +218,14 @@ function defaultAppState(contextId: ContextId): TAlignmentSuggestionsState {
     }
 }
 
+/**
+ * Creates and returns the default training state for a given context ID.
+ *
+ * @param {ContextId} contextId - The unique identifier for the training context.
+ * @return {TrainingState} The default training state object containing the context ID,
+ *                          current and last trained instance counts initialized to -1,
+ *                          and an empty training status output.
+ */
 function defaultTrainingState(contextId: ContextId): TrainingState {
     return {
         contextId,
@@ -842,6 +857,8 @@ export const useAlignmentSuggestions = ({
                             //Load the trained model and put it somewhere it can be used.
                             const elapsedMinutes = _getMinuteCounter();
                             console.log(`executeTraining() - Training completed in ${elapsedMinutes} minutes`);
+                            console.log(`executeTraining() - Training completed after ${getElapsedMinutes(trainingStartTime)} actual minutes`);
+
                             if (elapsedMinutes > THRESHOLD_TRAINING_MINUTES) {
                                 if (elapsedMinutes > WORKER_TIMEOUT) {
                                     console.log(`executeTraining() - elapsed time greater than timeout, likely went to sleep`);
