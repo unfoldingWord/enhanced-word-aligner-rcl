@@ -283,7 +283,7 @@ export const ModelInfoDialog: React.FC<{
         if (globalAlignmentBookVerseCounts) {
             content.push(
                 <div key="global" style={{marginBottom: '20px'}}>
-                    <h4 style={{color: '#34495e', marginBottom: '8px'}}>Global Alignment Memory for Books:</h4>
+                    <h4 style={{color: '#34495e', marginBottom: '8px'}}>{translate('training.alignments_title')}</h4>
                     <div style={{paddingLeft: '16px'}}>
                         {Object.entries(globalAlignmentBookVerseCounts).map(([bookId, verseCount]) => {
                             const totalVerseCounts = Math.max(verseCount.sourceVerseCount, verseCount.targetVerseCount);
@@ -422,7 +422,7 @@ export const ModelInfoDialog: React.FC<{
                     variable: "train_steps",
                     min: 100,
                     max: 1000,
-                    description: translate('training.training_steps_label')
+                    description: translate('training.training_steps_hint')
                 })}
 
             </div>;

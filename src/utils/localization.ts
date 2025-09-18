@@ -1,5 +1,3 @@
-import locales from '../common/locales.json';
-
 type localeMap = { [key: string]: string };
 type localesMap = { [langId: string]: localeMap };
 
@@ -27,9 +25,30 @@ class Localization {
      */
     public static getInstance(): Localization {
         if (!Localization.instance) {
-            Localization.instance = new Localization(locales);
+            Localization.instance = new Localization({});
         }
         return Localization.instance;
+    }
+
+    /**
+     * Sets the current language for translations.
+     * @param language - The language code to set
+     * @returns The Localization instance for chaining
+     */
+    public hasKeys(): boolean {
+        const keys = Object.keys(this.localeData);
+        return keys.length > 0;
+    }
+
+    /**
+     * Sets the locale data for the localization handler.
+     *
+     * @param {localesMap} initialData - An object containing localized data mapped to their respective locale keys.
+     * @return {Localization} The current instance of the Localization object for chaining purposes.
+     */
+    public setLocaleData(initialData: localesMap): Localization {
+        this.localeData = initialData;
+        return this;
     }
 
     /**
@@ -102,5 +121,13 @@ export const getLocalization = Localization.getInstance;
 export const t = (key: string, params?: Record<string, string | number>): string => {
     return getLocalization().translate(key, params);
 };
+
+export const locale_init = ((initialData: localesMap) => {
+    return getLocalization().setLocaleData(initialData)
+})
+
+export const is_initialized = ((initialData: localesMap) => {
+    return getLocalization().hasKeys()
+})
 
 export default getLocalization;

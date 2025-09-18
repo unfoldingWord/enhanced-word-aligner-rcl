@@ -12,7 +12,7 @@ import usfm from 'usfm-js';
 import { EnhancedWordAligner } from './EnhancedWordAligner'
 import { extractVerseText } from '../utils/misc';
 import { useTrainingState } from '../hooks/useTrainingState'
-import { t } from '../utils/localization'
+import { is_initialized, locale_init, t } from '../utils/localization'
 import delay from "../utils/delay";
 
 import {NT_ORIG_LANG} from "../common/constants";
@@ -53,6 +53,10 @@ const LexiconData = require("../__tests__/fixtures/lexicon/lexicons.json");
 const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryEphUST.json");
 const translations = require("../common/locales.json")
 
+if (!is_initialized()) {
+  locale_init(translations)
+  console.log(`initialized now ${is_initialized()}`)
+}
 const translate = t;
 
 var sourceUsfm = translationMemory.sourceUsfms[bookId] || '';
