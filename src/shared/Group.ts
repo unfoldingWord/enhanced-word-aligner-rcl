@@ -64,7 +64,7 @@ export default class Group {
         const modifiedBooks: {[key:string]:Book} = {};
 
         //rehash our books by their toc3.
-        const toc3_books: {[key:string]:[bookName:string,book:Book]} = Object.fromEntries( Object.entries(this.books ).map( ([bookName,book]:[string,Book]) => {
+        const toc3_books: {[key:string]:[bookName:string,book:Book]} = Object.fromEntries( Object.entries(this.books).map( ([bookName,book]:[string,Book]) => {
             return [book.toc3Name,[bookName,book]];
         }));
 
@@ -74,13 +74,24 @@ export default class Group {
         //Now run through each of the imported books and match them up.
         Object.entries(usfm_json).forEach( ([filename,usfm_book]:[book_name:string,book_json:TUsfmBook]) => {
             const parsedUsfmHeaders = parseUsfmHeaders(usfm_book.headers);
+
+            let foundBook;
+            let foundBookName;
+            const toc3 = parsedUsfmHeaders.toc3;
+            if( toc3 in toc3_books ) {
+                const [bookName,book] = toc3_books[toc3];
+                foundBook = book
+                foundBookName = bookName
+            } else { // fallback in case toc3 was missing
+                foundBook = this.books[filename]
+                foundBookName = filename
+            }
             
-            if( parsedUsfmHeaders.toc3 in toc3_books ){
-                const [bookName,book]:[string,Book] = toc3_books[parsedUsfmHeaders.toc3];
-                const{ addedVerseCount, droppedVerseCount, modifiedBook } = book.addSourceUsfm( {usfm_book, isResourceSelected, group_name, book_name:bookName} )
+            if (foundBook) {
+                const{ addedVerseCount, droppedVerseCount, modifiedBook } = foundBook.addSourceUsfm( {usfm_book, isResourceSelected, group_name, book_name: foundBookName} )
                 totalAddedVerseCount += addedVerseCount;
                 totalDroppedVerseCount += droppedVerseCount;
-                modifiedBooks[bookName] = modifiedBook;
+                modifiedBooks[foundBookName] = modifiedBook;
             }else{
                 //count the verses in the book
                 let nonMatchedVerseCount = 0;
