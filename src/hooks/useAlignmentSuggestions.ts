@@ -240,12 +240,19 @@ function getElapsedMinutes(trainingStartTime: number) {
 }
 
 /**
- * Generates a language pair string used for settings based on the target and source languages.
+ * Generates a unique settings key for a given context.
  *
- * @returns {string} A string representing the language pair in the format 'settings_{targetLanguageId}_{sourceLanguageId}'.
+ * This function creates and returns a settings key string by combining the
+ * provided context identifier (`contextId`) with the 'settings' prefix
+ * or namespace. It uses an underlying helper function `getStorageKey`
+ * to generate the key.
+ *
+ * @param {ContextId} contextId - The unique identifier for a specific context.
+ * @returns {string} A generated key string representing the settings for the given context.
  */
-export const getLangPair = (sourceLanguageId: string, targetLanguageId: string): string => {
-    return `settings_${targetLanguageId}_${sourceLanguageId}`;
+export const getSettingsKey = (contextId: ContextId): string => {
+    const newKey = getStorageKey(contextId, 'settings', false);
+    return newKey
 }
 
 /**
@@ -260,6 +267,28 @@ function getTestamentStr(bookId: string) {
 }
 
 /**
+ * Generates a storage key based on the context ID and a specified type.
+ *
+ * @param {ContextId} contextId - The context object containing reference and Bible information.
+ * @param {string} type_ - The type of the key to be generated.
+ * @param addBook
+ * @return {string} The generated storage key string.
+ */
+function getStorageKey(contextId: ContextId, type_: string, addBook?: boolean) {
+    let newKey = '';
+    const bookId = contextId?.reference?.bookId;
+    const bibleId = contextId?.bibleId; // expected to be unique such as 'unfoldingWord/en/ult'
+    if (bibleId && bookId) {
+        const testament = getTestamentStr(bookId);
+        newKey = `${type_}_${bibleId}_${testament}`;
+        if (addBook) {
+            newKey += `_${bookId}`;
+        }
+    }
+    return newKey;
+}
+
+/**
  * Generates a model key based on the context's Bible and book identifiers.
  *
  * The function constructs a string key by combining the Bible ID, testament type (New Testament or Old Testament),
@@ -269,29 +298,21 @@ function getTestamentStr(bookId: string) {
  * @returns {string} The constructed model key. Returns an empty string if either `bibleId` or `bookId` is missing.
  */
 export const getModelKey = (contextId: ContextId): string => {
-    let modelKey_ = '';
-    const bookId = contextId?.reference?.bookId;
-    const bibleId = contextId?.bibleId; // expected to be unique such as 'unfoldingWord/en/ult'
-    if (bibleId && bookId) {
-        const testament = getTestamentStr(bookId);
-        modelKey_ = `Tmodel_${bibleId}_${testament}_${bookId}`;
-    }
-    return modelKey_
+    const newKey = getStorageKey(contextId, 'Tmodel', true);
+    return newKey
 }
 
 /**
  * Stores language preferences in the provided indexed database storage reference.
  *
- * @param {string} sourceLanguageId - The identifier for the source language.
- * @param {string} targetLanguageId - The identifier for the target language.
+ * @param {ContextId} context
  * @param {number} maxComplexity - The maximum complexity level for the language preferences.
  * @param {React.RefObject<IndexedDBStorage | null>} dbStorageRef - A React reference object pointing to the IndexedDB storage instance.
  * @param {TAlignmentSuggestionsConfig} config
  * @return {Promise<void>} A promise that resolves when the language preferences have been successfully stored, or returns early if the storage is not ready.
  */
 async function storeLanguagePreferences(
-    sourceLanguageId: string,
-    targetLanguageId: string,
+    context: ContextId,
     maxComplexity: number,
     dbStorageRef: React.RefObject<IndexedDBStorage | null>,
     config: TAlignmentSuggestionsConfig,
@@ -302,12 +323,12 @@ async function storeLanguagePreferences(
     }
 
     // save language-based settings to local storage
-    const langSettingsPair = getLangPair(sourceLanguageId, targetLanguageId);
+    const settingsKey = getSettingsKey(context);
     const settings = {
         maxComplexity,
         config,
     }
-    await dbStorageRef.current.setItem(langSettingsPair, JSON.stringify(settings));
+    await dbStorageRef.current.setItem(settingsKey, JSON.stringify(settings));
 }
 
 /**
@@ -825,7 +846,7 @@ export const useAlignmentSuggestions = ({
                             setState( { ...stateRef.current, trainingState: newTrainingState });
                             handleTrainingStateChange?.({training: false, trainingFailed: 'Timeout'});
 
-                            storeLanguagePreferences(sourceLanguageId, targetLanguageId, newMaxComplexity, dbStorageRef, configRef.current).then(() => {
+                            storeLanguagePreferences(contextId, newMaxComplexity, dbStorageRef, configRef.current).then(() => {
                                 // Restart training if needed
                                 executeTraining();
                             })
@@ -1162,7 +1183,7 @@ export const useAlignmentSuggestions = ({
             });
 
             // load language based settings
-            const langSettingsPair = getLangPair(sourceLanguageId, targetLanguageId);
+            const langSettingsPair = getSettingsKey(contextId);
             let settings_: string | null = await dbStorage.getItem(langSettingsPair);
             let maxComplexity_ = DEFAULT_MAX_COMPLEXITY; // default to max complexity
             if (settings_ && settings_ !== 'undefined') {
@@ -1453,8 +1474,7 @@ export const useAlignmentSuggestions = ({
         if (config) {
             configRef.current = config;
             await storeLanguagePreferences(
-                sourceLanguageId,
-                targetLanguageId,
+                contextId,
                 maxComplexity,
                 dbStorageRef,
                 config
@@ -1500,8 +1520,7 @@ export const useAlignmentSuggestions = ({
         modelMetaDataRef.current = saveData // keep latest
             
         await storeLanguagePreferences(
-            alignmentCompletedInfo.sourceLanguageId,
-            alignmentCompletedInfo.targetLanguageId,
+            alignmentCompletedInfo.contextId,
             alignmentCompletedInfo.maxComplexity,
             dbStorageRef,
             configRef.current,
