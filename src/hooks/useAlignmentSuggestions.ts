@@ -343,7 +343,11 @@ function getDefaultConfig(config_: TAlignmentSuggestionsConfig) {
         keepAllAlignmentMinThreshold: config_.keepAllAlignmentMinThreshold ?? 90,
         minTrainingVerseRatio: config_.minTrainingVerseRatio ?? 1.1,
         sourceNgramLength: config_.sourceNgramLength ?? 3,
+        sourceNgramMaxLength: config_.sourceNgramMaxLength ?? 10,
+        sourceNgramMinLength: config_.sourceNgramMinLength ?? 3,
         targetNgramLength: config_.targetNgramLength ?? 5,
+        targetNgramMaxLength: config_.targetNgramMaxLength ?? 20,
+        targetNgramMinLength: config_.targetNgramMinLength ?? 3,
         train_steps: config_.train_steps ?? 1000,
         trainOnlyOnCurrentBook: config_.trainOnlyOnCurrentBook ?? false,
     }
