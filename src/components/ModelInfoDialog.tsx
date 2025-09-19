@@ -463,8 +463,8 @@ export const ModelInfoDialog: React.FC<{
                     id: "targetNgramLength",
                     label: translate('training.target_ngram_label'),
                     variable: "targetNgramLength",
-                    min: 3,
-                    max: 10,
+                    min: config?.targetNgramMinLength,
+                    max: config?.targetNgramMaxLength,
                     description: translate('training.target_ngram_hint')
                 })}
 
@@ -472,8 +472,8 @@ export const ModelInfoDialog: React.FC<{
                     id: "sourceNgramLength",
                     label: translate('training.source_ngram_label'),
                     variable: "sourceNgramLength",
-                    min: 3,
-                    max: 10,
+                    min: config?.sourceNgramMinLength,
+                    max: config?.sourceNgramMaxLength,
                     description: translate('training.source_ngram_hint')
                 })}
 
