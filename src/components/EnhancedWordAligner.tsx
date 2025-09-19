@@ -324,24 +324,24 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
         }
     }, [addTranslationMemory]);
     
-    /**
-     * Component Cleanup Effect
-     * ========================
-     * 
-     * @synopsis
-     * Performs cleanup operations when the component unmounts.
-     * 
-     * @requirements
-     * - None (runs only during component unmount)
-     * 
-     * @dependencies
-     * - cleanupWorker() - Function to terminate workers and clear timeouts
-     */
-    useEffect(() => {
-        return () => {
-            cleanupWorker();
-        };
-    },[]);
+    // /**
+    //  * Component Cleanup Effect
+    //  * ========================
+    //  * 
+    //  * @synopsis
+    //  * Performs cleanup operations when the component unmounts.
+    //  * 
+    //  * @requirements
+    //  * - None (runs only during component unmount)
+    //  * 
+    //  * @dependencies
+    //  * - cleanupWorker() - Function to terminate workers and clear timeouts
+    //  */
+    // useEffect(() => {
+    //     return () => {
+    //         cleanupWorker();
+    //     };
+    // },[]);
 
     /**
      * Training Control Effect
