@@ -1090,6 +1090,14 @@ export const useAlignmentSuggestions = ({
         return trainingRunning;
     }, [])
 
+
+    useEffect(() => {
+        console.log('useAlignmentSuggestions - mounted');
+        return () => {
+            console.log('useAlignmentSuggestions - unmounted');
+        };
+    },[]);
+    
     /**
      * Effect hook that manages the training process based on training state changes.
      *

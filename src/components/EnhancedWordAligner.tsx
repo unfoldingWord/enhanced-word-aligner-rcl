@@ -72,20 +72,20 @@ interface EnhancedWordAlignerProps {
     
     /** Flag to trigger alignment training */
     doTraining: boolean;
-    
+
     /** callback for training state changes to pass to parent components -
      *      connect to useTrainingState hook for convenient exposure of state information */
     handleTrainingStateChange?: THandleTrainingStateChange;
     
     /** Flag control if suggestion buttons are to be enabled, default is true */
     hasRenderedSuggestions?: boolean;
-    
+
     /** Cache of lexicon entries for quick reference */
     lexiconCache?: Record<string, any>;
-    
+
     /** Function to load lexicon entry for source word */
     loadLexiconEntry: (lexiconId: string, entryId: string) => void;
-    
+
     /** Callback for alignment changes */
     onChange?: (details: {
         type: 'MERGE_ALIGNMENT_CARDS' | 'CREATE_NEW_ALIGNMENT_CARD' | 'UNALIGN_TARGET_WORD' | 'ALIGN_TARGET_WORD' | 'ALIGN_SOURCE_WORD';
@@ -95,10 +95,10 @@ interface EnhancedWordAlignerProps {
         targetWords: TargetWordBank[];
         contextId: ContextId;
     }) => void;
-    
+
     /** Flag to only show suggestion buttons (if true the clear-all button is removed) */
     suggestionsOnly?: boolean;
-    
+
     /** Function to display word details in a popover */
     showPopover: (
         PopoverTitle: React.ReactNode,
@@ -109,16 +109,19 @@ interface EnhancedWordAlignerProps {
             lexiconData: any;
         }
     ) => void;
-    
+
     /** Identifier for the source language */
     sourceLanguageId: string;
-    
+
     /** Font family for the source language text */
     sourceLanguageFont?: string;
-    
+
     /** Font size percentage for source text */
     sourceFontSizePercent?: number;
-    
+
+    /** Flag to stop alignment training */
+    stopTraining: boolean;
+
     /** Custom CSS styles for the component */
     styles?: React.CSSProperties;
     
@@ -172,6 +175,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     sourceLanguageId,
     sourceLanguageFont,
     sourceFontSizePercent,
+    stopTraining,
     styles,
     targetLanguageId,
     targetLanguageFont,
@@ -213,7 +217,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             saveChangedSettings,
             suggester,
             startTraining,
-            stopTraining,
+            stopTraining: stopTraining_,
         }
     } = useAlignmentSuggestions({
         config,
@@ -323,32 +327,13 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             loadTranslationMemory(addTranslationMemory);
         }
     }, [addTranslationMemory]);
-    
-    // /**
-    //  * Component Cleanup Effect
-    //  * ========================
-    //  * 
-    //  * @synopsis
-    //  * Performs cleanup operations when the component unmounts.
-    //  * 
-    //  * @requirements
-    //  * - None (runs only during component unmount)
-    //  * 
-    //  * @dependencies
-    //  * - cleanupWorker() - Function to terminate workers and clear timeouts
-    //  */
-    // useEffect(() => {
-    //     return () => {
-    //         cleanupWorker();
-    //     };
-    // },[]);
 
     /**
      * Training Control Effect
      * ======================
      * 
      * @synopsis
-     * Controls alignment training based on the doTraining prop.
+     * Starts alignment training based on the doTraining prop.
      * 
      * @requirements
      * - doTraining prop must reflect desired training state
@@ -356,17 +341,40 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
      * @dependencies
      * - doTraining - Boolean flag indicating whether training should be active
      * - isTraining() - Function to check current training status
-     * - startTraining(), stopTraining() - Functions to control training process
+     * - startTraining() - Functions to control training process
      */
     useEffect(() => {
         const training = isTraining()
         console.log(`doTraining changed state to ${doTraining} but training is now ${training}`)
-        if(doTraining) {
+        if (doTraining) {
             startTraining()
-        } else {
-            stopTraining()
         }
     },[doTraining]);
+
+    /**
+     * Training Control Effect
+     * ======================
+     *
+     * @synopsis
+     * Stops alignment training based on the doTraining prop.
+     *
+     * @requirements
+     * - doTraining prop must reflect desired training state
+     *
+     * @dependencies
+     * - doTraining - Boolean flag indicating whether training should be active
+     * - isTraining() - Function to check current training status
+     * - stopTraining() - Functions to control training process
+     */
+    useEffect(() => {
+        const training = isTraining()
+        console.log(`stopTraining changed state to ${stopTraining} but training is now ${training}`)
+        if (stopTraining) {
+            stopTraining_()
+        }
+    },[stopTraining]);
+    
+    
     return (
         <>
             <SuggestingWordAligner
