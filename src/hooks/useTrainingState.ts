@@ -136,7 +136,8 @@ export const useTrainingState = ({
                 training: _training,
                 trainingComplete: _trainingComplete,
                 trainingFailed,
-                translationMemoryLoaded: _translationMemoryLoaded
+                translationMemoryLoaded: _translationMemoryLoaded,
+                verbose,
             } = props;
 
             // Use current state if new value is undefined
@@ -187,7 +188,9 @@ export const useTrainingState = ({
                 _trainingStatusStr += ` ${percentComplete}${translate('suggestions.percent_complete')}`;
             }
 
-            console.log(`useTrainingStateManagement.handleTrainingStateChange new state: training ${_training}, trainingComplete ${_trainingComplete}, trainingStatusStr ${_trainingStatusStr}`);
+            if (verbose) {
+                console.log(`useTrainingStateManagement.handleTrainingStateChange new state: training ${_training}, trainingComplete ${_trainingComplete}, trainingStatusStr ${_trainingStatusStr}`);
+            }
 
             const newState = {
                 checksumGenerated: _checksumGenerated,
