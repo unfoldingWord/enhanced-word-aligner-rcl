@@ -65,8 +65,12 @@ export interface TTrainedWordAlignerModelResults {
 }
 
 export interface TAlignmentTrainingWorkerData {
-    worker: Worker;
     contextId: ContextId;
+    minuteCounter?: number;
+    minuteTimer?: NodeJS.Timeout;
+    trainingProgress: number;
+    worker: Worker|null;
+    workerTimeout?: NodeJS.Timeout|null;
 }
 
 /**

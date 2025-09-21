@@ -427,17 +427,33 @@ export const useAlignmentSuggestions = ({
     // Remove individual state variables - they're now part of consolidated state
     const trainingStateRef = useRef<TrainingState>(state.trainingState);
     const contextIdRef = useRef<ContextId>(null);
-    const alignmentTrainingWorkerRef = useRef<TAlignmentTrainingWorkerData | null>(null);
-    const workerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const trainingProgressRef = useRef<number>(0)
+    const alignmentTrainingRef_ = useRef<TAlignmentTrainingWorkerData | null>(null);
 
     const {groupCollection, maxComplexity, currentBookName, trainingState, kickOffTraining, failedToLoadCachedTraining} = state;
 
     const alignmentPredictorRef = useRef<AbstractWordMapWrapper | null>(null);
     const modelMetaDataRef = useRef<TAlignmentCompletedInfo | null>(null);
-    const minuteCounterRef = useRef<number>(0);
-    const minuteTimerRef = useRef<NodeJS.Timeout|null>(null);
     const currentShasRef = useRef<TCurrentShas>({});
+
+    /**
+     * Retrieves the current training data from the alignment training reference.
+     *
+     * @return {TAlignmentTrainingWorkerData} The training data extracted from the alignmentTraining reference, or undefined if the reference is unavailable.
+     */
+    function getTrainingData(): TAlignmentTrainingWorkerData {
+        const alignmentTraining = alignmentTrainingRef_?.current;
+        return alignmentTraining
+    }
+
+    /**
+     * Updates the current training data with the provided new data.
+     *
+     * @param {TAlignmentTrainingWorkerData} newData - The new training data to be set.
+     * @return {void} This function does not return a value.
+     */
+    function setTrainingData(newData: TAlignmentTrainingWorkerData) {
+        alignmentTrainingRef_.current = newData;
+    }
 
     /**
      * Starts a minute counter that increments every minute.  This is a work-around for issue where tab or computer goes to sleep.  In that case the system clock would be much greater than the actual run time.
@@ -448,19 +464,21 @@ export const useAlignmentSuggestions = ({
      * @return {NodeJS.Timeout} The interval ID for the minute timer, which can be used to stop the timer with `clearInterval`.
      */
     function _startMinuteCounter():NodeJS.Timeout {
-        minuteCounterRef.current = 0;
+        const alignmentTraining = getTrainingData();
+        alignmentTraining.minuteCounter = 0;
 
         console.log('⏱️ Timer started');
 
-        minuteTimerRef.current = setInterval(() => {
-            minuteCounterRef.current++;
-            console.log(`Training ${minuteCounterRef.current} minute(s) elapsed`);
+        alignmentTraining.minuteTimer = setInterval(() => {
+            const alignmentTraining = getTrainingData()
+            alignmentTraining.minuteCounter++;
+            console.log(`Training ${alignmentTraining.minuteCounter} minute(s) elapsed`);
 
             // Optional: stop after a certain number of minutes
             // if (minutes >= 10) clearInterval(timer);
         }, 60 * 1000); // 60,000 ms = 1 minute
 
-        return minuteTimerRef.current; // You can use this to stop the timer later
+        return alignmentTraining.minuteTimer; // You can use this to stop the timer later
     }
 
     /**
@@ -469,9 +487,11 @@ export const useAlignmentSuggestions = ({
      * @return {void} Does not return a value.
      */
     function _stopMinuteCounter() {
-        if (minuteTimerRef.current) {
-            clearInterval(minuteTimerRef.current);
-            minuteTimerRef.current = null;
+        const alignmentTraining = getTrainingData();
+        let minuteTimer = alignmentTraining?.minuteTimer;
+        if (minuteTimer) {
+            clearInterval(minuteTimer);
+            minuteTimer = null;
         }
     }
 
@@ -481,7 +501,8 @@ export const useAlignmentSuggestions = ({
      * @return {number} The current value of the minute counter.
      */
     function _getMinuteCounter():number {
-        return minuteCounterRef.current;
+        const alignmentTraining = getTrainingData()
+        return alignmentTraining?.minuteCounter;
     }
 
     /**
@@ -704,21 +725,37 @@ export const useAlignmentSuggestions = ({
         loadTranslationMemory(translationMemory)
     }
 
-    const trainingRunning = !!alignmentTrainingWorkerRef.current
+    /**
+     * Determines whether the alignment training process is currently running.
+     *
+     * This is a callback function that checks if the `alignmentTrainingRef` has an active reference,
+     * indicating that the training process is ongoing. It also logs the current status to the console.
+     *
+     * @returns {boolean} Returns `true` if the training process is running, otherwise `false`.
+     */
+    const isTraining = useCallback(() => {
+        const trainingRunning = !!getTrainingData()?.worker
+        // console.log(`useAlignmentSuggestions - isTraining() - Currently Training: ${trainingRunning}`);
+        return trainingRunning;
+    }, [])
+
+    const trainingRunning = isTraining()
 
     /**
      * Cleans up worker resources by terminating the worker and clearing the timeout
      */
     const cleanupWorker = () => {
-        if (workerTimeoutRef.current) {
-            clearTimeout(workerTimeoutRef.current);
-            workerTimeoutRef.current = null;
-        }
-        if (alignmentTrainingWorkerRef.current) {
-            alignmentTrainingWorkerRef.current.worker.terminate();
-            alignmentTrainingWorkerRef.current = null;
+        const alignmentTraining = getTrainingData();
+        let workerTimeout = alignmentTraining?.workerTimeout;
+        if (workerTimeout) {
+            clearTimeout(workerTimeout);
+            workerTimeout = null;
         }
         _stopMinuteCounter()
+        if (alignmentTraining?.worker) {
+            alignmentTraining.worker.terminate();
+            alignmentTraining.worker = null;
+        }
     }
 
     /**
@@ -761,7 +798,7 @@ export const useAlignmentSuggestions = ({
         }
         //make sure that lastUsedInstanceCount isn't still the same as groupCollection.instanceCount
         if (trainingStateRef.current.lastTrainedInstanceCount !== stateRef.current.groupCollection.instanceCount) {
-            if (alignmentTrainingWorkerRef.current === null) { // check if training already running
+            if (!isTraining()) { // check if training already running
                 const contextId_ = {
                     ...contextId,
                     bookName: currentBookName || contextId.reference.bookId
@@ -818,22 +855,26 @@ export const useAlignmentSuggestions = ({
 
                         // Create worker using dynamic import
                         const worker = await createAlignmentTrainingWorker();
-                        const workerData: TAlignmentTrainingWorkerData = {
-                            worker,
+                        const trainingData: TAlignmentTrainingWorkerData = {
                             contextId: cloneDeep(contextId),
+                            trainingProgress: 0,
+                            worker: null,
                         }
-                        alignmentTrainingWorkerRef.current = workerData;
+                        const trainingWorkerData = {...trainingData};
+                        setTrainingData(trainingWorkerData);
                         _startMinuteCounter();
 
                         // Set up a worker timeout
-                        workerTimeoutRef.current = setTimeout(() => {
+                        trainingWorkerData.workerTimeout = setTimeout(() => {
                             let reductionFactor = 0.5;
-                            let elapsedMinutes1 = _getMinuteCounter();
-                            console.log(`executeTraining() - Training Worker timeout after ${elapsedMinutes1} minutes, percent complete ${trainingProgressRef.current}`);
+                            let elapsedMinutes = _getMinuteCounter();
+                            const trainingData_ = getTrainingData()
+                            let trainingProgress = trainingData_?.trainingProgress;
+
+                            console.log(`executeTraining() - Training Worker timeout after ${elapsedMinutes} minutes, percent complete ${trainingProgress}`);
                             reductionFactor = THRESHOLD_TRAINING_MINUTES / WORKER_TIMEOUT;
-                            
-                            if (trainingProgressRef.current) {
-                                reductionFactor = trainingProgressRef.current / 100
+                            if (trainingProgress) {
+                                reductionFactor = trainingProgress / 100
                             }
 
                             const newMaxComplexity = adjustMaxComplexity(reductionFactor);
@@ -853,15 +894,16 @@ export const useAlignmentSuggestions = ({
                         }, WORKER_TIMEOUT);
 
                         //Define the callback which will be called after the alignment trainer has finished
-                        alignmentTrainingWorkerRef.current.worker.addEventListener('message', (event) => {
+                        trainingWorkerData.worker.addEventListener('message', (event) => {
                             const workerResults: TTrainedWordAlignerModelWorkerResults = event.data;
+                            const trainingData_ = getTrainingData()
 
                             if ('trainingStatus' === workerResults?.type) {
                                 const percentComplete = event.data?.percent_complete;
                                 const contextId_ = event.data?.contextId;
                                 // console.log(`executeTraining() - trainingStatus received: ${percentComplete}%`)
                                 if (typeof percentComplete === 'number') {
-                                    trainingProgressRef.current = percentComplete; // keep track of progress
+                                    trainingData_.trainingProgress = percentComplete; // keep track of progress
                                     handleTrainingStateChange?.({ percentComplete, training: true, contextId: contextId_ });
                                 }
                                 return
@@ -872,7 +914,7 @@ export const useAlignmentSuggestions = ({
                                 return
                             }
 
-                            console.log(`executeTraining() - alignment training worker completed: `, alignmentTrainingWorkerRef.current);
+                            console.log(`executeTraining() - alignment training worker completed: `, workerResults);
                             handleTrainingStateChange?.({ training: false })
                             
                             // Clear timeout since worker completed successfully
@@ -960,10 +1002,10 @@ export const useAlignmentSuggestions = ({
                         });
 
                         // start the training worker
-                        trainingProgressRef.current = 0
-                        alignmentTrainingWorkerRef.current.worker.postMessage({
+                        trainingWorkerData.trainingProgress = 0
+                        trainingWorkerData.worker.postMessage({
                             type: START_TRAINING,
-                            data: alignmentTrainingData
+                            data: trainingData
                         });
                     } catch (error) {
                         console.error('executeTraining() - Error during alignment training setup:', error);
@@ -994,7 +1036,7 @@ export const useAlignmentSuggestions = ({
      *
      * Dependencies:
      * - `handleSetTrainingState` - Optional function to update the training state.
-     * - `alignmentTrainingWorkerRef` - Reference to the alignment training worker.
+     * - `alignmentTrainingRef` - Reference to the alignment training worker.
      *
      * Operations performed:
      * - Logs the invocation of the stopTraining function.
@@ -1005,8 +1047,8 @@ export const useAlignmentSuggestions = ({
      */
     const _stopTraining = useCallback(() => {
         console.log('stopTraining()');
-        const trainingContextId = !!alignmentTrainingWorkerRef.current
-        if (trainingContextId) {
+        const workerRunning = isTraining()
+        if (workerRunning) {
             handleTrainingStateChange?.({training: false, trainingFailed: 'Cancelled'});
             cleanupWorker();
             console.log('useAlignmentSuggestions - stopTraining() - Alignment training stopped');
@@ -1021,7 +1063,7 @@ export const useAlignmentSuggestions = ({
      * @return {string|undefined} The training context ID if available, or undefined if not present.
      */
     function getTrainingContextId() {
-        const trainingContextId = alignmentTrainingWorkerRef.current?.contextId;
+        const trainingContextId = getTrainingData()?.contextId;
         return trainingContextId;
     }
 
@@ -1038,7 +1080,7 @@ export const useAlignmentSuggestions = ({
      * match the corresponding IDs in the training context; otherwise, false.
      */
     const areTrainingSameBook = (contextId_: ContextId)=> {
-        if (alignmentTrainingWorkerRef?.current !== null) {
+        if (isTraining()) {
             const trainingContextId = getTrainingContextId();
             const trainingBibleId = trainingContextId?.bibleId;
             const trainingBookId = trainingContextId?.reference?.bookId;
@@ -1065,7 +1107,7 @@ export const useAlignmentSuggestions = ({
      * - Calls `executeTraining` asynchronously when conditions are met.
      */
     const startTraining = useCallback(() => {
-        const trainingRunning = !!alignmentTrainingWorkerRef.current
+        const trainingRunning = isTraining();
         console.log(`useAlignmentSuggestions - startTraining() - Starting, already running is: ${trainingRunning}`);
         if (!trainingRunning) {
             delay(500).then(() => { // run async
@@ -1076,21 +1118,6 @@ export const useAlignmentSuggestions = ({
         }
     }, [handleTrainingStateChange])
     
-    /**
-     * Determines whether the alignment training process is currently running.
-     *
-     * This is a callback function that checks if the `alignmentTrainingWorkerRef` has an active reference,
-     * indicating that the training process is ongoing. It also logs the current status to the console.
-     *
-     * @returns {boolean} Returns `true` if the training process is running, otherwise `false`.
-     */
-    const isTraining = useCallback(() => {
-        const trainingRunning = !!alignmentTrainingWorkerRef.current
-        console.log(`useAlignmentSuggestions - isTraining() - Currently Training: ${trainingRunning}`);
-        return trainingRunning;
-    }, [])
-
-
     useEffect(() => {
         console.log('useAlignmentSuggestions - mounted');
         return () => {
@@ -1119,7 +1146,7 @@ export const useAlignmentSuggestions = ({
      * @dependencies {boolean} kickOffTraining - Internal flag to restart training
      */
     useEffect(() => {
-        const trainingRunning = !!alignmentTrainingWorkerRef.current
+        const trainingRunning = isTraining();
         console.log(`useAlignmentSuggestions - kickOffTraining changed to ${kickOffTraining}, trainingRunning currently ${trainingRunning}`);
         if (kickOffTraining !== trainingRunning) { // check if training change
             delay(500).then(() => { // run async
