@@ -28,6 +28,11 @@ const keepAllAlignmentMemory = true; // EXPERIMENTAL FEATURE - if true, then ali
 const keepAllAlignmentMinThreshold = 90; // EXPERIMENTAL FEATURE - if threshold percentage is set (such as value 60), then alignment data not used for training will be added back into wordMap after training, but only if the percentage of book alignment is less than this threshold.  This should improve alignment vocabulary for books not completely aligned
 
 const targetLanguageId = 'en';
+const direction = 'ltr'
+const targetLanguage = {
+  languageId: targetLanguageId,
+  direction,
+}
 const bookId = 'eph';
 const chapter = 5;
 const verse = '22-23';
@@ -194,7 +199,7 @@ const WordAlignerPanel = ({
         styles={{...styles, maxHeight: '450px', overflowY: 'auto'}}
         suggestionsOnly={suggestionsOnly}
         targetLanguageFont={targetLanguageFont}
-        targetLanguageId={targetLanguageId}
+        targetLanguage={targetLanguage}
         targetWords={targetWords}
         translate={translate}
         translationMemory={translationMemory}
