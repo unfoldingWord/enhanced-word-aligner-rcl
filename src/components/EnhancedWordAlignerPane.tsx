@@ -28,28 +28,22 @@
  * - Requires browser support for IndexedDB for caching training data
  */
 
-import React, {useEffect, useState} from 'react'
+import React, { useState} from 'react'
+// @ts-ignore
 import {SuggestingWordAligner} from 'word-aligner-rcl'
 import {
     ContextId,
     SourceWord,
     TargetWordBank,
-    THandleTrainingStateChange,
-    TTranslationMemoryType,
 } from '@/common/classes';
 import {Alignment, Suggestion} from 'wordmap';
 import {Token} from 'wordmap-lexer'
 
-import {TBookShaState} from '@/hooks/useAlignmentSuggestions';
 import {
-    TAlignmentCompletedInfo,
     TAlignmentSuggestionsConfig,
     TAlignmentMetaData,
-    TAlignmentTrainingWorkerData
 } from '@/workers/WorkerComTypes';
-import {useTrainingState} from '@/hooks/useTrainingState';
 import ModelInfoDialog from './ModelInfoDialog';
-import delay from "@/utils/delay";
 
 interface EnhancedWordAlignerPaneProps {
     /** Function to handle async suggestion generation for alignments */
@@ -128,8 +122,8 @@ interface EnhancedWordAlignerPaneProps {
         manuallyAligned?: Alignment[]
     ) => Suggestion[];
     
-    /** Identifier for the target language */
-    targetLanguageId: string;
+    /** info for the target language */
+    targetLanguage: object;
     
     /** Font family for the target language text */
     targetLanguageFont?: string;
@@ -142,9 +136,6 @@ interface EnhancedWordAlignerPaneProps {
     
     /** Function to translate UI strings */
     translate: (key: string, params?: Record<string, string | number>) => string;
-    
-    /** Existing translation memory for alignment suggestions */
-    translationMemory?: TTranslationMemoryType;
     
     /** Current alignments between source and target words */
     verseAlignments: Alignment[];
@@ -167,12 +158,11 @@ export const EnhancedWordAlignerPane: React.FC<EnhancedWordAlignerPaneProps> = (
     sourceFontSizePercent,
     styles,
     suggester,
-    targetLanguageId,
+    targetLanguage,
     targetLanguageFont,
     targetFontSizePercent,
     targetWords,
     translate,
-    translationMemory,
     verseAlignments,
 }) => {
 
@@ -245,7 +235,7 @@ export const EnhancedWordAlignerPane: React.FC<EnhancedWordAlignerPaneProps> = (
                 translate={translate}
                 targetLanguageFont={targetLanguageFont}
                 targetFontSizePercent={targetFontSizePercent}
-                translationMemory={translationMemory}
+                targetLanguage={targetLanguage}
                 verseAlignments={verseAlignments}
             />
             {showModelDialog && modelInfo && (

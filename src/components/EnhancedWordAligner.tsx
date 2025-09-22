@@ -136,8 +136,8 @@ interface EnhancedWordAlignerProps {
         manuallyAligned?: Alignment[]
     ) => Suggestion[];
     
-    /** Identifier for the target language */
-    targetLanguageId: string;
+    /** Info for the target language */
+    targetLanguage: object;
     
     /** Font family for the target language text */
     targetLanguageFont?: string;
@@ -180,7 +180,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     sourceFontSizePercent,
     cancelTraining,
     styles,
-    targetLanguageId,
+    targetLanguage,
     targetLanguageFont,
     targetFontSizePercent,
     targetWords,
@@ -227,7 +227,8 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
         handleTrainingCompleted,
         shown: true,
         sourceLanguageId,
-        targetLanguageId,
+        // @ts-ignore
+        targetLanguageId: targetLanguage.languageId,
         translationMemory,
     });
     
@@ -260,27 +261,6 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             }
         }
     },[checksumGenerated, translationMemoryLoaded, trainingComplete]);
-    
-    /**
-     * Translation Memory Loading Effect
-     * =================================
-     * 
-     * @synopsis
-     * Loads translation memory data when it becomes available or changes.
-     * 
-     * @requirements
-     * - Valid translation memory data must be provided
-     * - Translation memory object must contain at least one entry
-     * 
-     * @dependencies
-     * - addTranslationMemory - Object containing translation memory data
-     * - loadTranslationMemory() - Function to process the memory data
-     */
-    useEffect(() => {
-        if (addTranslationMemory && Object.keys(addTranslationMemory).length > 0) {
-            loadTranslationMemory(addTranslationMemory);
-        }
-    }, [addTranslationMemory]);
 
     /**
      * Training Control Effect
@@ -348,11 +328,10 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             suggester={suggester}
             suggestionsOnly={suggestionsOnly}
             targetLanguageFont={targetLanguageFont}
-            targetLanguageId={targetLanguageId}
+            targetLanguage={targetLanguage}
             targetFontSizePercent={targetFontSizePercent}
             targetWords={targetWords}
             translate={translate}
-            translationMemory={translationMemory}
             verseAlignments={verseAlignments}
         />
     )
