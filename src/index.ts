@@ -5,6 +5,7 @@ import { useAlignmentSuggestions } from './hooks/useAlignmentSuggestions'
 import { useTrainingState } from './hooks/useTrainingState';
 import * as AlignmentTrainerUtils from './workers/utils/AlignmentTrainerUtils'
 import AlignmentTrainerWorker from './workers/AlignmentTrainer.worker'
+import { EnhancedWordAlignerPane } from './components/EnhancedWordAlignerPane'
 import { createAlignmentTrainingWorker } from './workers/utils/startAlignmentTrainer'
 import * as Localization  from "./utils/localization";
 import {
@@ -22,6 +23,7 @@ export {
     bibleHelpers,
     createAlignmentTrainingWorker,
     EnhancedWordAligner,
+    EnhancedWordAlignerPane,
     Localization,
     SuggestingWordAligner,
     useAlignmentSuggestions,

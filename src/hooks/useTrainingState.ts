@@ -33,12 +33,13 @@ import { useState, useCallback } from 'react';
 import {THandleTrainingStateChange, TTrainingStateChange} from '@/common/classes';
 
 interface TUseTrainingStateProps {
-    /** Function that translates UI strings using provided keys */
-    translate: (key:string) => string;
     /** Optional handler to receive training state changes (for parent components).  Typically you
      * would pass the handleTrainingStateChange from parent component.
      *  */
     passThroughStateChange?: THandleTrainingStateChange;
+    /** Function that translates UI strings using provided keys */
+    translate: (key:string) => string;
+    verbose?: boolean; // if true then log progress
 }
 
 interface TrainingState {
@@ -77,6 +78,7 @@ interface TUseTrainingStateReturn {
 export const useTrainingState = ({
      passThroughStateChange,
      translate,
+     verbose,
 }: TUseTrainingStateProps): TUseTrainingStateReturn => {
     // Training States
     const [trainingState, setTrainingState] = useState<TrainingState>({
@@ -137,7 +139,6 @@ export const useTrainingState = ({
                 trainingComplete: _trainingComplete,
                 trainingFailed,
                 translationMemoryLoaded: _translationMemoryLoaded,
-                verbose,
             } = props;
 
             // Use current state if new value is undefined

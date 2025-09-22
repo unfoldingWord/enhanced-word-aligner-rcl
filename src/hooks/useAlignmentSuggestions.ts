@@ -29,6 +29,7 @@
  * @requirements
  * - React 16.8+ (uses hooks)
  * - Web Worker support in the browser
+ * - Requires uw-wordmapbooster as a dependency to do alignment training
  * - IndexedDB support for model caching
  * - Access to cryptographic functions for checksums
  */
@@ -83,7 +84,7 @@ export type THandleTrainingCompleted = (info: TAlignmentCompletedInfo) => void;
 export interface TUseAlignmentSuggestionsProps {
     /** Configuration options for alignment suggestions behavior */
     config?: TAlignmentSuggestionsConfig;
-    
+
     /** Current Bible reference context (bible, book, chapter, verse) */
     contextId: ContextId;
     
@@ -745,6 +746,7 @@ export const useAlignmentSuggestions = ({
      * Cleans up worker resources by terminating the worker and clearing the timeout
      */
     const cleanupWorker = () => {
+        console.log('cleanupWorker')
         const alignmentTraining = getTrainingData();
         let workerTimeout = alignmentTraining?.workerTimeout;
         if (workerTimeout) {
@@ -855,12 +857,11 @@ export const useAlignmentSuggestions = ({
 
                         // Create worker using dynamic import
                         const worker = await createAlignmentTrainingWorker();
-                        const trainingData: TAlignmentTrainingWorkerData = {
+                        const trainingWorkerData: TAlignmentTrainingWorkerData = {
                             contextId: cloneDeep(contextId),
                             trainingProgress: 0,
-                            worker: null,
+                            worker,
                         }
-                        const trainingWorkerData = {...trainingData};
                         setTrainingData(trainingWorkerData);
                         _startMinuteCounter();
 
@@ -873,6 +874,7 @@ export const useAlignmentSuggestions = ({
 
                             console.log(`executeTraining() - Training Worker timeout after ${elapsedMinutes} minutes, percent complete ${trainingProgress}`);
                             reductionFactor = THRESHOLD_TRAINING_MINUTES / WORKER_TIMEOUT;
+
                             if (trainingProgress) {
                                 reductionFactor = trainingProgress / 100
                             }
@@ -1005,7 +1007,7 @@ export const useAlignmentSuggestions = ({
                         trainingWorkerData.trainingProgress = 0
                         trainingWorkerData.worker.postMessage({
                             type: START_TRAINING,
-                            data: trainingData
+                            data: alignmentTrainingData
                         });
                     } catch (error) {
                         console.error('executeTraining() - Error during alignment training setup:', error);

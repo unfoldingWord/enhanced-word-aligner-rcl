@@ -90,19 +90,14 @@ const WordAlignerPanel = ({
 }) => {
   const [addTranslationMemory, setAddTranslationMemory] = useState(null);
   const [translationMemoryLoaded, setTranslationMemoryLoaded] = useState(false);
-  const [doingTraining, setDoingTraining] = useState(false);
+  const [doTraining, setDoTraining] = useState(false);
+  const [cancelTraining, setCancelTraining] = useState(false);
 
   // Handler for the load translation memory button
   const handleLoadTranslationMemory = () => {
     console.log('Calling loadTranslationMemory')
     setAddTranslationMemory(translationMemory);
     setTranslationMemoryLoaded(true)
-  };
-
-  const handleToggleTraining = () => {
-    const newTrainingState = !training;
-    console.log('Toggle training to: ' + newTrainingState);
-    setDoingTraining(newTrainingState);
   };
 
   const {
@@ -120,8 +115,20 @@ const WordAlignerPanel = ({
     translate,
   })
 
-  const enableLoadTranslationMemory = !doingTraining;
-  const enableTrainingToggle = trainingComplete || (translationMemoryLoaded && !doingTraining);
+  const handleToggleTraining = () => {
+    const newTrainingState = !training;
+    console.log('Toggle training to: ' + newTrainingState);
+    if (newTrainingState) {
+      setCancelTraining(false)
+      setDoTraining(true);
+    } else {
+      setDoTraining(false);
+      setCancelTraining(true)
+    }
+  };
+  
+  const enableLoadTranslationMemory = !training;
+  const enableTrainingToggle = trainingComplete || translationMemoryLoaded;
   const alignmentSuggestionsConfig = {
     doAutoLoadCachedTraining,
     doAutoTraining,
@@ -174,9 +181,10 @@ const WordAlignerPanel = ({
 
       <EnhancedWordAligner
         addTranslationMemory={addTranslationMemory}
+        cancelTraining={cancelTraining}
         config={alignmentSuggestionsConfig}
         contextId={contextId}
-        doTraining={doingTraining}
+        doTraining={doTraining}
         handleTrainingStateChange={handleTrainingStateChange}
         lexicons={lexicons}
         loadLexiconEntry={loadLexiconEntry}
