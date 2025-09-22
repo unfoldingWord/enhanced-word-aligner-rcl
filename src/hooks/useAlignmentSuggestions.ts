@@ -799,13 +799,13 @@ export const useAlignmentSuggestions = ({
             return;
         }
         //make sure that lastUsedInstanceCount isn't still the same as groupCollection.instanceCount
+        const bookId = contextId?.reference?.bookId;
         if (trainingStateRef.current.lastTrainedInstanceCount !== stateRef.current.groupCollection.instanceCount) {
             if (!isTraining()) { // check if training already running
                 const contextId_ = {
                     ...contextId,
-                    bookName: currentBookName || contextId.reference.bookId
+                    bookName: currentBookName || contextId?.reference?.bookId
                 }
-                const bookId = contextId?.reference?.bookId;
                 const isNT = bibleHelpers.isNewTestament(bookId)
                 const groupName = getGroupName(contextId)
                 
@@ -1452,7 +1452,7 @@ export const useAlignmentSuggestions = ({
                         }
                     } else { // training not running
                         if (!autoTrainingCompleted) {
-                            startTraining();
+                            setState( { ...stateRef.current, kickOffTraining: true});
                         }
                     }
                 }

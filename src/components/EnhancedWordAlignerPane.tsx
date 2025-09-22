@@ -193,7 +193,7 @@ export const EnhancedWordAlignerPane: React.FC<EnhancedWordAlignerPaneProps> = (
      * @return {void} No return value.
      */
     function handleInfoClick_() {
-        // console.log('handleInfoClick');
+        console.log('EnhancedWordAlignerPane - handleInfoClick');
         const info = getModelMetaData()
         setModelInfo(info);
         setShowModelDialog(true);
@@ -209,7 +209,7 @@ export const EnhancedWordAlignerPane: React.FC<EnhancedWordAlignerPaneProps> = (
      * @param {string} bookId - The unique identifier of the book to be deleted.
      */
     const handleDeleteBook = (bookId: string) => {
-        console.log(`Delete alignment data for book: ${bookId}`);
+        console.log(`EnhancedWordAlignerPane - Delete alignment data for book: ${bookId}`);
         deleteBookFromGroup(bookId).then(() => {
             handleInfoClick_()
         });
