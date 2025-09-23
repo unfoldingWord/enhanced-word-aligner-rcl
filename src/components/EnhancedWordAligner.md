@@ -1,7 +1,7 @@
 Suggesting Word Aligner Example:
 
 ```js
-import React, {useState} from 'react';
+import React, {useRef, useState} from 'react';
 import {
   AlignmentHelpers,
   bibleHelpers,
@@ -9,7 +9,7 @@ import {
   usfmHelpers
 } from "word-aligner-rcl";
 import usfm from 'usfm-js';
-import { EnhancedWordAligner } from './EnhancedWordAligner'
+import { EnhancedWordAligner, useAlignmentSuggestions } from './EnhancedWordAligner'
 import { extractVerseText } from '../utils/misc';
 import { useTrainingState } from '../hooks/useTrainingState'
 import { is_initialized, locale_init, t } from '../utils/localization'
@@ -97,6 +97,7 @@ const WordAlignerPanel = ({
   const [translationMemoryLoaded, setTranslationMemoryLoaded] = useState(false);
   const [doTraining, setDoTraining] = useState(false);
   const [cancelTraining, setCancelTraining] = useState(false);
+  const handleSetTrainingState = useRef(null);
 
   // Handler for the load translation memory button
   const handleLoadTranslationMemory = () => {
@@ -143,6 +144,60 @@ const WordAlignerPanel = ({
     keepAllAlignmentMinThreshold,
   };
 
+  function setHandleSetTrainingState(handleSetTrainingState_) {
+    console.log('WordAlignerDialog: setHandleSetTrainingState', handleSetTrainingState_)
+    handleSetTrainingState.current = handleSetTrainingState_;
+  }
+
+  /**
+   * A function that handles updating the training state.
+   * TRICKY: Serves as a forward reference for handleSetTrainingState
+   *
+   * @function
+   * @name handleSetTrainingStateForward
+   * @param {Object} props - The properties or parameters that are passed to determine the training state.
+   */
+  const handleSetTrainingStateForward = (props) => {
+    const current = handleSetTrainingState.current;
+
+    if (!current) {
+      console.log('handleSetTrainingStateForward: no handleSetTrainingState.current');
+      return
+    }
+    
+    current(props)
+  }
+
+  const alignmentSuggestionsManage = useAlignmentSuggestions({
+    config: wordSuggesterConfig,
+    contextId,
+    createAlignmentTrainingWorker,
+    handleSetTrainingState: handleSetTrainingStateForward,
+    handleTrainingCompleted,
+    shown: showDialog,
+    sourceLanguageId: sourceLanguageId,
+    targetLanguageId: targetLanguage?.languageId,
+    targetUsfm: targetBibleBookUsfm,
+    sourceUsfm: originalBibleBookUsfm,
+  });
+
+  const {
+    state: {
+      failedToLoadCachedTraining,
+      trainingRunning,
+    },
+    actions: {
+      areTrainingSameBook,
+      getSuggester,
+      getTrainingContextId,
+      isTraining,
+      loadTranslationMemory,
+      startTraining,
+      stopTraining,
+      suggester,
+    }
+  } = alignmentSuggestionsManage;
+
   return (
     <>
       <div>{targetLanguageId} - {bookId} {chapter}:{verse}</div>
@@ -186,14 +241,15 @@ const WordAlignerPanel = ({
 
       <EnhancedWordAligner
         addTranslationMemory={addTranslationMemory}
+        alignmentSuggestionsManage={alignmentSuggestionsManage}
         cancelTraining={cancelTraining}
         config={alignmentSuggestionsConfig}
         contextId={contextId}
         doTraining={doTraining}
-        handleTrainingStateChange={handleTrainingStateChange}
         lexicons={lexicons}
         loadLexiconEntry={loadLexiconEntry}
         onChange={onChange}
+        setHandleSetTrainingState={setHandleSetTrainingState}
         showPopover={showPopover}
         sourceLanguageId={sourceLanguageId}
         styles={{...styles, maxHeight: '450px', overflowY: 'auto'}}

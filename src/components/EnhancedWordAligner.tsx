@@ -47,7 +47,7 @@ import {
 import {Alignment, Suggestion} from 'wordmap';
 import {Token} from 'wordmap-lexer'
 
-import {TBookShaState, useAlignmentSuggestions} from '@/hooks/useAlignmentSuggestions';
+import {TBookShaState, TUseAlignmentSuggestionsReturn} from '@/hooks/useAlignmentSuggestions';
 import {createAlignmentTrainingWorker as createAlignmentTrainingWorker_} from '@/workers/utils/startAlignmentTrainer';
 import {TAlignmentCompletedInfo, TAlignmentSuggestionsConfig} from '@/workers/WorkerComTypes';
 import {useTrainingState} from '@/hooks/useTrainingState';
@@ -58,6 +58,9 @@ import { EnhancedWordAlignerPane } from "./EnhancedWordAlignerPane";
 interface EnhancedWordAlignerProps {
     /** Translation memory data to be added to the alignment engine */
     addTranslationMemory?: TTranslationMemoryType;
+
+    /** state and actions from useAlignmentSuggestions **/
+    alignmentSuggestionsManage: TUseAlignmentSuggestionsReturn;
 
     /** Function to handle async suggestion generation for alignments */
     asyncSuggester?: (
@@ -73,16 +76,9 @@ interface EnhancedWordAlignerProps {
     /** Current context identifier with bible, book, chapter, verse reference */
     contextId: ContextId;
     
-    /** Function to create a web worker for alignment training */
-    createAlignmentTrainingWorker: () => Promise<Worker>;
-    
     /** Flag to initiate alignment training */
     doTraining: boolean;
 
-    /** callback for training state changes to pass to parent components -
-     *      connect to useTrainingState hook for convenient exposure of state information */
-    handleTrainingStateChange?: THandleTrainingStateChange;
-    
     /** Flag control if suggestion buttons are to be enabled, default is true */
     hasRenderedSuggestions?: boolean;
 
@@ -102,6 +98,9 @@ interface EnhancedWordAlignerProps {
         contextId: ContextId;
     }) => void;
 
+    /** sets callback for training state changes -*/
+    setHandleSetTrainingState?: (callback: THandleTrainingStateChange) => void;
+        
     /** Flag to only show suggestion buttons (if true the clear-all button is removed) */
     suggestionsOnly?: boolean;
 
@@ -164,13 +163,13 @@ interface EnhancedWordAlignerProps {
 export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
 {
     addTranslationMemory,
+    alignmentSuggestionsManage,
+    cancelTraining,
     contextId,
     config,
-    createAlignmentTrainingWorker = createAlignmentTrainingWorker_, // TRICKY - the steps to create the training Worker are dependent on the platform, so this allows it to be overridden
     doTraining,
     lexiconCache,
     loadLexiconEntry,
-    handleTrainingStateChange: handleTrainingStateChange_,
     hasRenderedSuggestions,
     onChange,
     suggestionsOnly,
@@ -178,7 +177,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     sourceLanguageId,
     sourceLanguageFont,
     sourceFontSizePercent,
-    cancelTraining,
+    setHandleSetTrainingState,
     styles,
     targetLanguage,
     targetLanguageFont,
@@ -202,7 +201,6 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             translationMemoryLoaded,
         }
     } = useTrainingState({
-        passThroughStateChange: handleTrainingStateChange_,
         translate
     })
 
@@ -219,18 +217,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             startTraining,
             stopTraining: stopTraining_,
         }
-    } = useAlignmentSuggestions({
-        config,
-        contextId,
-        createAlignmentTrainingWorker,
-        handleTrainingStateChange,
-        handleTrainingCompleted,
-        shown: true,
-        sourceLanguageId,
-        // @ts-ignore
-        targetLanguageId: targetLanguage.languageId,
-        translationMemory,
-    });
+    } = alignmentSuggestionsManage; // split out values from useAlignmentSuggestions
     
      /**
      * Auto-Training Effect
@@ -238,17 +225,6 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
      * 
      * @synopsis
      * Monitors training prerequisites and automatically initiates training when content changes.
-     * 
-     * @requirements
-     * - Training prerequisites (checksumGenerated, translationMemoryLoaded, trainingComplete) must be true
-     * - Auto-training must be enabled in configuration (config.doAutoTraining)
-     * - Book content must have changed since last training (via SHA comparison)
-     * 
-     * @dependencies
-     * - checksumGenerated, translationMemoryLoaded, trainingComplete - Training state flags
-     * - config.doAutoTraining - Configuration setting
-     * - getCurrentBookShaState() - Function to check content changes
-     * - startTraining() - Function to initiate training
      */
     useEffect(() => {
         console.log(`checksumGenerated = ${checksumGenerated}, translationMemoryLoaded = ${translationMemoryLoaded}`);
@@ -268,14 +244,6 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
      * 
      * @synopsis
      * Starts alignment training based on the doTraining prop.
-     * 
-     * @requirements
-     * - doTraining prop must reflect desired training state
-     * 
-     * @dependencies
-     * - doTraining - Boolean flag indicating whether training should be active
-     * - isTraining() - Function to check current training status
-     * - startTraining() - Functions to control training process
      */
     useEffect(() => {
         const training = isTraining()
@@ -291,14 +259,6 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
      *
      * @synopsis
      * Stops alignment training based on the doTraining prop.
-     *
-     * @requirements
-     * - doTraining prop must reflect desired training state
-     *
-     * @dependencies
-     * - cancelTraining - Boolean flag indicating whether training should be stopped
-     * - isTraining() - Function to check current training status
-     * - stopTraining() - Functions to control training process
      */
     useEffect(() => {
         const training = isTraining()
@@ -307,7 +267,14 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             stopTraining_()
         }
     },[cancelTraining]);
-    
+
+    useEffect(() => {
+        setHandleSetTrainingState(handleTrainingStateChange) // set on mount
+    },[]);
+
+    useEffect(() => {
+        loadTranslationMemory(addTranslationMemory)
+    },[addTranslationMemory]);
     
     return (
         <EnhancedWordAlignerPane
