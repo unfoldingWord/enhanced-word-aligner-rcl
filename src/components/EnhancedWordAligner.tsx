@@ -188,7 +188,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     verseAlignments,
 }) => {
     const handleTrainingCompleted = (info: TAlignmentCompletedInfo) => {
-        console.log('handleTrainingCompleted', info);
+        console.log('EnhancedWordAligner - handleTrainingCompleted', info);
     }
 
     const {
@@ -227,12 +227,12 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
      * Monitors training prerequisites and automatically initiates training when content changes.
      */
     useEffect(() => {
-        console.log(`checksumGenerated = ${checksumGenerated}, translationMemoryLoaded = ${translationMemoryLoaded}`);
+        console.log(`EnhancedWordAligner - checksumGenerated = ${checksumGenerated}, translationMemoryLoaded = ${translationMemoryLoaded}`);
         if (checksumGenerated && translationMemoryLoaded && trainingComplete && config?.doAutoTraining) {
             const shaState: TBookShaState = getCurrentBookShaState()
-            console.log(`Training complete: ${shaState?.bookShaChanged} trained sha ${shaState?.trainedSha} and current book sha ${shaState?.currentBookSha}`);
+            console.log(`EnhancedWordAligner - Training complete: ${shaState?.bookShaChanged} trained sha ${shaState?.trainedSha} and current book sha ${shaState?.currentBookSha}`);
             if (shaState?.bookShaChanged) {
-                console.log(`Training complete: book changed, retraining`);
+                console.log(`EnhancedWordAligner - Training complete: book changed, retraining`);
                 startTraining();
             }
         }
@@ -247,7 +247,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
      */
     useEffect(() => {
         const training = isTraining()
-        console.log(`doTraining changed state to ${doTraining} but training is now ${training}`)
+        console.log(`EnhancedWordAligner - doTraining changed state to ${doTraining} but training is now ${training}`)
         if (doTraining) {
             startTraining()
         }
@@ -262,7 +262,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
      */
     useEffect(() => {
         const training = isTraining()
-        console.log(`cancelTraining changed state to ${cancelTraining} but training is now ${training}`)
+        console.log(`EnhancedWordAligner - cancelTraining changed state to ${cancelTraining} but training is now ${training}`)
         if (cancelTraining) {
             stopTraining_()
         }
