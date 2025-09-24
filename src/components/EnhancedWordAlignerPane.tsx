@@ -28,7 +28,7 @@
  * - Requires browser support for IndexedDB for caching training data
  */
 
-import React, { useState} from 'react'
+import React, {useEffect, useState} from 'react'
 // @ts-ignore
 import {SuggestingWordAligner} from 'word-aligner-rcl'
 import {
@@ -214,6 +214,14 @@ export const EnhancedWordAlignerPane: React.FC<EnhancedWordAlignerPaneProps> = (
             handleInfoClick_()
         });
     };
+
+    // useEffect(() => {
+    //     console.log('EnhancedWordAlignerPane initialized/mounted')
+    //     // Cleanup function that runs on unmount
+    //     return () => {
+    //         console.log('EnhancedWordAlignerPane unmounted')
+    //     };
+    // }, []);
     
     return (
         <>

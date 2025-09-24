@@ -129,8 +129,6 @@ export const useTrainingState = ({
             return;
         }
 
-        passThroughStateChange?.(props);
-
         setTrainingState(prev => {
             let {
                 checksumGenerated: _checksumGenerated,
@@ -206,6 +204,8 @@ export const useTrainingState = ({
             };
             return newState;
         });
+
+        passThroughStateChange?.(props);
     }, []);
 
     const state = trainingState;

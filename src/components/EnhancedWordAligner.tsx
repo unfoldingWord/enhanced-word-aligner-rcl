@@ -73,9 +73,12 @@ interface EnhancedWordAlignerProps {
     /** Flag to cancel alignment training */
     cancelTraining: boolean;
 
+    /** Configuration settings for alignment suggestions */
+    config?: TAlignmentSuggestionsConfig;
+    
     /** Current context identifier with bible, book, chapter, verse reference */
     contextId: ContextId;
-    
+
     /** Flag to initiate alignment training */
     doTraining: boolean;
 
@@ -100,7 +103,7 @@ interface EnhancedWordAlignerProps {
 
     /** sets callback for training state changes -*/
     setHandleSetTrainingState?: (callback: THandleTrainingStateChange) => void;
-        
+
     /** Flag to only show suggestion buttons (if true the clear-all button is removed) */
     suggestionsOnly?: boolean;
 
@@ -126,7 +129,7 @@ interface EnhancedWordAlignerProps {
 
     /** Custom CSS styles for the component */
     styles?: React.CSSProperties;
-    
+
     /** Synchronous function to generate alignment suggestions */
     suggester?: (
         sourceSentence: string | Token[],
@@ -134,30 +137,30 @@ interface EnhancedWordAlignerProps {
         maxSuggestions?: number,
         manuallyAligned?: Alignment[]
     ) => Suggestion[];
-    
+
     /** Info for the target language */
     targetLanguage: object;
-    
+
     /** Font family for the target language text */
     targetLanguageFont?: string;
-    
+
     /** Font size percentage for target text */
     targetFontSizePercent?: number;
-    
+
     /** Array of target words to be aligned */
     targetWords: TargetWordBank[];
-    
+
     /** Function to translate UI strings */
     translate: (key: string, params?: Record<string, string | number>) => string;
     
     /** Existing translation memory for alignment suggestions */
     translationMemory?: TTranslationMemoryType;
-    
+
+    /** if true then log training progress **/
+    verboseTraining?: boolean;
+
     /** Current alignments between source and target words */
     verseAlignments: Alignment[];
-    
-    /** Configuration settings for alignment suggestions */
-    config?: TAlignmentSuggestionsConfig;
 }
 
 export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
@@ -185,12 +188,9 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     targetWords,
     translate,
     translationMemory,
+    verboseTraining,
     verseAlignments,
 }) => {
-    const handleTrainingCompleted = (info: TAlignmentCompletedInfo) => {
-        console.log('EnhancedWordAligner - handleTrainingCompleted', info);
-    }
-
     const {
         actions: {
             handleTrainingStateChange
@@ -201,7 +201,8 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             translationMemoryLoaded,
         }
     } = useTrainingState({
-        translate
+        translate,
+        verbose: verboseTraining,
     })
 
     const {
@@ -254,11 +255,18 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     },[doTraining]);
 
     /**
-     * Training Control Effect
-     * ======================
-     *
-     * @synopsis
-     * Stops alignment training based on the doTraining prop.
+     * Training Cancel Effect
+     * =====================
+     * 
+     * This effect handles the cancellation of ongoing alignment training. It monitors 
+     * the cancelTraining prop and stops any active training session when requested.
+     * The effect verifies current training status before attempting to stop training
+     * to prevent unnecessary calls.
+     * 
+     * Dependencies:
+     * - cancelTraining: Flag indicating if training should be stopped
+     * 
+     * @effect Stops alignment training when cancelTraining becomes true
      */
     useEffect(() => {
         const training = isTraining()
@@ -268,13 +276,46 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
         }
     },[cancelTraining]);
 
+    /**
+     * Training State Handler Effect
+     * ============================
+     * 
+     * This effect sets up the training state change handler on component mount.
+     * It ensures that training state updates are properly handled by setting
+     * the handleTrainingStateChange callback once when the component mounts.
+     * 
+     * @effect Initializes training state change handler on mount
+     */
     useEffect(() => {
         setHandleSetTrainingState(handleTrainingStateChange) // set on mount
     },[]);
 
+    /**
+     * Translation Memory Loading Effect
+     * ================================
+     * 
+     * This effect manages the loading of translation memory data when it becomes
+     * available or changes. It automatically triggers the loading process whenever
+     * new translation memory data is provided through the addTranslationMemory prop.
+     * 
+     * Dependencies:
+     * - addTranslationMemory: Object containing translation memory data to be loaded
+     * 
+     * @effect Loads translation memory data when it changes
+     */
     useEffect(() => {
-        loadTranslationMemory(addTranslationMemory)
+        if (addTranslationMemory) {
+            loadTranslationMemory(addTranslationMemory)
+        }
     },[addTranslationMemory]);
+
+    useEffect(() => {
+        console.log('EnhancedWordAligner initialized/mounted')
+        // Cleanup function that runs on unmount
+        return () => {
+            console.log('EnhancedWordAligner unmounted')
+        };
+    }, []);
     
     return (
         <EnhancedWordAlignerPane

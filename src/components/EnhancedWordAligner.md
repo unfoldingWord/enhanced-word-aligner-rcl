@@ -9,10 +9,13 @@ import {
   usfmHelpers
 } from "word-aligner-rcl";
 import usfm from 'usfm-js';
-import { EnhancedWordAligner, useAlignmentSuggestions } from './EnhancedWordAligner'
-import { extractVerseText } from '../utils/misc';
-import { useTrainingState } from '../hooks/useTrainingState'
-import { is_initialized, locale_init, t } from '../utils/localization'
+import {EnhancedWordAligner} from './EnhancedWordAligner'
+import {extractVerseText} from '../utils/misc';
+import {useAlignmentSuggestions} from '../hooks/useAlignmentSuggestions'
+import {useTrainingState} from '../hooks/useTrainingState'
+import {is_initialized, locale_init, t} from '../utils/localization'
+import {createAlignmentTrainingWorker} from '../workers/utils/startAlignmentTrainer'
+import {getTranslationMemoryForBook} from '../workers/utils/AlignmentTrainerUtils'
 import delay from "../utils/delay";
 
 import {NT_ORIG_LANG} from "../common/constants";
@@ -93,33 +96,17 @@ const WordAlignerPanel = ({
     translationMemory,
     styles
 }) => {
-  const [addTranslationMemory, setAddTranslationMemory] = useState(null);
   const [translationMemoryLoaded, setTranslationMemoryLoaded] = useState(false);
   const [doTraining, setDoTraining] = useState(false);
   const [cancelTraining, setCancelTraining] = useState(false);
   const handleSetTrainingState = useRef(null);
 
-  // Handler for the load translation memory button
-  const handleLoadTranslationMemory = () => {
-    console.log('Calling loadTranslationMemory')
-    setAddTranslationMemory(translationMemory);
-    setTranslationMemoryLoaded(true)
-  };
+  const bookId = contextId && contextId.reference && contextId.reference.bookId
+  const shouldShowDialog = !!(targetWords && verseAlignments && bookId)
+  const targetLanguageId = targetLanguage && targetLanguage.languageId;
+  const verboseTraining = false;
 
-  const {
-    actions: {
-      handleTrainingStateChange
-    },
-    state: {
-      training,
-      trainingComplete,
-      trainingError,
-      trainingStatusStr,
-      trainingButtonStr,
-    }
-  } = useTrainingState({
-    translate,
-  })
+  const {targetUsfm, sourceUsfm} = getTranslationMemoryForBook(bookId, translationMemory);
 
   const handleToggleTraining = () => {
     const newTrainingState = !training;
@@ -132,7 +119,7 @@ const WordAlignerPanel = ({
       setCancelTraining(true)
     }
   };
-  
+
   const enableLoadTranslationMemory = !training;
   const enableTrainingToggle = trainingComplete || translationMemoryLoaded;
   const alignmentSuggestionsConfig = {
@@ -144,41 +131,76 @@ const WordAlignerPanel = ({
     keepAllAlignmentMinThreshold,
   };
 
+  const addTranslationMemory = doAutoTraining ? translationMemory: null;
+
   function setHandleSetTrainingState(handleSetTrainingState_) {
     console.log('WordAlignerDialog: setHandleSetTrainingState', handleSetTrainingState_)
     handleSetTrainingState.current = handleSetTrainingState_;
   }
 
+    const {
+    actions: {
+      handleTrainingStateChange
+    },
+    state: {
+      training,
+      trainingComplete,
+      trainingError,
+      trainingStatusStr,
+      trainingButtonStr,
+    }
+  } = useTrainingState({
+    translate,
+    verbose: true,
+  })
+
   /**
    * A function that handles updating the training state.
-   * TRICKY: Serves as a forward reference for handleSetTrainingState
+   * TRICKY: does callback to function previously set by setHandleSetTrainingState() and handleTrainingStateChange
    *
    * @function
    * @name handleSetTrainingStateForward
    * @param {Object} props - The properties or parameters that are passed to determine the training state.
+   *    see definition of THandleTrainingStateChange
    */
   const handleSetTrainingStateForward = (props) => {
+    handleTrainingStateChange(props);
+
     const current = handleSetTrainingState.current;
 
     if (!current) {
       console.log('handleSetTrainingStateForward: no handleSetTrainingState.current');
       return
     }
-    
+
     current(props)
   }
+  
+  /**
+   * Handles the completion of a training session.
+   *
+   * This function is called when a training process is completed. It processes
+   * the provided training completion information and performs necessary actions,
+   * such as logging the completion data.
+   *
+   * @param {TAlignmentCompletedInfo} info - The information related to the completed training session.
+   */
+  const handleTrainingCompleted = (info) => {
+    console.log('handleTrainingCompleted', info);
+  }
 
-  const alignmentSuggestionsManage = useAlignmentSuggestions({
-    config: wordSuggesterConfig,
+  // this hook manages the word aligner suggestions including training of the Model
+  const alignmentSuggestionsManage = useAlignmentSuggestions({ // see TUseAlignmentSuggestionsProps
+    config: alignmentSuggestionsConfig,
     contextId,
     createAlignmentTrainingWorker,
-    handleSetTrainingState: handleSetTrainingStateForward,
+    handleTrainingStateChange: handleSetTrainingStateForward,
     handleTrainingCompleted,
-    shown: showDialog,
+    shown: shouldShowDialog,
     sourceLanguageId: sourceLanguageId,
-    targetLanguageId: targetLanguage?.languageId,
-    targetUsfm: targetBibleBookUsfm,
-    sourceUsfm: originalBibleBookUsfm,
+    targetLanguageId: targetLanguageId,
+    targetUsfm,
+    sourceUsfm,
   });
 
   const {
@@ -196,8 +218,15 @@ const WordAlignerPanel = ({
       stopTraining,
       suggester,
     }
-  } = alignmentSuggestionsManage;
+  } = alignmentSuggestionsManage; // type is TUseAlignmentSuggestionsReturn
 
+  // Handler for the load translation memory button
+  const handleLoadTranslationMemory = () => {
+    console.log('Calling loadTranslationMemory')
+    loadTranslationMemory(translationMemory);
+    setTranslationMemoryLoaded(true)
+  };
+  
   return (
     <>
       <div>{targetLanguageId} - {bookId} {chapter}:{verse}</div>
@@ -259,6 +288,7 @@ const WordAlignerPanel = ({
         targetWords={targetWords}
         translate={translate}
         translationMemory={translationMemory}
+        verboseTraining={verboseTraining}
         verseAlignments={verseAlignments}
       />
     </>
