@@ -44,7 +44,7 @@ export interface TTrainingStateChange {
 }
 
 /** Callback function type for handling training state changes */
-export type THandleTrainingStateChange = (state: TTrainingStateChange) => void;
+export type TTrainingStateChangeHandler = (state: TTrainingStateChange) => void;
 
 // Alignment Result Types
 // ======================

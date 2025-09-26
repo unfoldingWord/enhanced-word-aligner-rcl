@@ -41,7 +41,7 @@ import {
     ContextId,
     SourceWord,
     TargetWordBank,
-    THandleTrainingStateChange,
+    TTrainingStateChangeHandler,
     TTranslationMemoryType,
 } from '@/common/classes';
 import {Alignment, Suggestion} from 'wordmap';
@@ -82,6 +82,9 @@ interface EnhancedWordAlignerProps {
     /** Flag to initiate alignment training */
     doTraining: boolean;
 
+    /** callback for training state changes -*/
+    handleTrainingStateChange?: TTrainingStateChangeHandler;
+    
     /** Flag control if suggestion buttons are to be enabled, default is true */
     hasRenderedSuggestions?: boolean;
 
@@ -102,7 +105,7 @@ interface EnhancedWordAlignerProps {
     }) => void;
 
     /** sets callback for training state changes -*/
-    setHandleSetTrainingState?: (callback: THandleTrainingStateChange) => void;
+    setTrainingStateChangeHandler?: (callback: TTrainingStateChangeHandler, key: string) => void;
 
     /** Flag to only show suggestion buttons (if true the clear-all button is removed) */
     suggestionsOnly?: boolean;
@@ -173,6 +176,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     doTraining,
     lexiconCache,
     loadLexiconEntry,
+    handleTrainingStateChange: handleTrainingStateChange_,
     hasRenderedSuggestions,
     onChange,
     suggestionsOnly,
@@ -180,7 +184,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     sourceLanguageId,
     sourceLanguageFont,
     sourceFontSizePercent,
-    setHandleSetTrainingState,
+    setTrainingStateChangeHandler,
     styles,
     targetLanguage,
     targetLanguageFont,
@@ -201,6 +205,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             translationMemoryLoaded,
         }
     } = useTrainingState({
+        passThroughStateChange: handleTrainingStateChange_,
         translate,
         verbose: verboseTraining,
     })
@@ -287,7 +292,13 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
      * @effect Initializes training state change handler on mount
      */
     useEffect(() => {
-        setHandleSetTrainingState(handleTrainingStateChange) // set on mount
+        const key = 'EnhancedWordAligner';
+        console.log('EnhancedWordAligner initialized/mounted')
+        setTrainingStateChangeHandler(handleTrainingStateChange, key) // set on mount
+        return () => {
+            console.log('EnhancedWordAligner unmounted')
+            setTrainingStateChangeHandler(null, key) // set on mount
+        };
     },[]);
 
     /**
@@ -308,14 +319,6 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             loadTranslationMemory(addTranslationMemory)
         }
     },[addTranslationMemory]);
-
-    useEffect(() => {
-        console.log('EnhancedWordAligner initialized/mounted')
-        // Cleanup function that runs on unmount
-        return () => {
-            console.log('EnhancedWordAligner unmounted')
-        };
-    }, []);
     
     return (
         <EnhancedWordAlignerPane

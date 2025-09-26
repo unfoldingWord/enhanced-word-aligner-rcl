@@ -30,13 +30,13 @@
  */
 
 import { useState, useCallback } from 'react';
-import {THandleTrainingStateChange, TTrainingStateChange} from '@/common/classes';
+import {TTrainingStateChangeHandler, TTrainingStateChange} from '@/common/classes';
 
 interface TUseTrainingStateProps {
     /** Optional handler to receive training state changes (for parent components).  Typically you
      * would pass the handleTrainingStateChange from parent component.
      *  */
-    passThroughStateChange?: THandleTrainingStateChange;
+    passThroughStateChange?: TTrainingStateChangeHandler;
     /** Function that translates UI strings using provided keys */
     translate: (key:string) => string;
     verbose?: boolean; // if true then log progress
@@ -69,7 +69,7 @@ interface TUseTrainingStateReturn {
         /** Function to update the training state with new values.  This would either be
          *      passed as property into useAlignmentSuggestions, or as property passThroughStateChange
          *      of useTrainingState() of a child component */
-        handleTrainingStateChange: THandleTrainingStateChange
+        handleTrainingStateChange: TTrainingStateChangeHandler
     },
     /** Current training state values */
     state: TrainingState
@@ -123,7 +123,7 @@ export const useTrainingState = ({
      *   - `trainingFailed` (string|null): Details of any training failure, if applicable.
      *   - `translationMemoryLoaded` (boolean): Indicates if the translation memory is loaded.
      */
-    const handleTrainingStateChange:THandleTrainingStateChange = useCallback((props: TTrainingStateChange) => {
+    const handleTrainingStateChange:TTrainingStateChangeHandler = useCallback((props: TTrainingStateChange) => {
         if (!props) {
             console.log('useTrainingStateManagement.handleTrainingStateChange - no props');
             return;

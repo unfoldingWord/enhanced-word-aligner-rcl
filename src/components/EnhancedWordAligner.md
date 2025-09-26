@@ -99,7 +99,7 @@ const WordAlignerPanel = ({
   const [translationMemoryLoaded, setTranslationMemoryLoaded] = useState(false);
   const [doTraining, setDoTraining] = useState(false);
   const [cancelTraining, setCancelTraining] = useState(false);
-  const handleSetTrainingState = useRef(null);
+  const handleTrainingStateChange_ = useRef({});
 
   const bookId = contextId && contextId.reference && contextId.reference.bookId
   const shouldShowDialog = !!(targetWords && verseAlignments && bookId)
@@ -131,14 +131,28 @@ const WordAlignerPanel = ({
     keepAllAlignmentMinThreshold,
   };
 
-  const addTranslationMemory = doAutoTraining ? translationMemory: null;
+  const addTranslationMemory = doAutoTraining ? translationMemory : null;
 
-  function setHandleSetTrainingState(handleSetTrainingState_) {
-    console.log('WordAlignerDialog: setHandleSetTrainingState', handleSetTrainingState_)
-    handleSetTrainingState.current = handleSetTrainingState_;
+  /**
+   * Sets or removes a handler function for training state changes based on its presence.
+   *
+   * @param {Function|null} handleTrainingStateChange - The handler function to be executed when the training state changes.
+   * If null, the handler associated with the given key will be removed.
+   * @param {string} key - A unique key to associate with the handler function.
+   * @return {void}
+   */
+  function setTrainingStateChangeHandler(handleTrainingStateChange, key) {
+    console.log(`setTrainingStateChangeHandler key ${key}`, handleTrainingStateChange)
+    if (handleTrainingStateChange) {
+      handleTrainingStateChange_.current[key] = handleTrainingStateChange;
+    } else {
+      if (handleTrainingStateChange_.current[key]) {
+        delete handleTrainingStateChange_.current[key];
+      }
+    }
   }
 
-    const {
+  const {
     actions: {
       handleTrainingStateChange
     },
@@ -156,26 +170,26 @@ const WordAlignerPanel = ({
 
   /**
    * A function that handles updating the training state.
-   * TRICKY: does callback to function previously set by setHandleSetTrainingState() and handleTrainingStateChange
+   * TRICKY: does callback to function previously set by setTrainingStateChangeHandler() and handleTrainingStateChange
    *
    * @function
-   * @name handleSetTrainingStateForward
+   * @name handleTrainingStateChangeForward
    * @param {Object} props - The properties or parameters that are passed to determine the training state.
    *    see definition of THandleTrainingStateChange
    */
-  const handleSetTrainingStateForward = (props) => {
+  const handleTrainingStateChangeForward = (props) => {
     handleTrainingStateChange(props);
 
-    const current = handleSetTrainingState.current;
-
-    if (!current) {
-      console.log('handleSetTrainingStateForward: no handleSetTrainingState.current');
-      return
-    }
-
-    current(props)
+    const handlers = handleTrainingStateChange_.current;
+    Object.entries(handlers).forEach(([key, handler]) => {
+      if (!handler) {
+        console.log('handleTrainingStateChangeForward: no handleTrainingStateChange registered');
+      } else {
+        handler(props)
+      }
+    })
   }
-  
+
   /**
    * Handles the completion of a training session.
    *
@@ -194,7 +208,7 @@ const WordAlignerPanel = ({
     config: alignmentSuggestionsConfig,
     contextId,
     createAlignmentTrainingWorker,
-    handleTrainingStateChange: handleSetTrainingStateForward,
+    handleTrainingStateChange: handleTrainingStateChangeForward,
     handleTrainingCompleted,
     shown: shouldShowDialog,
     sourceLanguageId: sourceLanguageId,
@@ -226,7 +240,7 @@ const WordAlignerPanel = ({
     loadTranslationMemory(translationMemory);
     setTranslationMemoryLoaded(true)
   };
-  
+
   return (
     <>
       <div>{targetLanguageId} - {bookId} {chapter}:{verse}</div>
@@ -278,7 +292,7 @@ const WordAlignerPanel = ({
         lexicons={lexicons}
         loadLexiconEntry={loadLexiconEntry}
         onChange={onChange}
-        setHandleSetTrainingState={setHandleSetTrainingState}
+        setTrainingStateChangeHandler={setTrainingStateChangeHandler}
         showPopover={showPopover}
         sourceLanguageId={sourceLanguageId}
         styles={{...styles, maxHeight: '450px', overflowY: 'auto'}}

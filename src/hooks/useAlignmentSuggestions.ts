@@ -56,7 +56,7 @@ import {
     ContextId,
     TAlignmentSuggestionsState,
     TCurrentShas,
-    THandleTrainingStateChange,
+    TTrainingStateChangeHandler,
     TrainingState,
     TTranslationMemoryType,
 } from '@/common/classes';
@@ -93,7 +93,7 @@ export interface TUseAlignmentSuggestionsProps {
     createAlignmentTrainingWorker?:() => Promise<Worker>;
     
     /** Callback for training state changes */
-    handleTrainingStateChange?: THandleTrainingStateChange;
+    handleTrainingStateChange?: TTrainingStateChangeHandler;
     
     /** Callback for training completion */
     handleTrainingCompleted?: THandleTrainingCompleted;
@@ -1037,13 +1037,13 @@ export const useAlignmentSuggestions = ({
      * training worker is active.
      *
      * Dependencies:
-     * - `handleSetTrainingState` - Optional function to update the training state.
+     * - `handleTrainingStateChange` - Optional function to update the training state.
      * - `alignmentTrainingRef` - Reference to the alignment training worker.
      *
      * Operations performed:
      * - Logs the invocation of the stopTraining function.
      * - Checks if the alignment training worker is currently active.
-     * - Calls the `handleSetTrainingState` function (if provided) to set the training state to false.
+     * - Calls the `handleTrainingStateChange` function (if provided) to set the training state to false.
      * - Cleans up resources related to the alignment training worker.
      * - Logs the successful stoppage of alignment training.
      */
