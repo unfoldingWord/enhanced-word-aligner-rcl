@@ -104,7 +104,7 @@ interface EnhancedWordAlignerProps {
         contextId: ContextId;
     }) => void;
 
-    /** sets callback for training state changes -*/
+    /** sets callback for training state changes */
     setTrainingStateChangeHandler?: (callback: TTrainingStateChangeHandler, key: string) => void;
 
     /** Flag to only show suggestion buttons (if true the clear-all button is removed) */

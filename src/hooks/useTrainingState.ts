@@ -29,7 +29,7 @@
  * - Translation function for internationalization
  */
 
-import { useState, useCallback } from 'react';
+import { useRef, useState, useCallback } from 'react';
 import {TTrainingStateChangeHandler, TTrainingStateChange} from '@/common/classes';
 
 interface TUseTrainingStateProps {
@@ -69,7 +69,10 @@ interface TUseTrainingStateReturn {
         /** Function to update the training state with new values.  This would either be
          *      passed as property into useAlignmentSuggestions, or as property passThroughStateChange
          *      of useTrainingState() of a child component */
-        handleTrainingStateChange: TTrainingStateChangeHandler
+        handleTrainingStateChange: TTrainingStateChangeHandler,
+
+        /** registers callback for training state changes */
+        setTrainingStateChangeHandler?: (callback: TTrainingStateChangeHandler, key: string) => void;
     },
     /** Current training state values */
     state: TrainingState
@@ -92,6 +95,7 @@ export const useTrainingState = ({
         trainingStatusStr: '',
         translationMemoryLoaded: false,
     });
+    const handleTrainingStateChange_ = useRef({}); // singleton
 
     /**
      * Updates the training state based on the provided properties.
@@ -205,14 +209,52 @@ export const useTrainingState = ({
             return newState;
         });
 
-        passThroughStateChange?.(props);
+        if (!props.noForward) {
+            props.noForward = true;
+            passThroughStateChange?.(props);
+
+            const handlers = handleTrainingStateChange_.current;
+            handlers && Object.entries(handlers).forEach(([key, handler]: [string, TTrainingStateChangeHandler | undefined]) => {
+                if (!handler) {
+                    console.log(`useTrainingStateManagement.handleTrainingStateChange: no handleTrainingStateChange registered for ${key}`);
+                } else {
+                    handler(props);
+                }
+            });
+        }
     }, []);
+    
+    const setTrainingStateChangeHandler = (callback: TTrainingStateChangeHandler, key: string)=> {
+        console.log(`useTrainingStateManagement.setTrainingStateChangeHandler key ${key} function ${!!handleTrainingStateChange}`)
+        if (handleTrainingStateChange) {
+            handleTrainingStateChange_.current[key] = handleTrainingStateChange;
+            
+            // callback with current state
+            const props_: TTrainingStateChange = {
+                checksumGenerated: state.checksumGenerated,
+                noForward: true,
+                training: state.training,
+                trainingComplete: state.trainingComplete,
+                trainingFailed: state.trainingError,
+                translationMemoryLoaded: state.translationMemoryLoaded,
+            }
+            if (state.training && !state.trainingComplete) {
+                props_.percentComplete = state.percentComplete;
+            }
+            handleTrainingStateChange(props_);
+        } else {
+            if (handleTrainingStateChange_.current[key]) {
+                delete handleTrainingStateChange_.current[key];
+            }
+        }
+    }
 
     const state = trainingState;
 
     return {
         actions: {
-            handleTrainingStateChange
+            handleTrainingStateChange,
+            setTrainingStateChangeHandler,
         },
         state
     };

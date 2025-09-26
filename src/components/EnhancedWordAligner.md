@@ -99,7 +99,6 @@ const WordAlignerPanel = ({
   const [translationMemoryLoaded, setTranslationMemoryLoaded] = useState(false);
   const [doTraining, setDoTraining] = useState(false);
   const [cancelTraining, setCancelTraining] = useState(false);
-  const handleTrainingStateChange_ = useRef({});
 
   const bookId = contextId && contextId.reference && contextId.reference.bookId
   const shouldShowDialog = !!(targetWords && verseAlignments && bookId)
@@ -133,28 +132,10 @@ const WordAlignerPanel = ({
 
   const addTranslationMemory = doAutoTraining ? translationMemory : null;
 
-  /**
-   * Sets or removes a handler function for training state changes based on its presence.
-   *
-   * @param {Function|null} handleTrainingStateChange - The handler function to be executed when the training state changes.
-   * If null, the handler associated with the given key will be removed.
-   * @param {string} key - A unique key to associate with the handler function.
-   * @return {void}
-   */
-  function setTrainingStateChangeHandler(handleTrainingStateChange, key) {
-    console.log(`setTrainingStateChangeHandler key ${key}`, handleTrainingStateChange)
-    if (handleTrainingStateChange) {
-      handleTrainingStateChange_.current[key] = handleTrainingStateChange;
-    } else {
-      if (handleTrainingStateChange_.current[key]) {
-        delete handleTrainingStateChange_.current[key];
-      }
-    }
-  }
-
   const {
     actions: {
-      handleTrainingStateChange
+      handleTrainingStateChange,
+      setTrainingStateChangeHandler
     },
     state: {
       training,
@@ -167,29 +148,7 @@ const WordAlignerPanel = ({
     translate,
     verbose: true,
   })
-
-  /**
-   * A function that handles updating the training state.
-   * TRICKY: does callback to function previously set by setTrainingStateChangeHandler() and handleTrainingStateChange
-   *
-   * @function
-   * @name handleTrainingStateChangeForward
-   * @param {Object} props - The properties or parameters that are passed to determine the training state.
-   *    see definition of THandleTrainingStateChange
-   */
-  const handleTrainingStateChangeForward = (props) => {
-    handleTrainingStateChange(props);
-
-    const handlers = handleTrainingStateChange_.current;
-    Object.entries(handlers).forEach(([key, handler]) => {
-      if (!handler) {
-        console.log('handleTrainingStateChangeForward: no handleTrainingStateChange registered');
-      } else {
-        handler(props)
-      }
-    })
-  }
-
+  
   /**
    * Handles the completion of a training session.
    *
@@ -208,7 +167,7 @@ const WordAlignerPanel = ({
     config: alignmentSuggestionsConfig,
     contextId,
     createAlignmentTrainingWorker,
-    handleTrainingStateChange: handleTrainingStateChangeForward,
+    handleTrainingStateChange,
     handleTrainingCompleted,
     shown: shouldShowDialog,
     sourceLanguageId: sourceLanguageId,

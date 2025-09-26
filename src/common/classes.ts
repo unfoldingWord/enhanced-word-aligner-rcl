@@ -29,6 +29,8 @@ export interface TTrainingStateChange {
     checksumGenerated?: boolean;
     /** Context identifier for the current alignment session */
     contextId?: ContextId;
+    /** to prevent forwarding of status changes */
+    noForward?: boolean;
     /** Training progress percentage (0-100) */
     percentComplete?: number;
     /** Flag indicating if training is currently active */
