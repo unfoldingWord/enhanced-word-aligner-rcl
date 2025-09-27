@@ -2,7 +2,7 @@
 // Export components
 import { EnhancedWordAligner } from './components/EnhancedWordAligner';
 import { useAlignmentSuggestions } from './hooks/useAlignmentSuggestions'
-import { useTrainingState } from './hooks/useTrainingState';
+import * as TrainingState from './hooks/TrainingStateProvider';
 import * as AlignmentTrainerUtils from './workers/utils/AlignmentTrainerUtils'
 import AlignmentTrainerWorker from './workers/AlignmentTrainer.worker'
 import { EnhancedWordAlignerPane } from './components/EnhancedWordAlignerPane'
@@ -26,8 +26,8 @@ export {
     EnhancedWordAlignerPane,
     Localization,
     SuggestingWordAligner,
+    TrainingState,
     useAlignmentSuggestions,
-    useTrainingState,
     UsfmFileConversionHelpers,
     usfmHelpers
 } 

@@ -50,7 +50,7 @@ import {Token} from 'wordmap-lexer'
 import {TBookShaState, TUseAlignmentSuggestionsReturn} from '@/hooks/useAlignmentSuggestions';
 import {createAlignmentTrainingWorker as createAlignmentTrainingWorker_} from '@/workers/utils/startAlignmentTrainer';
 import {TAlignmentCompletedInfo, TAlignmentSuggestionsConfig} from '@/workers/WorkerComTypes';
-import {useTrainingState} from '@/hooks/useTrainingState';
+import {useTrainingStateContext} from '@/hooks/TrainingStateProvider';
 import ModelInfoDialog from './ModelInfoDialog';
 import delay from "@/utils/delay";
 import { EnhancedWordAlignerPane } from "./EnhancedWordAlignerPane";
@@ -103,9 +103,6 @@ interface EnhancedWordAlignerProps {
         targetWords: TargetWordBank[];
         contextId: ContextId;
     }) => void;
-
-    /** sets callback for training state changes */
-    setTrainingStateChangeHandler?: (callback: TTrainingStateChangeHandler, key: string) => void;
 
     /** Flag to only show suggestion buttons (if true the clear-all button is removed) */
     suggestionsOnly?: boolean;
@@ -176,7 +173,6 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     doTraining,
     lexiconCache,
     loadLexiconEntry,
-    handleTrainingStateChange: handleTrainingStateChange_,
     hasRenderedSuggestions,
     onChange,
     suggestionsOnly,
@@ -184,7 +180,6 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     sourceLanguageId,
     sourceLanguageFont,
     sourceFontSizePercent,
-    setTrainingStateChangeHandler,
     styles,
     targetLanguage,
     targetLanguageFont,
@@ -204,11 +199,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             trainingComplete,
             translationMemoryLoaded,
         }
-    } = useTrainingState({
-        passThroughStateChange: handleTrainingStateChange_,
-        translate,
-        verbose: verboseTraining,
-    })
+    } = useTrainingStateContext()
 
     const {
         actions: {
@@ -292,12 +283,9 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
      * @effect Initializes training state change handler on mount
      */
     useEffect(() => {
-        const key = 'EnhancedWordAligner';
         console.log('EnhancedWordAligner initialized/mounted')
-        setTrainingStateChangeHandler(handleTrainingStateChange, key) // set on mount
         return () => {
             console.log('EnhancedWordAligner unmounted')
-            setTrainingStateChangeHandler(null, key) // set on mount
         };
     },[]);
 

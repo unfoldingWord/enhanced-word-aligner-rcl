@@ -12,7 +12,7 @@ import usfm from 'usfm-js';
 import {EnhancedWordAligner} from './EnhancedWordAligner'
 import {extractVerseText} from '../utils/misc';
 import {useAlignmentSuggestions} from '../hooks/useAlignmentSuggestions'
-import {useTrainingState} from '../hooks/useTrainingState'
+import {TrainingStateProvider, useTrainingStateContext} from '../hooks/TrainingStateProvider'
 import {is_initialized, locale_init, t} from '../utils/localization'
 import {createAlignmentTrainingWorker} from '../workers/utils/startAlignmentTrainer'
 import {getTranslationMemoryForBook} from '../workers/utils/AlignmentTrainerUtils'
@@ -134,8 +134,7 @@ const WordAlignerPanel = ({
 
   const {
     actions: {
-      handleTrainingStateChange,
-      setTrainingStateChangeHandler
+      handleTrainingStateChange
     },
     state: {
       training,
@@ -144,10 +143,7 @@ const WordAlignerPanel = ({
       trainingStatusStr,
       trainingButtonStr,
     }
-  } = useTrainingState({
-    translate,
-    verbose: true,
-  })
+  } = useTrainingStateContext()
   
   /**
    * Handles the completion of a training session.
@@ -251,7 +247,6 @@ const WordAlignerPanel = ({
         lexicons={lexicons}
         loadLexiconEntry={loadLexiconEntry}
         onChange={onChange}
-        setTrainingStateChangeHandler={setTrainingStateChangeHandler}
         showPopover={showPopover}
         sourceLanguageId={sourceLanguageId}
         styles={{...styles, maxHeight: '450px', overflowY: 'auto'}}
@@ -303,7 +298,10 @@ const App = () => {
   }
 
   return (
-    <div style={{height: '650px', width: '800px'}}>
+    <TrainingStateProvider
+      translate={translate}
+      verbose={true}>
+     <div style={{height: '650px', width: '800px'}}>
       <WordAlignerPanel
         contextId={contextId}
         lexicons={lexicons}
@@ -319,6 +317,7 @@ const App = () => {
         verseAlignments={verseAlignments}
       />
     </div>
+   </TrainingStateProvider> 
   );
 };
 
