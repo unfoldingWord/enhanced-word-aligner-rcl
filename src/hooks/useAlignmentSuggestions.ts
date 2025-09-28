@@ -1047,7 +1047,7 @@ export const useAlignmentSuggestions = ({
      * - Cleans up resources related to the alignment training worker.
      * - Logs the successful stoppage of alignment training.
      */
-    const _stopTraining = useCallback(() => {
+    const _stopTraining = () => {
         console.log('stopTraining()');
         const workerRunning = isTraining()
         if (workerRunning) {
@@ -1057,7 +1057,7 @@ export const useAlignmentSuggestions = ({
         } else {
             console.log('useAlignmentSuggestions - stopTraining() - training not running');
         }
-    }, [handleTrainingStateChange]);
+    }
 
     /**
      * Retrieves the training context ID from the alignment training worker reference.
@@ -1108,7 +1108,7 @@ export const useAlignmentSuggestions = ({
      * - Outputs log messages to the console for debugging purposes.
      * - Calls `executeTraining` asynchronously when conditions are met.
      */
-    const startTraining = useCallback(() => {
+    const startTraining = () => {
         const trainingRunning = isTraining();
         console.log(`useAlignmentSuggestions - startTraining() - Starting, already running is: ${trainingRunning}`);
         if (!trainingRunning) {
@@ -1118,7 +1118,7 @@ export const useAlignmentSuggestions = ({
                 });
             });
         }
-    }, [handleTrainingStateChange])
+    }
     
     useEffect(() => {
         console.log('useAlignmentSuggestions - mounted');

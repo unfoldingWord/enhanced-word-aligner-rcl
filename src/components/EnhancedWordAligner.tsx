@@ -87,6 +87,9 @@ interface EnhancedWordAlignerProps {
     
     /** Flag control if suggestion buttons are to be enabled, default is true */
     hasRenderedSuggestions?: boolean;
+    
+    /** how much to shift vertical for info modal */
+    infoVerticalOffset?: string;
 
     /** Cache of lexicon entries for quick reference */
     lexiconCache?: Record<string, any>;
@@ -174,6 +177,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     lexiconCache,
     loadLexiconEntry,
     hasRenderedSuggestions,
+    infoVerticalOffset,
     onChange,
     suggestionsOnly,
     showPopover,
@@ -315,6 +319,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             deleteBookFromGroup={deleteBookFromGroup}
             getModelMetaData={getModelMetaData}
             hasRenderedSuggestions={hasRenderedSuggestions}
+            infoVerticalOffset={infoVerticalOffset}
             lexiconCache={lexiconCache}
             loadLexiconEntry={loadLexiconEntry}
             onChange={onChange}
