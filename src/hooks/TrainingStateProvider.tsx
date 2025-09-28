@@ -1,18 +1,26 @@
-
 /**
  * TrainingStateProvider
  * =====================
  *
  * @synopsis
- * A React context that manages the state of alignment training processes, including progress
+ * A React context provider that manages the state of word alignment training processes, including progress
  * tracking, status messages, and UI labels.
  *
  * @description
- * This context encapsulates the complexity of tracking and displaying the state of word alignment
+ * This context provider encapsulates the complexity of tracking and displaying the state of word alignment
  * training processes. It provides a consistent interface for updating and accessing the
  * current training state, including loading status, progress percentage, and user-facing
  * status messages. The context handles internationalization of status messages and maintains
  * state continuity during training state transitions.
+ *
+ * The TrainingStateProvider creates and provides access to a context that manages:
+ * - Training progress indicators (percentage complete, status messages)
+ * - UI element text (button labels, tooltips)
+ * - Training process state (active, completed, error conditions)
+ * - Translation memory and checksum generation status
+ *
+ * Components can consume this context using the useTrainingStateContext hook to access
+ * both the current state values and actions to update the training state.
  *
  * Key features:
  * - Tracks multiple aspects of training state (loading, progress, completion)
@@ -21,8 +29,18 @@
  * - Supports internationalization through translation function
  * - Provides a clean API for state updates
  *
- * @properties
- * The context provides state and actions for training state management
+ * @example
+ * ```tsx
+ * // Wrap components that need access to training state
+ * <TrainingStateProvider translate={translate} verbose={true}>
+ *   <YourComponent />
+ * </TrainingStateProvider>
+ * 
+ * // In child components, access the context
+ * const { state, actions } = useTrainingStateContext();
+ * const { handleTrainingStateChange } = actions;
+ * const { trainingComplete, trainingStatusStr } = state;
+ * ```
  *
  * @requirements
  * - React 16.8+ (uses hooks and context)
@@ -32,15 +50,31 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { TTrainingStateChangeHandler, TTrainingStateChange } from '@/common/classes';
 
+/**
+ * Props for the TrainingStateProvider component
+ */
 export interface TTrainingStateContextProps {
-    /** Optional handler to receive training state changes (for parent components).  Typically you
-     * would pass the handleTrainingStateChange from parent component.
-     *  */
+    /** 
+     * Function to translate UI strings for internationalization.
+     * Required to provide localized status messages and button labels.
+     */
     translate: (key:string) => string;
-    verbose?: boolean; // if true then log progress
+    
+    /** 
+     * When true, outputs detailed state change information to the console.
+     * Useful for debugging training state transitions.
+     */
+    verbose?: boolean;
+    
+    /**
+     * Child components that will have access to the training state context.
+     */
     children: ReactNode;
 }
 
+/**
+ * Shape of the training state managed by the context
+ */
 export interface TrainingState {
     /** Indicates if checksum generation for current target book USFM is complete */
     checksumGenerated: boolean;
@@ -62,12 +96,17 @@ export interface TrainingState {
     translationMemoryLoaded: boolean;
 }
 
+/**
+ * Value provided by the TrainingStateContext
+ */
 export interface TTrainingStateContextValue {
     /** Actions available to manipulate the training state */
     actions: {
-        /** Function to update the training state with new values.  This would either be
-         *      passed as property into useAlignmentSuggestions, or as property passThroughStateChange
-         *      of useTrainingState() of a child component */
+        /** 
+         * Function to update the training state with new values.
+         * This would typically be passed to useAlignmentSuggestions or 
+         * as the passThroughStateChange property of useTrainingState() in child components.
+         */
         handleTrainingStateChange: TTrainingStateChangeHandler,
     },
     /** Current training state values */
@@ -77,8 +116,16 @@ export interface TTrainingStateContextValue {
 // Create the context with a default undefined value
 export const TrainingStateContext = createContext<TTrainingStateContextValue | undefined>(undefined);
 
-// @ts-ignore
-export const TrainingStateProvider: React.FC<TTrainingStateContextProps> = (props: TTrainingStateContextProps): TTrainingStateContextValue => {
+/**
+ * Provider component that creates and manages training state
+ * 
+ * Initializes the training state, provides a handler for state changes,
+ * and makes both available through React Context.
+ * 
+ * @param {TTrainingStateContextProps} props - Configuration props
+ * @returns {JSX.Element} Context provider with current value
+ */
+export const TrainingStateProvider: React.FC<TTrainingStateContextProps> = (props: TTrainingStateContextProps) => {
     const {
         translate,
         verbose,
@@ -100,33 +147,25 @@ export const TrainingStateProvider: React.FC<TTrainingStateContextProps> = (prop
 
     /**
      * Updates the training state based on the provided properties.
-     * This function handles changes in the training state by computing the new state,
-     * including properties like the training status, error messages, button labels,
-     * and percentage completion of the training progress. The updated state is then
-     * applied to the training state management system.
+     * 
+     * This function processes changes to the training state by computing new values
+     * for status messages, button labels, and other derived state properties based
+     * on the incoming state change. It preserves existing state values when specific
+     * properties are not included in the update.
      *
-     * If certain properties in the update are undefined, the current state values for those
-     * properties will be retained. Additionally, the function computes meaningful status
-     * strings and button hints based on the training progress or errors during training.
+     * The function handles:
+     * - Status message generation based on training state
+     * - Button text and tooltips that reflect current training state
+     * - Error message formatting and display
+     * - Progress percentage tracking and formatting
      *
-     * Logs a message to the console if no `props` are provided or to display the new state
-     * upon updates.
-     *
-     * Dependencies:
-     * - `passThroughStateChange` (optional): A function that can process the incoming
-     *   training state change before the state update.
-     * - `setTrainingState`: State update function for managing the training-related state.
-     * - `translate`: Function utilized for obtaining localized strings for training status
-     *   descriptions and button labels.
-     *
-     * @param {TTrainingStateChange} props - Contains the properties that describe the new
-     * training state. Includes fields such as:
-     *   - `training` (boolean): Whether training is currently in progress.
-     *   - `trainingComplete` (boolean): Whether the training has completed.
-     *   - `checksumGenerated` (boolean): Indicates if the checksum has been generated.
-     *   - `percentComplete` (number): The percentage of the training process that is complete.
-     *   - `trainingFailed` (string|null): Details of any training failure, if applicable.
-     *   - `translationMemoryLoaded` (boolean): Indicates if the translation memory is loaded.
+     * @param {TTrainingStateChange} props - State change properties including:
+     *   - training: Whether training is active
+     *   - trainingComplete: Whether training has finished
+     *   - checksumGenerated: Whether content checksums are available
+     *   - percentComplete: Current training progress (0-100)
+     *   - trainingFailed: Error message if training failed
+     *   - translationMemoryLoaded: Whether translation data is ready
      */
     const handleTrainingStateChange:TTrainingStateChangeHandler = (props: TTrainingStateChange) => {
         if (!props) {
@@ -218,7 +257,6 @@ export const TrainingStateProvider: React.FC<TTrainingStateContextProps> = (prop
         state: trainingState
     };
      
-    // @ts-ignore
     return (
         <TrainingStateContext.Provider value={value}>
             {children}
@@ -227,7 +265,15 @@ export const TrainingStateProvider: React.FC<TTrainingStateContextProps> = (prop
 };
 
 
-// Custom hook to use the context
+/**
+ * Custom hook to access the training state context
+ * 
+ * Provides type-safe access to the training state and associated actions.
+ * Throws an error if used outside of a TrainingStateProvider.
+ * 
+ * @returns {TTrainingStateContextValue} The current training state context value
+ * @throws {Error} When used outside of a TrainingStateProvider
+ */
 export const useTrainingStateContext = () => {
     const context = useContext(TrainingStateContext);
 
