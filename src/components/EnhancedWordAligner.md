@@ -1,7 +1,7 @@
 Suggesting Word Aligner Example:
 
 ```js
-import React, {useState} from 'react';
+import React, {useRef, useState} from 'react';
 import {
   AlignmentHelpers,
   bibleHelpers,
@@ -9,10 +9,13 @@ import {
   usfmHelpers
 } from "word-aligner-rcl";
 import usfm from 'usfm-js';
-import { EnhancedWordAligner } from './EnhancedWordAligner'
-import { extractVerseText } from '../utils/misc';
-import { useTrainingState } from '../hooks/useTrainingState'
-import { is_initialized, locale_init, t } from '../utils/localization'
+import {EnhancedWordAligner} from './EnhancedWordAligner'
+import {extractVerseText} from '../utils/misc';
+import {useAlignmentSuggestions} from '../hooks/useAlignmentSuggestions'
+import {TrainingStateProvider, useTrainingStateContext} from '../hooks/TrainingStateProvider'
+import {is_initialized, locale_init, t} from '../utils/localization'
+import {createAlignmentTrainingWorker} from '../workers/utils/startAlignmentTrainer'
+import {getTranslationMemoryForBook} from '../workers/utils/AlignmentTrainerUtils'
 import delay from "../utils/delay";
 
 import {NT_ORIG_LANG} from "../common/constants";
@@ -28,6 +31,11 @@ const keepAllAlignmentMemory = true; // EXPERIMENTAL FEATURE - if true, then ali
 const keepAllAlignmentMinThreshold = 90; // EXPERIMENTAL FEATURE - if threshold percentage is set (such as value 60), then alignment data not used for training will be added back into wordMap after training, but only if the percentage of book alignment is less than this threshold.  This should improve alignment vocabulary for books not completely aligned
 
 const targetLanguageId = 'en';
+const direction = 'ltr'
+const targetLanguage = {
+  languageId: targetLanguageId,
+  direction,
+}
 const bookId = 'eph';
 const chapter = 5;
 const verse = '22-23';
@@ -88,22 +96,41 @@ const WordAlignerPanel = ({
     translationMemory,
     styles
 }) => {
-  const [addTranslationMemory, setAddTranslationMemory] = useState(null);
   const [translationMemoryLoaded, setTranslationMemoryLoaded] = useState(false);
-  const [doingTraining, setDoingTraining] = useState(false);
+  const [doTraining, setDoTraining] = useState(false);
+  const [cancelTraining, setCancelTraining] = useState(false);
 
-  // Handler for the load translation memory button
-  const handleLoadTranslationMemory = () => {
-    console.log('Calling loadTranslationMemory')
-    setAddTranslationMemory(translationMemory);
-    setTranslationMemoryLoaded(true)
-  };
+  const bookId = contextId && contextId.reference && contextId.reference.bookId
+  const shouldShowDialog = !!(targetWords && verseAlignments && bookId)
+  const targetLanguageId = targetLanguage && targetLanguage.languageId;
+  const verboseTraining = false;
+
+  const {targetUsfm, sourceUsfm} = getTranslationMemoryForBook(bookId, translationMemory);
 
   const handleToggleTraining = () => {
     const newTrainingState = !training;
     console.log('Toggle training to: ' + newTrainingState);
-    setDoingTraining(newTrainingState);
+    if (newTrainingState) {
+      setCancelTraining(false)
+      setDoTraining(true);
+    } else {
+      setDoTraining(false);
+      setCancelTraining(true)
+    }
   };
+
+  const enableLoadTranslationMemory = !training;
+  const enableTrainingToggle = trainingComplete || translationMemoryLoaded;
+  const alignmentSuggestionsConfig = {
+    doAutoLoadCachedTraining,
+    doAutoTraining,
+    minTrainingVerseRatio,
+    trainOnlyOnCurrentBook,
+    keepAllAlignmentMemory,
+    keepAllAlignmentMinThreshold,
+  };
+
+  const addTranslationMemory = doAutoTraining ? translationMemory : null;
 
   const {
     actions: {
@@ -116,19 +143,57 @@ const WordAlignerPanel = ({
       trainingStatusStr,
       trainingButtonStr,
     }
-  } = useTrainingState({
-    translate,
-  })
+  } = useTrainingStateContext()
+  
+  /**
+   * Handles the completion of a training session.
+   *
+   * This function is called when a training process is completed. It processes
+   * the provided training completion information and performs necessary actions,
+   * such as logging the completion data.
+   *
+   * @param {TAlignmentCompletedInfo} info - The information related to the completed training session.
+   */
+  const handleTrainingCompleted = (info) => {
+    console.log('handleTrainingCompleted', info);
+  }
 
-  const enableLoadTranslationMemory = !doingTraining;
-  const enableTrainingToggle = trainingComplete || (translationMemoryLoaded && !doingTraining);
-  const alignmentSuggestionsConfig = {
-    doAutoLoadCachedTraining,
-    doAutoTraining,
-    minTrainingVerseRatio,
-    trainOnlyOnCurrentBook,
-    keepAllAlignmentMemory,
-    keepAllAlignmentMinThreshold,
+  // this hook manages the word aligner suggestions including training of the Model
+  const alignmentSuggestionsManage = useAlignmentSuggestions({ // see TUseAlignmentSuggestionsProps
+    config: alignmentSuggestionsConfig,
+    contextId,
+    createAlignmentTrainingWorker,
+    handleTrainingStateChange,
+    handleTrainingCompleted,
+    shown: shouldShowDialog,
+    sourceLanguageId: sourceLanguageId,
+    targetLanguageId: targetLanguageId,
+    targetUsfm,
+    sourceUsfm,
+  });
+
+  const {
+    state: {
+      failedToLoadCachedTraining,
+      trainingRunning,
+    },
+    actions: {
+      areTrainingSameBook,
+      getSuggester,
+      getTrainingContextId,
+      isTraining,
+      loadTranslationMemory,
+      startTraining,
+      stopTraining,
+      suggester,
+    }
+  } = alignmentSuggestionsManage; // type is TUseAlignmentSuggestionsReturn
+
+  // Handler for the load translation memory button
+  const handleLoadTranslationMemory = () => {
+    console.log('Calling loadTranslationMemory')
+    loadTranslationMemory(translationMemory);
+    setTranslationMemoryLoaded(true)
   };
 
   return (
@@ -174,10 +239,11 @@ const WordAlignerPanel = ({
 
       <EnhancedWordAligner
         addTranslationMemory={addTranslationMemory}
+        alignmentSuggestionsManage={alignmentSuggestionsManage}
+        cancelTraining={cancelTraining}
         config={alignmentSuggestionsConfig}
         contextId={contextId}
-        doTraining={doingTraining}
-        handleTrainingStateChange={handleTrainingStateChange}
+        doTraining={doTraining}
         lexicons={lexicons}
         loadLexiconEntry={loadLexiconEntry}
         onChange={onChange}
@@ -186,10 +252,11 @@ const WordAlignerPanel = ({
         styles={{...styles, maxHeight: '450px', overflowY: 'auto'}}
         suggestionsOnly={suggestionsOnly}
         targetLanguageFont={targetLanguageFont}
-        targetLanguageId={targetLanguageId}
+        targetLanguage={targetLanguage}
         targetWords={targetWords}
         translate={translate}
         translationMemory={translationMemory}
+        verboseTraining={verboseTraining}
         verseAlignments={verseAlignments}
       />
     </>
@@ -231,7 +298,10 @@ const App = () => {
   }
 
   return (
-    <div style={{height: '650px', width: '800px'}}>
+    <TrainingStateProvider
+      translate={translate}
+      verbose={true}>
+     <div style={{height: '650px', width: '800px'}}>
       <WordAlignerPanel
         contextId={contextId}
         lexicons={lexicons}
@@ -247,6 +317,7 @@ const App = () => {
         verseAlignments={verseAlignments}
       />
     </div>
+   </TrainingStateProvider> 
   );
 };
 

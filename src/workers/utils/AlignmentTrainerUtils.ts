@@ -533,6 +533,27 @@ export function makeTranslationMemory(bookId: string, originalBibleBookUsfm: str
 }
 
 /**
+ * Retrieves the translation memory for a specific book from the provided translation memory object.
+ *
+ * @param {string} bookId - The identifier of the book for which the translation memory is being retrieved.
+ * @param {TTranslationMemoryType} translationMemory - The translation memory object containing source and target USFMs.
+ * @return {Object} An object containing `targetUsfm` and `sourceUsfm` for the specified book.
+ */
+export function getTranslationMemoryForBook(bookId: string, translationMemory: TTranslationMemoryType)  {
+    let targetUsfm = null;
+    let sourceUsfm = null;
+
+    if (bookId) {
+        targetUsfm = translationMemory?.targetUsfms?.[bookId] || null;
+        sourceUsfm = translationMemory?.sourceUsfms?.[bookId] || null;
+    }
+    return {
+        targetUsfm,
+        sourceUsfm
+    }
+}
+
+/**
  * Business Logic to processes training data within a worker thread. Sends training progress
  * updates and communicates results or errors back to the worker.
  *

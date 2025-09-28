@@ -1,17 +1,17 @@
 
 /**
- * useTrainingState Hook
+ * TrainingStateProvider
  * =====================
  *
  * @synopsis
- * A React hook that manages the state of alignment training processes, including progress
+ * A React context that manages the state of alignment training processes, including progress
  * tracking, status messages, and UI labels.
  *
  * @description
- * This hook encapsulates the complexity of tracking and displaying the state of word alignment
+ * This context encapsulates the complexity of tracking and displaying the state of word alignment
  * training processes. It provides a consistent interface for updating and accessing the
  * current training state, including loading status, progress percentage, and user-facing
- * status messages. The hook handles internationalization of status messages and maintains
+ * status messages. The context handles internationalization of status messages and maintains
  * state continuity during training state transitions.
  *
  * Key features:
@@ -22,26 +22,26 @@
  * - Provides a clean API for state updates
  *
  * @properties
- * The hook accepts configuration options and returns state and actions
+ * The context provides state and actions for training state management
  *
  * @requirements
- * - React 16.8+ (uses hooks)
+ * - React 16.8+ (uses hooks and context)
  * - Translation function for internationalization
  */
 
-import { useState, useCallback } from 'react';
-import {THandleTrainingStateChange, TTrainingStateChange} from '@/common/classes';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
+import { TTrainingStateChangeHandler, TTrainingStateChange } from '@/common/classes';
 
-interface TUseTrainingStateProps {
-    /** Function that translates UI strings using provided keys */
-    translate: (key:string) => string;
+export interface TTrainingStateContextProps {
     /** Optional handler to receive training state changes (for parent components).  Typically you
      * would pass the handleTrainingStateChange from parent component.
      *  */
-    passThroughStateChange?: THandleTrainingStateChange;
+    translate: (key:string) => string;
+    verbose?: boolean; // if true then log progress
+    children: ReactNode;
 }
 
-interface TrainingState {
+export interface TrainingState {
     /** Indicates if checksum generation for current target book USFM is complete */
     checksumGenerated: boolean;
     /** Current progress percentage of the training process (0-100) */
@@ -62,22 +62,29 @@ interface TrainingState {
     translationMemoryLoaded: boolean;
 }
 
-interface TUseTrainingStateReturn {
+export interface TTrainingStateContextValue {
     /** Actions available to manipulate the training state */
     actions: {
         /** Function to update the training state with new values.  This would either be
          *      passed as property into useAlignmentSuggestions, or as property passThroughStateChange
          *      of useTrainingState() of a child component */
-        handleTrainingStateChange: THandleTrainingStateChange
+        handleTrainingStateChange: TTrainingStateChangeHandler,
     },
     /** Current training state values */
     state: TrainingState
 }
 
-export const useTrainingState = ({
-     passThroughStateChange,
-     translate,
-}: TUseTrainingStateProps): TUseTrainingStateReturn => {
+// Create the context with a default undefined value
+export const TrainingStateContext = createContext<TTrainingStateContextValue | undefined>(undefined);
+
+// @ts-ignore
+export const TrainingStateProvider: React.FC<TTrainingStateContextProps> = (props: TTrainingStateContextProps): TTrainingStateContextValue => {
+    const {
+        translate,
+        verbose,
+        children,
+    } = props;
+
     // Training States
     const [trainingState, setTrainingState] = useState<TrainingState>({
         checksumGenerated: false,
@@ -121,13 +128,11 @@ export const useTrainingState = ({
      *   - `trainingFailed` (string|null): Details of any training failure, if applicable.
      *   - `translationMemoryLoaded` (boolean): Indicates if the translation memory is loaded.
      */
-    const handleTrainingStateChange:THandleTrainingStateChange = useCallback((props: TTrainingStateChange) => {
+    const handleTrainingStateChange:TTrainingStateChangeHandler = (props: TTrainingStateChange) => {
         if (!props) {
             console.log('useTrainingStateManagement.handleTrainingStateChange - no props');
             return;
         }
-
-        passThroughStateChange?.(props);
 
         setTrainingState(prev => {
             let {
@@ -136,7 +141,7 @@ export const useTrainingState = ({
                 training: _training,
                 trainingComplete: _trainingComplete,
                 trainingFailed,
-                translationMemoryLoaded: _translationMemoryLoaded
+                translationMemoryLoaded: _translationMemoryLoaded,
             } = props;
 
             // Use current state if new value is undefined
@@ -187,7 +192,9 @@ export const useTrainingState = ({
                 _trainingStatusStr += ` ${percentComplete}${translate('suggestions.percent_complete')}`;
             }
 
-            console.log(`useTrainingStateManagement.handleTrainingStateChange new state: training ${_training}, trainingComplete ${_trainingComplete}, trainingStatusStr ${_trainingStatusStr}`);
+            if (verbose) {
+                console.log(`useTrainingStateManagement.handleTrainingStateChange new state: training ${_training}, trainingComplete ${_trainingComplete}, trainingStatusStr ${_trainingStatusStr}`);
+            }
 
             const newState = {
                 checksumGenerated: _checksumGenerated,
@@ -202,14 +209,31 @@ export const useTrainingState = ({
             };
             return newState;
         });
-    }, []);
-
-    const state = trainingState;
-
-    return {
-        actions: {
-            handleTrainingStateChange
-        },
-        state
     };
+    
+     const value: TTrainingStateContextValue = {
+        actions: {
+            handleTrainingStateChange,
+        },
+        state: trainingState
+    };
+     
+    // @ts-ignore
+    return (
+        <TrainingStateContext.Provider value={value}>
+            {children}
+        </TrainingStateContext.Provider>
+    );
+};
+
+
+// Custom hook to use the context
+export const useTrainingStateContext = () => {
+    const context = useContext(TrainingStateContext);
+
+    if (context === undefined) {
+        throw new Error('TrainingStateContext must be used within a TrainingStateProvider');
+    }
+
+    return context;
 };

@@ -5,7 +5,8 @@
  *
  * @synopsis
  * A React component that enhances the basic WordAligner with automated alignment suggestions
- * by wrapping the SuggestingWordAligner from word-aligner-rcl with WordMap training capability.
+ * by making use of EnhancedWordAlignerPane for the UI and useAlignmentSuggestions for handling
+ * model training and suggestions.
  *
  * @description
  * The EnhancedWordAligner component provides automated word alignment suggestions for Bible
@@ -26,6 +27,7 @@
  *
  * @requirements
  * - Requires word-aligner-rcl as a dependency
+ * - Requires uw-wordmapbooster as a dependency to do alignment training
  * - Needs a web worker for training alignment models
  * - uses custom hook useAlignmentSuggestions to manage the model training Web worker, 
  *      suggestions, model caching, training state, 
@@ -39,20 +41,27 @@ import {
     ContextId,
     SourceWord,
     TargetWordBank,
-    THandleTrainingStateChange,
+    TTrainingStateChangeHandler,
     TTranslationMemoryType,
 } from '@/common/classes';
 import {Alignment, Suggestion} from 'wordmap';
 import {Token} from 'wordmap-lexer'
 
-import {TBookShaState, useAlignmentSuggestions} from '@/hooks/useAlignmentSuggestions';
+import {TBookShaState, TUseAlignmentSuggestionsReturn} from '@/hooks/useAlignmentSuggestions';
 import {createAlignmentTrainingWorker as createAlignmentTrainingWorker_} from '@/workers/utils/startAlignmentTrainer';
-import {TAlignmentCompletedInfo, TAlignmentSuggestionsConfig, TAlignmentMetaData} from '@/workers/WorkerComTypes';
-import {useTrainingState} from '@/hooks/useTrainingState';
+import {TAlignmentCompletedInfo, TAlignmentSuggestionsConfig} from '@/workers/WorkerComTypes';
+import {useTrainingStateContext} from '@/hooks/TrainingStateProvider';
 import ModelInfoDialog from './ModelInfoDialog';
 import delay from "@/utils/delay";
+import { EnhancedWordAlignerPane } from "./EnhancedWordAlignerPane";
 
 interface EnhancedWordAlignerProps {
+    /** Translation memory data to be added to the alignment engine */
+    addTranslationMemory?: TTranslationMemoryType;
+
+    /** state and actions from useAlignmentSuggestions **/
+    alignmentSuggestionsManage: TUseAlignmentSuggestionsReturn;
+
     /** Function to handle async suggestion generation for alignments */
     asyncSuggester?: (
         sourceSentence: string | Token[],
@@ -60,32 +69,34 @@ interface EnhancedWordAlignerProps {
         maxSuggestions?: number,
         manuallyAligned?: Alignment[]
     ) => Promise<Suggestion[]>;
-    
-    /** Translation memory data to be added to the alignment engine */
-    addTranslationMemory?: TTranslationMemoryType;
+
+    /** Flag to cancel alignment training */
+    cancelTraining: boolean;
+
+    /** Configuration settings for alignment suggestions */
+    config?: TAlignmentSuggestionsConfig;
     
     /** Current context identifier with bible, book, chapter, verse reference */
     contextId: ContextId;
-    
-    /** Function to create a web worker for alignment training */
-    createAlignmentTrainingWorker: () => Promise<Worker>;
-    
-    /** Flag to trigger alignment training */
+
+    /** Flag to initiate alignment training */
     doTraining: boolean;
-    
-    /** callback for training state changes to pass to parent components -
-     *      connect to useTrainingState hook for convenient exposure of state information */
-    handleTrainingStateChange?: THandleTrainingStateChange;
+
+    /** callback for training state changes -*/
+    handleTrainingStateChange?: TTrainingStateChangeHandler;
     
     /** Flag control if suggestion buttons are to be enabled, default is true */
     hasRenderedSuggestions?: boolean;
     
+    /** how much to shift vertical for info modal */
+    infoVerticalOffset?: string;
+
     /** Cache of lexicon entries for quick reference */
     lexiconCache?: Record<string, any>;
-    
+
     /** Function to load lexicon entry for source word */
     loadLexiconEntry: (lexiconId: string, entryId: string) => void;
-    
+
     /** Callback for alignment changes */
     onChange?: (details: {
         type: 'MERGE_ALIGNMENT_CARDS' | 'CREATE_NEW_ALIGNMENT_CARD' | 'UNALIGN_TARGET_WORD' | 'ALIGN_TARGET_WORD' | 'ALIGN_SOURCE_WORD';
@@ -95,10 +106,10 @@ interface EnhancedWordAlignerProps {
         targetWords: TargetWordBank[];
         contextId: ContextId;
     }) => void;
-    
+
     /** Flag to only show suggestion buttons (if true the clear-all button is removed) */
     suggestionsOnly?: boolean;
-    
+
     /** Function to display word details in a popover */
     showPopover: (
         PopoverTitle: React.ReactNode,
@@ -109,19 +120,19 @@ interface EnhancedWordAlignerProps {
             lexiconData: any;
         }
     ) => void;
-    
+
     /** Identifier for the source language */
     sourceLanguageId: string;
-    
+
     /** Font family for the source language text */
     sourceLanguageFont?: string;
-    
+
     /** Font size percentage for source text */
     sourceFontSizePercent?: number;
-    
+
     /** Custom CSS styles for the component */
     styles?: React.CSSProperties;
-    
+
     /** Synchronous function to generate alignment suggestions */
     suggester?: (
         sourceSentence: string | Token[],
@@ -129,43 +140,44 @@ interface EnhancedWordAlignerProps {
         maxSuggestions?: number,
         manuallyAligned?: Alignment[]
     ) => Suggestion[];
-    
-    /** Identifier for the target language */
-    targetLanguageId: string;
-    
+
+    /** Info for the target language */
+    targetLanguage: object;
+
     /** Font family for the target language text */
     targetLanguageFont?: string;
-    
+
     /** Font size percentage for target text */
     targetFontSizePercent?: number;
-    
+
     /** Array of target words to be aligned */
     targetWords: TargetWordBank[];
-    
+
     /** Function to translate UI strings */
     translate: (key: string, params?: Record<string, string | number>) => string;
     
     /** Existing translation memory for alignment suggestions */
     translationMemory?: TTranslationMemoryType;
-    
+
+    /** if true then log training progress **/
+    verboseTraining?: boolean;
+
     /** Current alignments between source and target words */
     verseAlignments: Alignment[];
-    
-    /** Configuration settings for alignment suggestions */
-    config?: TAlignmentSuggestionsConfig;
 }
 
 export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
 {
     addTranslationMemory,
+    alignmentSuggestionsManage,
+    cancelTraining,
     contextId,
     config,
-    createAlignmentTrainingWorker = createAlignmentTrainingWorker_, // TRICKY - the steps to create the training Worker are dependent on the platform, so this allows it to be overridden
     doTraining,
     lexiconCache,
     loadLexiconEntry,
-    handleTrainingStateChange: handleTrainingStateChange_,
     hasRenderedSuggestions,
+    infoVerticalOffset,
     onChange,
     suggestionsOnly,
     showPopover,
@@ -173,21 +185,15 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     sourceLanguageFont,
     sourceFontSizePercent,
     styles,
-    targetLanguageId,
+    targetLanguage,
     targetLanguageFont,
     targetFontSizePercent,
     targetWords,
     translate,
     translationMemory,
+    verboseTraining,
     verseAlignments,
 }) => {
-    const [showModelDialog, setShowModelDialog] = useState(false);
-    const [modelInfo, setModelInfo] = useState<TAlignmentMetaData | null>(null);
-
-    const handleTrainingCompleted = (info: TAlignmentCompletedInfo) => {
-        console.log('handleTrainingCompleted', info);
-    }
-
     const {
         actions: {
             handleTrainingStateChange
@@ -197,10 +203,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             trainingComplete,
             translationMemoryLoaded,
         }
-    } = useTrainingState({
-        passThroughStateChange: handleTrainingStateChange_,
-        translate
-    })
+    } = useTrainingStateContext()
 
     const {
         actions: {
@@ -213,65 +216,9 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             saveChangedSettings,
             suggester,
             startTraining,
-            stopTraining,
+            stopTraining: stopTraining_,
         }
-    } = useAlignmentSuggestions({
-        config,
-        contextId,
-        createAlignmentTrainingWorker,
-        handleTrainingStateChange,
-        handleTrainingCompleted,
-        shown: true,
-        sourceLanguageId,
-        targetLanguageId,
-        translationMemory,
-    });
-
-    /**
-     * Handles changes to the configuration for alignment suggestions.
-     *
-     * This method is responsible for applying the new configuration settings
-     * and executing necessary actions upon successful save. It saves the updated
-     * settings and triggers an informational action once the save operation is completed.
-     *
-     * @param {TAlignmentSuggestionsConfig} newConfig - The updated configuration object for alignment suggestions.
-     */
-    const handleConfigChange = (newConfig: TAlignmentSuggestionsConfig) => {
-        // setShowModelDialog(false);
-        saveChangedSettings(newConfig).then(() => {
-            handleInfoClick_()
-        });
-    };
-
-    /**
-     * Handles the logic to display model information when the associated event is triggered.
-     * Retrieves model metadata, updates the model info state,
-     * and toggles the display of the model dialog.
-     *
-     * @return {void} No return value.
-     */
-    function handleInfoClick_() {
-        // console.log('handleInfoClick');
-        const info = getModelMetaData()
-        setModelInfo(info);
-        setShowModelDialog(true);
-    }
-
-    /**
-     * Deletes a book by its identifier and performs subsequent actions.
-     *
-     * This function is used to delete the alignment data associated with a specific book
-     * identified by the provided `bookId`. Once the deletion process is successful,
-     * it triggers an informational action.
-     *
-     * @param {string} bookId - The unique identifier of the book to be deleted.
-     */
-    const handleDeleteBook = (bookId: string) => {
-        console.log(`Delete alignment data for book: ${bookId}`);
-        deleteBookFromGroup(bookId).then(() => {
-            handleInfoClick_()
-        });
-    };
+    } = alignmentSuggestionsManage; // split out values from useAlignmentSuggestions
     
      /**
      * Auto-Training Effect
@@ -279,126 +226,117 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
      * 
      * @synopsis
      * Monitors training prerequisites and automatically initiates training when content changes.
-     * 
-     * @requirements
-     * - Training prerequisites (checksumGenerated, translationMemoryLoaded, trainingComplete) must be true
-     * - Auto-training must be enabled in configuration (config.doAutoTraining)
-     * - Book content must have changed since last training (via SHA comparison)
-     * 
-     * @dependencies
-     * - checksumGenerated, translationMemoryLoaded, trainingComplete - Training state flags
-     * - config.doAutoTraining - Configuration setting
-     * - getCurrentBookShaState() - Function to check content changes
-     * - startTraining() - Function to initiate training
      */
     useEffect(() => {
-        console.log(`checksumGenerated = ${checksumGenerated}, translationMemoryLoaded = ${translationMemoryLoaded}`);
+        console.log(`EnhancedWordAligner - checksumGenerated = ${checksumGenerated}, translationMemoryLoaded = ${translationMemoryLoaded}`);
         if (checksumGenerated && translationMemoryLoaded && trainingComplete && config?.doAutoTraining) {
             const shaState: TBookShaState = getCurrentBookShaState()
-            console.log(`Training complete: ${shaState?.bookShaChanged} trained sha ${shaState?.trainedSha} and current book sha ${shaState?.currentBookSha}`);
+            console.log(`EnhancedWordAligner - Training complete: ${shaState?.bookShaChanged} trained sha ${shaState?.trainedSha} and current book sha ${shaState?.currentBookSha}`);
             if (shaState?.bookShaChanged) {
-                console.log(`Training complete: book changed, retraining`);
+                console.log(`EnhancedWordAligner - Training complete: book changed, retraining`);
                 startTraining();
             }
         }
     },[checksumGenerated, translationMemoryLoaded, trainingComplete]);
-    
-    /**
-     * Translation Memory Loading Effect
-     * =================================
-     * 
-     * @synopsis
-     * Loads translation memory data when it becomes available or changes.
-     * 
-     * @requirements
-     * - Valid translation memory data must be provided
-     * - Translation memory object must contain at least one entry
-     * 
-     * @dependencies
-     * - addTranslationMemory - Object containing translation memory data
-     * - loadTranslationMemory() - Function to process the memory data
-     */
-    useEffect(() => {
-        if (addTranslationMemory && Object.keys(addTranslationMemory).length > 0) {
-            loadTranslationMemory(addTranslationMemory);
-        }
-    }, [addTranslationMemory]);
-    
-    /**
-     * Component Cleanup Effect
-     * ========================
-     * 
-     * @synopsis
-     * Performs cleanup operations when the component unmounts.
-     * 
-     * @requirements
-     * - None (runs only during component unmount)
-     * 
-     * @dependencies
-     * - cleanupWorker() - Function to terminate workers and clear timeouts
-     */
-    useEffect(() => {
-        return () => {
-            cleanupWorker();
-        };
-    },[]);
 
     /**
      * Training Control Effect
      * ======================
      * 
      * @synopsis
-     * Controls alignment training based on the doTraining prop.
-     * 
-     * @requirements
-     * - doTraining prop must reflect desired training state
-     * 
-     * @dependencies
-     * - doTraining - Boolean flag indicating whether training should be active
-     * - isTraining() - Function to check current training status
-     * - startTraining(), stopTraining() - Functions to control training process
+     * Starts alignment training based on the doTraining prop.
      */
     useEffect(() => {
         const training = isTraining()
-        console.log(`doTraining changed state to ${doTraining} but training is now ${training}`)
-        if(doTraining) {
+        console.log(`EnhancedWordAligner - doTraining changed state to ${doTraining} but training is now ${training}`)
+        if (doTraining) {
             startTraining()
-        } else {
-            stopTraining()
         }
     },[doTraining]);
+
+    /**
+     * Training Cancel Effect
+     * =====================
+     * 
+     * This effect handles the cancellation of ongoing alignment training. It monitors 
+     * the cancelTraining prop and stops any active training session when requested.
+     * The effect verifies current training status before attempting to stop training
+     * to prevent unnecessary calls.
+     * 
+     * Dependencies:
+     * - cancelTraining: Flag indicating if training should be stopped
+     * 
+     * @effect Stops alignment training when cancelTraining becomes true
+     */
+    useEffect(() => {
+        const training = isTraining()
+        console.log(`EnhancedWordAligner - cancelTraining changed state to ${cancelTraining} but training is now ${training}`)
+        if (cancelTraining) {
+            stopTraining_()
+        }
+    },[cancelTraining]);
+
+    /**
+     * Training State Handler Effect
+     * ============================
+     * 
+     * This effect sets up the training state change handler on component mount.
+     * It ensures that training state updates are properly handled by setting
+     * the handleTrainingStateChange callback once when the component mounts.
+     * 
+     * @effect Initializes training state change handler on mount
+     */
+    useEffect(() => {
+        console.log('EnhancedWordAligner initialized/mounted')
+        return () => {
+            console.log('EnhancedWordAligner unmounted')
+        };
+    },[]);
+
+    /**
+     * Translation Memory Loading Effect
+     * ================================
+     * 
+     * This effect manages the loading of translation memory data when it becomes
+     * available or changes. It automatically triggers the loading process whenever
+     * new translation memory data is provided through the addTranslationMemory prop.
+     * 
+     * Dependencies:
+     * - addTranslationMemory: Object containing translation memory data to be loaded
+     * 
+     * @effect Loads translation memory data when it changes
+     */
+    useEffect(() => {
+        if (addTranslationMemory) {
+            loadTranslationMemory(addTranslationMemory)
+        }
+    },[addTranslationMemory]);
+    
     return (
-        <>
-            <SuggestingWordAligner
-                contextId={contextId}
-                handleInfoClick={handleInfoClick_}
-                hasRenderedSuggestions={hasRenderedSuggestions}
-                lexiconCache={lexiconCache}
-                loadLexiconEntry={loadLexiconEntry}
-                onChange={onChange}
-                showPopover={showPopover}
-                sourceLanguage={sourceLanguageId}
-                sourceLanguageFont={sourceLanguageFont}
-                sourceFontSizePercent={sourceFontSizePercent}
-                suggestionsOnly={suggestionsOnly}
-                style={styles}
-                suggester={suggester}
-                targetWords={targetWords}
-                translate={translate}
-                targetLanguageFont={targetLanguageFont}
-                targetFontSizePercent={targetFontSizePercent}
-                translationMemory={translationMemory}
-                verseAlignments={verseAlignments}
-            />
-            {showModelDialog && modelInfo && (
-                <ModelInfoDialog
-                    onConfigChange={handleConfigChange}
-                    handleDeleteBook={handleDeleteBook}
-                    info={modelInfo}
-                    onClose={() => setShowModelDialog(false)}
-                    translate={translate}
-                />
-            )}
-        </>
+        <EnhancedWordAlignerPane
+            config={config}
+            contextId={contextId}
+            deleteBookFromGroup={deleteBookFromGroup}
+            getModelMetaData={getModelMetaData}
+            hasRenderedSuggestions={hasRenderedSuggestions}
+            infoVerticalOffset={infoVerticalOffset}
+            lexiconCache={lexiconCache}
+            loadLexiconEntry={loadLexiconEntry}
+            onChange={onChange}
+            saveChangedSettings={saveChangedSettings}
+            showPopover={showPopover}
+            sourceLanguageId={sourceLanguageId}
+            sourceLanguageFont={sourceLanguageFont}
+            sourceFontSizePercent={sourceFontSizePercent}
+            styles={{...styles, maxHeight: '450px', overflowY: 'auto'}}
+            suggester={suggester}
+            suggestionsOnly={suggestionsOnly}
+            targetLanguageFont={targetLanguageFont}
+            targetLanguage={targetLanguage}
+            targetFontSizePercent={targetFontSizePercent}
+            targetWords={targetWords}
+            translate={translate}
+            verseAlignments={verseAlignments}
+        />
     )
 }

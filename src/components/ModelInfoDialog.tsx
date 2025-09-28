@@ -38,7 +38,11 @@ import {
 } from '@/workers/WorkerComTypes';
 
 // Dialog styles component
-const DialogOverlay: React.FC<{children: React.ReactNode, onClose: () => void}> = ({children, onClose}) => (
+const DialogOverlay: React.FC<{
+    children: React.ReactNode,
+    infoVerticalOffset: string,
+    onClose: () => void,
+}> = ({children, infoVerticalOffset, onClose}) => (
     <div
         style={{
             position: 'fixed',
@@ -59,6 +63,7 @@ const DialogOverlay: React.FC<{children: React.ReactNode, onClose: () => void}> 
                 backgroundColor: 'white',
                 borderRadius: '8px',
                 padding: '24px',
+                paddingTop: infoVerticalOffset || '24px',
                 maxWidth: '600px',
                 maxHeight: '80vh',
                 overflow: 'auto',
@@ -242,13 +247,15 @@ export const ModelInfoDialog: React.FC<{
     handleDeleteBook: (bookId: string) => void,
     /** Model metadata and information to display */
     info: TAlignmentMetaData,
+    /** how much to shift vertical for info modal */
+    infoVerticalOffset?: string,
     /** Function to close the dialog */
     onClose: () => void,
     /** Optional callback for configuration changes */
     onConfigChange?: (config: TAlignmentSuggestionsConfig) => void,
     /** Translation function for internationalization */
     translate: (key: string, params?: Record<string, string | number>) => string,
-}> = ({handleDeleteBook, info, onClose, onConfigChange,translate}) => {
+}> = ({handleDeleteBook, info,  infoVerticalOffset, onClose, onConfigChange, translate}) => {
     const {
         config,
         currentBookAlignmentInfo,
@@ -463,8 +470,8 @@ export const ModelInfoDialog: React.FC<{
                     id: "targetNgramLength",
                     label: translate('training.target_ngram_label'),
                     variable: "targetNgramLength",
-                    min: 3,
-                    max: 10,
+                    min: config?.targetNgramMinLength,
+                    max: config?.targetNgramMaxLength,
                     description: translate('training.target_ngram_hint')
                 })}
 
@@ -472,8 +479,8 @@ export const ModelInfoDialog: React.FC<{
                     id: "sourceNgramLength",
                     label: translate('training.source_ngram_label'),
                     variable: "sourceNgramLength",
-                    min: 3,
-                    max: 10,
+                    min: config?.sourceNgramMinLength,
+                    max: config?.sourceNgramMaxLength,
                     description: translate('training.source_ngram_hint')
                 })}
 
@@ -499,7 +506,10 @@ export const ModelInfoDialog: React.FC<{
     };
 
     return (
-        <DialogOverlay onClose={onClose}>
+        <DialogOverlay
+            onClose={onClose}
+            infoVerticalOffset={infoVerticalOffset}
+        >
             <div style={{maxWidth: '100%', margin: '0 auto'}}>
                 <div style={{
                     display: 'flex',
