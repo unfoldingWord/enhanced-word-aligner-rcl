@@ -48,13 +48,11 @@
  * - Web Workers API (for background training processes)
  */
 
-import React, {useEffect, useState} from 'react'
-import {SuggestingWordAligner} from 'word-aligner-rcl'
+import React, {useEffect} from 'react'
 import {
     ContextId,
     SourceWord,
     TargetWordBank,
-    TTrainingStateChangeHandler,
     TTranslationMemoryType,
 } from '@/common/classes';
 import {Alignment, Suggestion} from 'wordmap';
@@ -244,18 +242,6 @@ interface EnhancedWordAlignerProps {
     translate: (key: string, params?: Record<string, string | number>) => string;
     
     /** 
-     * Existing translation memory for alignment suggestions.
-     * Pre-loaded alignment data that can be used for suggestions.
-     */
-    translationMemory?: TTranslationMemoryType;
-
-    /** 
-     * When true, detailed training progress is logged to the console.
-     * Useful for debugging and monitoring alignment training.
-     */
-    verboseTraining?: boolean;
-
-    /** 
      * Current alignments between source and target words.
      * The existing alignment data for the current verse.
      */
@@ -295,15 +281,10 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     targetFontSizePercent,
     targetWords,
     translate,
-    translationMemory,
-    verboseTraining,
     verseAlignments,
 }) => {
     // Extract training state management functions and state values
     const {
-        actions: {
-            handleTrainingStateChange
-        },
         state: {
             checksumGenerated,
             trainingComplete,
@@ -314,7 +295,6 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     // Extract alignment suggestion management functions
     const {
         actions: {
-            cleanupWorker,
             deleteBookFromGroup,
             getCurrentBookShaState,
             getModelMetaData,

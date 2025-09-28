@@ -1,31 +1,35 @@
-
 /**
  * EnhancedWordAlignerPane Component
  * =================================
  *
  * @synopsis
- * A React component that enhances the basic WordAligner with UI for alignment suggestions
- * by wrapping the SuggestingWordAligner from word-aligner-rcl and ModelInfoDialog.  This
- * is the UI part of EnhancedWordAligner.
+ * A React component that provides the UI layer for enhanced word alignment with suggestions,
+ * wrapping the SuggestingWordAligner from word-aligner-rcl and ModelInfoDialog. This
+ * is the presentation part of the EnhancedWordAligner system.
  *
  * @description
- * The EnhancedWordAlignerPane component provides the UI part of word alignment suggestions for Bible
- * translation projects. It uses machine learning via the WordMap algorithm to analyze aligned
- * verses and suggest alignments for unaligned text. This component manages training state,
- * configuration settings, and model information while providing a user interface for manual
- * alignment corrections.
+ * The EnhancedWordAlignerPane component delivers the user interface for word alignment suggestions 
+ * in Bible translation projects. It integrates with the WordMap algorithm to present alignment 
+ * suggestions for unaligned text based on previously aligned verses. This component handles 
+ * the visual presentation of alignments, suggestion buttons, model information display, and 
+ * configuration options while delegating the actual alignment logic to its parent.
+ *
+ * Key responsibilities:
+ * - Displaying source and target text for alignment
+ * - Presenting UI for alignment suggestions
+ * - Providing access to model information and settings
+ * - Supporting manual alignment corrections
+ * - Handling configuration changes and model management actions
  *
  * @properties
- * The component accepts numerous props to configure its behavior and appearance
+ * The component accepts numerous props to configure its behavior and appearance,
+ * including language settings, styling options, callback handlers, and configuration parameters.
  *
  * @requirements
- * - Requires word-aligner-rcl as a dependency
- * - Needs a web worker for training alignment models
- * - parent component needs to use custom hook useAlignmentSuggestions to manage the model
- *      training Web worker, suggestions, model caching, training state, 
- * - parent component needs to use custom hook useTrainingState to expose to app training
- *      state information
- * - Requires browser support for IndexedDB for caching training data
+ * - Requires word-aligner-rcl as a dependency for the base alignment UI
+ * - Parent component must provide alignment suggestion capabilities via the suggester prop
+ * - Parent component must implement the model metadata and management functions
+ * - Parent component should provide translation capabilities via the translate prop
  */
 
 import React, {useEffect, useState} from 'react'
@@ -176,9 +180,9 @@ export const EnhancedWordAlignerPane: React.FC<EnhancedWordAlignerPaneProps> = (
     /**
      * Handles changes to the configuration for alignment suggestions.
      *
-     * This method is responsible for applying the new configuration settings
-     * and executing necessary actions upon successful save. It saves the updated
-     * settings and triggers an informational action once the save operation is completed.
+     * This method processes updated configuration settings and persists them
+     * through the saveChangedSettings callback. After successful saving,
+     * it refreshes the model information display to reflect the new configuration.
      *
      * @param {TAlignmentSuggestionsConfig} newConfig - The updated configuration object for alignment suggestions.
      */
@@ -190,9 +194,11 @@ export const EnhancedWordAlignerPane: React.FC<EnhancedWordAlignerPaneProps> = (
     };
 
     /**
-     * Handles the logic to display model information when the associated event is triggered.
-     * Retrieves model metadata, updates the model info state,
-     * and toggles the display of the model dialog.
+     * Displays the model information dialog with current model metadata.
+     * 
+     * Retrieves the current model metadata through the getModelMetaData callback,
+     * updates the component state, and shows the model information dialog.
+     * This function is triggered when the user clicks on the model info button.
      *
      * @return {void} No return value.
      */
@@ -204,13 +210,13 @@ export const EnhancedWordAlignerPane: React.FC<EnhancedWordAlignerPaneProps> = (
     }
 
     /**
-     * Deletes a book by its identifier and performs subsequent actions.
+     * Removes a specific book's alignment data from the translation memory.
      *
-     * This function is used to delete the alignment data associated with a specific book
-     * identified by the provided `bookId`. Once the deletion process is successful,
-     * it triggers an informational action.
+     * This function deletes alignment data for the specified book and then
+     * refreshes the model information display to reflect the updated state
+     * of the translation memory.
      *
-     * @param {string} bookId - The unique identifier of the book to be deleted.
+     * @param {string} bookId - The unique identifier of the book to be removed from alignment memory.
      */
     const handleDeleteBook = (bookId: string) => {
         console.log(`EnhancedWordAlignerPane - Delete alignment data for book: ${bookId}`);
