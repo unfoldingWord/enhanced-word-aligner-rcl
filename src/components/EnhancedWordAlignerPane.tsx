@@ -50,14 +50,6 @@ import {
 import ModelInfoDialog from './ModelInfoDialog';
 
 interface EnhancedWordAlignerPaneProps {
-    /** Function to handle async suggestion generation for alignments */
-    asyncSuggester?: (
-        sourceSentence: string | Token[],
-        targetSentence: string | Token[],
-        maxSuggestions?: number,
-        manuallyAligned?: Alignment[]
-    ) => Promise<Suggestion[]>;
-
     /** Configuration settings for alignment suggestions */
     config?: TAlignmentSuggestionsConfig;
     

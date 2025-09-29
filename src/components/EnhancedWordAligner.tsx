@@ -85,17 +85,6 @@ interface EnhancedWordAlignerProps {
     alignmentSuggestionsManage: TUseAlignmentSuggestionsReturn;
 
     /** 
-     * Function to asynchronously generate alignment suggestions.
-     * Used when suggestion computation is resource-intensive and should not block the UI.
-     */
-    asyncSuggester?: (
-        sourceSentence: string | Token[],
-        targetSentence: string | Token[],
-        maxSuggestions?: number,
-        manuallyAligned?: Alignment[]
-    ) => Promise<Suggestion[]>;
-
-    /** 
      * Flag to cancel any ongoing alignment training process.
      * When set to true, the component will stop the training worker.
      */

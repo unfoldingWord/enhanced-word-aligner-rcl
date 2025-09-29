@@ -34,6 +34,7 @@
  * - Configurable training parameters
  *
  * @example
+ * ```tsx
  * // Basic usage with required props
  * const alignmentSuggestionsManager = useAlignmentSuggestions({
  *   contextId: currentContextId,
@@ -46,10 +47,8 @@
  *
  * // Access suggestion function
  * const { suggester } = alignmentSuggestionsManager.actions;
- *
- * // Generate suggestions
- * const suggestions = suggester(sourceTokens, targetTokens, 5);
- *
+ * ```
+ * 
  * @dependencies
  * - React 16.8+ (for hooks)
  * - uw-wordmapbooster (for machine learning algorithms)
