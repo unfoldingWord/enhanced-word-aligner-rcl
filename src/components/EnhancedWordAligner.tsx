@@ -201,17 +201,6 @@ interface EnhancedWordAlignerProps {
     styles?: React.CSSProperties;
 
     /** 
-     * Synchronous function to generate alignment suggestions.
-     * Used for immediate suggestion generation when performance allows.
-     */
-    suggester?: (
-        sourceSentence: string | Token[],
-        targetSentence: string | Token[],
-        maxSuggestions?: number,
-        manuallyAligned?: Alignment[]
-    ) => Suggestion[];
-
-    /** 
      * Information about the target language (id code, direction, localized name).
      * Used for proper language rendering and processing.
      */
@@ -410,7 +399,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
      * will extract source and target language text pairs that are used for
      * training the alignment model.
      * 
-     * When addTranslationMemory changes, it'sloaded into the alignment system.
+     * When addTranslationMemory changes, it's loaded into the alignment system.
      * 
      * @effect Loads translation memory data when it changes
      */
