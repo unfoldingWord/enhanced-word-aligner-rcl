@@ -348,6 +348,7 @@ const WordAlignerPanel = ({
         lexicons={lexicons}
         loadLexiconEntry={loadLexiconEntry}
         onChange={onChange}
+        showDialog={shouldShowDialog}
         showPopover={showPopover}
         sourceLanguageId={sourceLanguageId}
         styles={{...styles, maxHeight: '450px', overflowY: 'auto'}}
