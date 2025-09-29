@@ -28,7 +28,10 @@ import {NT_ORIG_LANG} from "../common/constants";
 
 console.log('Loading WordAlignerComponent.md');
 
+// ############################################################
 // Configuration options for alignment training and suggestions
+// ############################################################
+
 const doAutoLoadCachedTraining = false; // Enable to automatically load previously cached training data
 const doAutoTraining = false; // Enable to automatically train models when content changes
 const suggestionsOnly = false; // When true, simplifies UI by removing clear button and adding suggestion label
@@ -39,13 +42,17 @@ const keepAllAlignmentMinThreshold = 90; // EXPERIMENTAL FEATURE - if threshold 
 
 let translationMemory = {};
 
+// ####################################
+// configuring bible used for example
+// ####################################
+
 const targetLanguageId = 'en';
-const direction = 'ltr'
+const direction = 'ltr' // language direction
 const targetLanguage = {
   languageId: targetLanguageId,
   direction,
 }
-const UST = false;
+const UST = false; // if true then do a test with UST and verse ranges
 
 let bookId = 'tit'; // change book id to change test data loaded
 let chapter = 2;
@@ -57,15 +64,16 @@ if (UST) {
   let verse = '22-23';
 }
 
+// ####################################
+// load the test data
+// ####################################
+
+
 const LexiconData = require("../__tests__/fixtures/lexicon/lexicons.json");
 const translations = require("../common/locales.json")
 
 // Load translation memory for training the alignment model
 // This contains aligned source (original language) and target (translation) USFM data
-
-// const alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1.json');
-// const alignedVerseJson = require('../__tests__/fixtures/alignments/en_ult_tit_1_1_partial.json');
-// const originalVerseJson = require('../__tests__/fixtures/alignments/grk_tit_1_1.json');
 
 if (bookId === 'tit') {
     // includes gal, eph, tit, jas
@@ -77,9 +85,6 @@ if (bookId === 'tit') {
 if (bookId === 'mat') {
   translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryMat.json");
 }
-// merge together translationMemory and translationMemory2
-// translationMemory.targetUsfms = {...translationMemory.targetUsfms, ...translationMemory2.targetUsfms};
-// translationMemory.sourceUsfms = {...translationMemory.sourceUsfms, ...translationMemory2.sourceUsfms};
 if (bookId === '2co') {
   translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory2Cor.json");
 }
