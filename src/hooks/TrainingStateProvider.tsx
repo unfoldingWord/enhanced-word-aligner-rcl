@@ -227,7 +227,7 @@ export const TrainingStateProvider: React.FC<TTrainingStateContextProps> = (prop
             }
 
             _trainingStatusStr += trainingErrorStr;
-            if (percentComplete !== undefined) {
+            if (_training && percentComplete !== undefined) {
                 _trainingStatusStr += ` ${percentComplete}${translate('suggestions.percent_complete')}`;
             }
 
