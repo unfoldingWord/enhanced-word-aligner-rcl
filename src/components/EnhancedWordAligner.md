@@ -1,6 +1,6 @@
 ### Enhanced Word Aligner Example
 
-The `EnhancedWordAligner` component provides automated word alignment capabilities for Bible translation projects, combining machine learning with a user-friendly interface for manual corrections.
+The `EnhancedWordAligner` component provides interactive and suggesting word alignment capabilities for Bible translation projects, combining machine learning with a user-friendly interface for manual corrections.
 
 #### Usage Example
 
