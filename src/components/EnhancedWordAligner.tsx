@@ -261,6 +261,8 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     translate,
     verseAlignments,
 }) => {
+    const aligning = !!(targetWords && verseAlignments)
+
     // Extract training state management functions and state values
     const {
         state: {
@@ -305,13 +307,15 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
      * @dependency trainingComplete - Flag indicating previous training is complete
      */
     useEffect(() => {
-        console.log(`EnhancedWordAligner - checksumGenerated = ${checksumGenerated}, translationMemoryLoaded = ${translationMemoryLoaded}`);
-        if (checksumGenerated && translationMemoryLoaded && trainingComplete && config?.doAutoTraining) {
-            const shaState: TBookShaState = getCurrentBookShaState()
-            console.log(`EnhancedWordAligner - Training complete: ${shaState?.bookShaChanged} trained sha ${shaState?.trainedSha} and current book sha ${shaState?.currentBookSha}`);
-            if (shaState?.bookShaChanged) {
-                console.log(`EnhancedWordAligner - Training complete: book changed, retraining`);
-                startTraining();
+        if (aligning) {
+            console.log(`EnhancedWordAligner - checksumGenerated = ${checksumGenerated}, translationMemoryLoaded = ${translationMemoryLoaded}`);
+            if (checksumGenerated && translationMemoryLoaded && trainingComplete && config?.doAutoTraining) {
+                const shaState: TBookShaState = getCurrentBookShaState()
+                console.log(`EnhancedWordAligner - Training complete: ${shaState?.bookShaChanged} trained sha ${shaState?.trainedSha} and current book sha ${shaState?.currentBookSha}`);
+                if (shaState?.bookShaChanged) {
+                    console.log(`EnhancedWordAligner - Training complete: book changed, retraining`);
+                    startTraining();
+                }
             }
         }
     },[checksumGenerated, translationMemoryLoaded, trainingComplete]);
