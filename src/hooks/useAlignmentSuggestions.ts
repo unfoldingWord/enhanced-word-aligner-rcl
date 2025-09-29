@@ -4,34 +4,57 @@
  * ============================
  *
  * @synopsis
- * A React hook that manages the training and application of word alignment suggestions 
- * for Bible translation projects using machine learning techniques.
+ * A custom React hook that powers the machine learning behind automated word alignment suggestions
+ * for Bible translation projects. It manages the entire lifecycle of alignment models from
+ * training to application.
  *
  * @description
- * This hook is the core engine behind automated word alignment suggestions, managing the 
- * entire lifecycle of alignment models - from training to application. It handles 
- * translation memory loading, model training via web workers, persistence of trained 
- * models, and generation of alignment suggestions. The hook maintains state about 
- * training progress and provides methods to control the alignment process.
+ * This hook serves as the engine powering the enhanced word alignment system, providing 
+ * sophisticated machine learning capabilities to automatically suggest word alignments between
+ * source languages (like Greek, Hebrew) and target translations. The hook handles all aspects
+ * of alignment model training, persistence, and application:
+ *
+ * - Loads and manages translation memory (pairs of source and target texts)
+ * - Trains statistical alignment models using web workers for background processing
+ * - Persists trained models in IndexedDB for future use
+ * - Generates alignment suggestions based on learned patterns
+ * - Adapts to available computing resources by dynamically adjusting complexity
+ * - Provides a comprehensive API for controlling the alignment training process
+ *
+ * The hook integrates with the WordMap algorithm and leverages web workers to perform
+ * computationally intensive training without blocking the UI. It maintains caches of trained
+ * models specific to language pairs and books, and intelligently retrains when content changes.
  *
  * Key features:
- * - Translation memory management for source and target texts
- * - Web worker-based training of alignment models
- * - Caching of trained models in IndexedDB for persistence
- * - Dynamic complexity adjustment based on performance
- * - Suggestion generation for word alignments
- * - Book-specific and language-pair-specific training
- * - Training progress monitoring and status reporting
+ * - Asynchronous, non-blocking training through Web Workers
+ * - Intelligent caching of trained models per book and language pair
+ * - Dynamic complexity adjustment based on available computing resources
+ * - Detailed training progress reporting and diagnostics
+ * - SHA-based change detection to prevent unnecessary retraining
+ * - Configurable training parameters
  *
- * @properties
- * The hook accepts configuration and context information and returns state and actions
+ * @example
+ * ```tsx
+ * // Basic usage with required props
+ * const alignmentSuggestionsManager = useAlignmentSuggestions({
+ *   contextId: currentContextId,
+ *   shown: isDialogVisible,
+ *   sourceLanguageId: 'el-x-koine',
+ *   targetLanguageId: 'en',
+ *   createAlignmentTrainingWorker,
+ *   handleTrainingStateChange: updateTrainingStatus
+ * });
  *
- * @requirements
- * - React 16.8+ (uses hooks)
- * - Web Worker support in the browser
- * - Requires uw-wordmapbooster as a dependency to do alignment training
- * - IndexedDB support for model caching
- * - Access to cryptographic functions for checksums
+ * // Access suggestion function
+ * const { suggester } = alignmentSuggestionsManager.actions;
+ * ```
+ * 
+ * @dependencies
+ * - React 16.8+ (for hooks)
+ * - uw-wordmapbooster (for machine learning algorithms)
+ * - word-aligner-rcl (for Bible-specific utilities)
+ * - IndexedDB support in browser (for caching)
+ * - Web Workers API (for background processing)
  */
 
 import {
@@ -79,42 +102,90 @@ import {
 } from '@/workers/WorkerComTypes';
 import {makeTranslationMemory, START_TRAINING} from '@/workers/utils/AlignmentTrainerUtils';
 
+/**
+ * Callback function type for handling training completion events
+ * @param {TAlignmentCompletedInfo} info - Information about the completed training process
+ */
 export type THandleTrainingCompleted = (info: TAlignmentCompletedInfo) => void;
 
+/**
+ * Props for the useAlignmentSuggestions hook
+ * 
+ * This interface defines all configuration options and callbacks needed by
+ * the alignment suggestions system.
+ */
 export interface TUseAlignmentSuggestionsProps {
-    /** Configuration options for alignment suggestions behavior */
+    /** 
+     * Configuration options for alignment suggestions behavior.
+     * Controls parameters like n-gram length, auto-training, and complexity.
+     */
     config?: TAlignmentSuggestionsConfig;
 
-    /** Current Bible reference context (bible, book, chapter, verse) */
+    /** 
+     * Current Bible reference context with bible, book, chapter, verse.
+     * Used to determine the scope for alignment operations.
+     */
     contextId: ContextId;
     
-    /** Function to create a web worker for alignment training, this allows to override
-     * default behavior to support other platforms such as nextJS */
+    /** 
+     * Factory function to create a web worker for alignment training.
+     * Allows overriding default worker creation to support platforms like Next.js.
+     */
     createAlignmentTrainingWorker?:() => Promise<Worker>;
     
-    /** Callback for training state changes */
+    /** 
+     * Callback for training state changes.
+     * Notifies parent components about training progress and status.
+     */
     handleTrainingStateChange?: TTrainingStateChangeHandler;
     
-    /** Callback for training completion */
+    /** 
+     * Callback for training completion.
+     * Called when an alignment model finishes training.
+     */
     handleTrainingCompleted?: THandleTrainingCompleted;
     
-    /** Flag indicating if the alignment suggestions are visible */
+    /** 
+     * Flag indicating if the alignment suggestions are visible.
+     * Controls when the hook should load/unload resources.
+     */
     shown: boolean;
     
-    /** ID of the source language (e.g., 'hbo' for Hebrew) */
+    /** 
+     * ID of the source language (e.g., 'hbo' for Hebrew, 'el-x-koine' for Greek).
+     * Used to identify the original language text.
+     */
     sourceLanguageId: string;
     
-    /** ID of the target language (e.g., 'es' for Spanish) */
+    /** 
+     * ID of the target language (e.g., 'en' for English).
+     * Used to identify the translation language.
+     */
     targetLanguageId: string;
     
-    /** Pre-loaded translation memory for alignment */
+    /** 
+     * Pre-loaded translation memory for alignment.
+     * Contains USFM content for both source and target languages.
+     */
     translationMemory?: TTranslationMemoryType;
 }
 
+/**
+ * Type definition for the suggestion function that generates alignment suggestions
+ * 
+ * This function uses statistical models to predict likely alignments between
+ * source and target language words.
+ */
 export type TSuggester =
     ((sourceSentence: any, targetSentence: any, maxSuggestions?: number, manuallyAligned?: any[]) => any[])
     | null;
 
+/**
+ * Book SHA state information for tracking content changes
+ * 
+ * This interface provides information about whether a book's content
+ * has changed since it was last trained.
+ */
 export interface TBookShaState {
     /** SHA hash of the previously trained book content */
     trainedSha: string | undefined;
@@ -126,6 +197,12 @@ export interface TBookShaState {
     bookShaChanged: boolean;
 }
 
+/**
+ * Return value interface for the useAlignmentSuggestions hook
+ * 
+ * This interface defines the state values and action functions that the
+ * hook provides to consumers.
+ */
 export interface TUseAlignmentSuggestionsReturn {
     /** Current state values for alignment suggestions */
     state: {
@@ -188,6 +265,12 @@ export interface TUseAlignmentSuggestionsReturn {
     };
 }
 
+/**
+ * Creates a unique selection identifier from the context ID
+ * 
+ * @param {ContextId} contextId - The current context identifier
+ * @returns {Array} An array containing Bible ID and book ID for selection
+ */
 function getSelectionFromContext(contextId: ContextId) {
     const currentSelection = [
         [contextId?.bibleId || '', contextId?.reference?.bookId || '']
@@ -196,11 +279,14 @@ function getSelectionFromContext(contextId: ContextId) {
 }
 
 /**
- * Initializes and returns the default state for alignment suggestions
- * based on the provided context identifier.
- *
- * @param {ContextId} contextId - The context identifier used to derive specific state values.
- * @return {TAlignmentSuggestionsState} - The default state for alignment suggestions.
+ * Initializes the default state for alignment suggestions
+ * 
+ * Creates an initial state object with appropriate default values based on the
+ * provided context, including empty groups collection and proper complexity settings
+ * based on whether the book is in the Old or New Testament.
+ * 
+ * @param {ContextId} contextId - The context identifier for the current Bible reference
+ * @return {TAlignmentSuggestionsState} Initial state for alignment suggestions
  */
 function defaultAppState(contextId: ContextId): TAlignmentSuggestionsState {
     const newGroups : {[key:string]: Group} = {};
@@ -220,12 +306,13 @@ function defaultAppState(contextId: ContextId): TAlignmentSuggestionsState {
 }
 
 /**
- * Creates and returns the default training state for a given context ID.
- *
- * @param {ContextId} contextId - The unique identifier for the training context.
- * @return {TrainingState} The default training state object containing the context ID,
- *                          current and last trained instance counts initialized to -1,
- *                          and an empty training status output.
+ * Creates a default training state object for the given context
+ * 
+ * Initializes training state with the provided context ID and default values
+ * for training progress tracking.
+ * 
+ * @param {ContextId} contextId - The context identifier for the current reference
+ * @return {TrainingState} Default training state object
  */
 function defaultTrainingState(contextId: ContextId): TrainingState {
     return {
@@ -236,20 +323,24 @@ function defaultTrainingState(contextId: ContextId): TrainingState {
     }
 }
 
+/**
+ * Calculates elapsed minutes since a given timestamp
+ * 
+ * @param {number} trainingStartTime - The timestamp when training started
+ * @returns {number} Elapsed time in minutes
+ */
 function getElapsedMinutes(trainingStartTime: number) {
     return (Date.now() - trainingStartTime) / (1000 * 60);
 }
 
 /**
- * Generates a unique settings key for a given context.
- *
- * This function creates and returns a settings key string by combining the
- * provided context identifier (`contextId`) with the 'settings' prefix
- * or namespace. It uses an underlying helper function `getStorageKey`
- * to generate the key.
- *
- * @param {ContextId} contextId - The unique identifier for a specific context.
- * @returns {string} A generated key string representing the settings for the given context.
+ * Generates a settings storage key for the given context
+ * 
+ * Creates a unique key for storing settings specific to the current
+ * Bible and testament type.
+ * 
+ * @param {ContextId} contextId - The context identifier 
+ * @returns {string} Settings storage key
  */
 export const getSettingsKey = (contextId: ContextId): string => {
     const newKey = getStorageKey(contextId, 'settings', false);
@@ -257,23 +348,25 @@ export const getSettingsKey = (contextId: ContextId): string => {
 }
 
 /**
- * Determines the testament string ('NT' for New Testament or 'OT' for Old Testament)
- * based on the given book identifier.
- *
- * @param {string} bookId - The identifier of the book to evaluate.
- * @return {string} Returns 'NT' if the book is in the New Testament, otherwise 'OT'.
+ * Determines the testament string for a book
+ * 
+ * @param {string} bookId - Book identifier (e.g., "gen", "mat")
+ * @returns {string} "NT" for New Testament, "OT" for Old Testament
  */
 function getTestamentStr(bookId: string) {
     return bibleHelpers.isNewTestament(bookId) ? 'NT' : 'OT';
 }
 
 /**
- * Generates a storage key based on the context ID and a specified type.
- *
- * @param {ContextId} contextId - The context object containing reference and Bible information.
- * @param {string} type_ - The type of the key to be generated.
- * @param addBook
- * @return {string} The generated storage key string.
+ * Generates a storage key based on context information
+ * 
+ * Creates a key string for storing data in IndexedDB based on
+ * Bible ID, testament, and optionally the book ID.
+ * 
+ * @param {ContextId} contextId - The context identifier
+ * @param {string} type_ - Type of data being stored (e.g., "settings", "Tmodel")
+ * @param {boolean} addBook - Whether to include book ID in the key
+ * @returns {string} Storage key string
  */
 function getStorageKey(contextId: ContextId, type_: string, addBook?: boolean) {
     let newKey = '';
@@ -290,13 +383,13 @@ function getStorageKey(contextId: ContextId, type_: string, addBook?: boolean) {
 }
 
 /**
- * Generates a model key based on the context's Bible and book identifiers.
- *
- * The function constructs a string key by combining the Bible ID, testament type (New Testament or Old Testament),
- * and book ID. It first checks the existence of `bibleId` and `bookId` from the context. If both are present,
- * the testament type is determined using a helper function, and the key is composed in the format `bibleId_testament_bookId`.
- *
- * @returns {string} The constructed model key. Returns an empty string if either `bibleId` or `bookId` is missing.
+ * Generates a model storage key for the given context
+ * 
+ * Creates a unique key for storing trained alignment models specific
+ * to the current Bible, testament, and book.
+ * 
+ * @param {ContextId} contextId - The context identifier
+ * @returns {string} Model storage key
  */
 export const getModelKey = (contextId: ContextId): string => {
     const newKey = getStorageKey(contextId, 'Tmodel', true);
@@ -304,13 +397,16 @@ export const getModelKey = (contextId: ContextId): string => {
 }
 
 /**
- * Stores language preferences in the provided indexed database storage reference.
- *
- * @param {ContextId} context
- * @param {number} maxComplexity - The maximum complexity level for the language preferences.
- * @param {React.RefObject<IndexedDBStorage | null>} dbStorageRef - A React reference object pointing to the IndexedDB storage instance.
- * @param {TAlignmentSuggestionsConfig} config
- * @return {Promise<void>} A promise that resolves when the language preferences have been successfully stored, or returns early if the storage is not ready.
+ * Stores language preferences in IndexedDB
+ * 
+ * Saves the current complexity settings and configuration for the
+ * specific language pair to persistent storage.
+ * 
+ * @param {ContextId} context - The context identifier
+ * @param {number} maxComplexity - Maximum complexity setting
+ * @param {React.RefObject<IndexedDBStorage>} dbStorageRef - Reference to IndexedDB storage
+ * @param {TAlignmentSuggestionsConfig} config - Configuration settings
+ * @returns {Promise<void>}
  */
 async function storeLanguagePreferences(
     context: ContextId,
@@ -333,13 +429,13 @@ async function storeLanguagePreferences(
 }
 
 /**
- * Generates a group name based on the given context identifier. The group name
- * is constructed using the Bible ID and the testament string derived from the
- * book ID in the context reference.
- *
- * @param {ContextId} contextId - The context identifier object containing the Bible ID
- *                                and reference details, including the book ID.
- * @return {string} The generated group name formed using the Bible ID and testament string.
+ * Generates a group name based on the context identifier
+ * 
+ * Creates a name for grouping alignment data based on Bible ID and
+ * testament type (OT/NT).
+ * 
+ * @param {ContextId} contextId - The context identifier
+ * @returns {string} Group name for alignment data
  */
 function getGroupName(contextId: ContextId) {
     let groupName_ = ''
@@ -352,10 +448,25 @@ function getGroupName(contextId: ContextId) {
     return groupName_;
 }
 
+/**
+ * Generates a storage key for alignment memory data
+ * 
+ * @param {string} group_name - The group name
+ * @returns {string} Storage key for alignment memory
+ */
 function getAlignmentMemoryKey(group_name: string) {
     return `memory_${group_name}`;
 }
 
+/**
+ * Merges provided configuration with default values
+ * 
+ * Ensures all required configuration properties have appropriate
+ * values by combining the provided config with defaults.
+ * 
+ * @param {TAlignmentSuggestionsConfig} config_ - Provided configuration
+ * @returns {TAlignmentSuggestionsConfig} Complete configuration with defaults
+ */
 function getDefaultConfig(config_: TAlignmentSuggestionsConfig) {
     const defaultConfig = {
         ...config_,
@@ -373,34 +484,18 @@ function getDefaultConfig(config_: TAlignmentSuggestionsConfig) {
         train_steps: config_.train_steps ?? 1000,
         trainOnlyOnCurrentBook: config_.trainOnlyOnCurrentBook ?? false,
     }
-    // if (!isEqual(config_, defaultConfig)) {
-    //     // Compare each property in the configs
-    //     for (const key in defaultConfig) {
-    //         if (!isEqual(defaultConfig[key], config_[key])) {
-    //             console.log(`getDefaultConfig - value for '${key}' changed from ${config_[key]} to ${defaultConfig[key]}`);
-    //         }
-    //     }
-    // }
     return defaultConfig;
 }
 
 /**
- * Handles alignment suggestions and manages their state, training process, and updates.
- *
- * This function manages the lifecycle of alignment suggestions, including their initialization,
- * updates, and training using alignment models. It provides functionalities such as loading
- * translation memory data, managing stateful information for alignments, and starting or stopping
- * training processes using a web worker. It also adjusts complexity settings to fine-tune suggestions
- * and ensures proper cleanup of resources when necessary.
- *
- * @param {Object} useAlignmentSuggestionsProps - Object containing properties for alignment suggestions.
- * @param {string} useAlignmentSuggestionsProps.contextId - Identifier for the current alignment context.
- * @param {function} useAlignmentSuggestionsProps.createAlignmentTrainingWorker - Function to create a web worker for training.
- * @param {function} useAlignmentSuggestionsProps.handleTrainingStateChange - Callback to handle updates to the training state.
- * @param {boolean} useAlignmentSuggestionsProps.shown - Indicator whether the alignment suggestions are visible.
- * @param {string} useAlignmentSuggestionsProps.sourceLanguageId - Identifier for the source language.
- * @param {string} useAlignmentSuggestionsProps.targetLanguageId - Identifier for the target language.
- * @return {Object} useAlignmentSuggestionsReturn - An object containing state, utilities, and actions related to alignment suggestions.
+ * The main hook for managing alignment suggestions
+ * 
+ * This hook provides a comprehensive system for training and applying
+ * alignment models for Bible translation. It manages background workers,
+ * cached models, training state, and suggestion generation.
+ * 
+ * @param {TUseAlignmentSuggestionsProps} props - Hook configuration properties
+ * @returns {TUseAlignmentSuggestionsReturn} State and actions for alignment suggestions
  */
 export const useAlignmentSuggestions = ({
     config: config_,
@@ -413,33 +508,35 @@ export const useAlignmentSuggestions = ({
     targetLanguageId,
     translationMemory,
 }: TUseAlignmentSuggestionsProps): TUseAlignmentSuggestionsReturn => {
+    // Storage and state references
     const dbStorageRef = useRef<IndexedDBStorage | null>(null);
-
     const configRef = useRef<TAlignmentSuggestionsConfig>(getDefaultConfig(config_));
     const [state, _setState] = useState<TAlignmentSuggestionsState>(defaultAppState(contextId));
-    //also hold the state in a ref so that callbacks can get the up-to-date information.
-    //https://stackoverflow.com/a/60643670
     const stateRef = useRef<TAlignmentSuggestionsState>(state);
+    
+    // Update state in both the React state and reference
     function setState( newState: TAlignmentSuggestionsState ) {
         stateRef.current = newState;
         _setState( newState );
     }
     
-    // Remove individual state variables - they're now part of consolidated state
+    // References for training state and context
     const trainingStateRef = useRef<TrainingState>(state.trainingState);
     const contextIdRef = useRef<ContextId>(null);
     const alignmentTrainingRef_ = useRef<TAlignmentTrainingWorkerData | null>(null);
 
+    // Extract state properties
     const {groupCollection, maxComplexity, currentBookName, trainingState, kickOffTraining, failedToLoadCachedTraining} = state;
 
+    // References for alignment predictor, metadata, and checksums
     const alignmentPredictorRef = useRef<AbstractWordMapWrapper | null>(null);
     const modelMetaDataRef = useRef<TAlignmentCompletedInfo | null>(null);
     const currentShasRef = useRef<TCurrentShas>({});
 
     /**
-     * Retrieves the current training data from the alignment training reference.
-     *
-     * @return {TAlignmentTrainingWorkerData} The training data extracted from the alignmentTraining reference, or undefined if the reference is unavailable.
+     * Retrieves the current training data
+     * 
+     * @returns {TAlignmentTrainingWorkerData} Current training data or undefined
      */
     function getTrainingData(): TAlignmentTrainingWorkerData {
         const alignmentTraining = alignmentTrainingRef_?.current;
@@ -447,22 +544,21 @@ export const useAlignmentSuggestions = ({
     }
 
     /**
-     * Updates the current training data with the provided new data.
-     *
-     * @param {TAlignmentTrainingWorkerData} newData - The new training data to be set.
-     * @return {void} This function does not return a value.
+     * Sets new training data
+     * 
+     * @param {TAlignmentTrainingWorkerData} newData - New training data to set
      */
     function setTrainingData(newData: TAlignmentTrainingWorkerData) {
         alignmentTrainingRef_.current = newData;
     }
 
     /**
-     * Starts a minute counter that increments every minute.  This is a work-around for issue where tab or computer goes to sleep.  In that case the system clock would be much greater than the actual run time.
-     *
-     * The method initializes a counter to zero and starts a timer that increments the counter every minute.
-     * Optionally, the timer can be stopped after a desired number of elapsed minutes by using the returned interval ID.
-     *
-     * @return {NodeJS.Timeout} The interval ID for the minute timer, which can be used to stop the timer with `clearInterval`.
+     * Starts a minute counter for tracking training duration
+     * 
+     * Initializes a counter that increments every minute to track
+     * training duration, even if the system clock jumps (e.g., during sleep).
+     * 
+     * @returns {NodeJS.Timeout} Timer interval ID
      */
     function _startMinuteCounter():NodeJS.Timeout {
         const alignmentTraining = getTrainingData();
@@ -474,18 +570,15 @@ export const useAlignmentSuggestions = ({
             const alignmentTraining = getTrainingData()
             alignmentTraining.minuteCounter++;
             console.log(`Training ${alignmentTraining.minuteCounter} minute(s) elapsed`);
-
-            // Optional: stop after a certain number of minutes
-            // if (minutes >= 10) clearInterval(timer);
         }, 60 * 1000); // 60,000 ms = 1 minute
 
-        return alignmentTraining.minuteTimer; // You can use this to stop the timer later
+        return alignmentTraining.minuteTimer;
     }
 
     /**
-     * Stops the minute counter by clearing the interval and resetting it.
-     *
-     * @return {void} Does not return a value.
+     * Stops the minute counter
+     * 
+     * Cleans up the timer that tracks training duration.
      */
     function _stopMinuteCounter() {
         const alignmentTraining = getTrainingData();
@@ -497,9 +590,9 @@ export const useAlignmentSuggestions = ({
     }
 
     /**
-     * Retrieves the current value of the minute counter.
-     *
-     * @return {number} The current value of the minute counter.
+     * Gets the current minute counter value
+     * 
+     * @returns {number} Minutes elapsed during training
      */
     function _getMinuteCounter():number {
         const alignmentTraining = getTrainingData()
@@ -507,11 +600,13 @@ export const useAlignmentSuggestions = ({
     }
 
     /**
-     * Saves the current group to the IndexedDB storage.
-     *
-     * @param {string} group_name - The name of the group to be saved.
-     * @param {Group} currentGroup - The group data to be saved.
-     * @return {Promise<void>} A promise that resolves when the group is successfully saved.
+     * Saves a group to IndexedDB storage
+     * 
+     * Persists alignment memory data for a group to IndexedDB.
+     * 
+     * @param {string} group_name - Name of the group to save
+     * @param {Group} currentGroup - Group data to save
+     * @returns {Promise<void>}
      */
     async function saveCurrentGroup(group_name: string, currentGroup: Group) {
         try {
@@ -527,10 +622,12 @@ export const useAlignmentSuggestions = ({
     }
 
     /**
-     * Loads the current group data from indexed database storage by the given group name.
-     *
-     * @param {string} group_name - The name of the group to be loaded from storage.
-     * @return {Promise<Group|null>} A promise that resolves to the loaded group if data exists, otherwise null.
+     * Loads a group from IndexedDB storage
+     * 
+     * Retrieves previously saved alignment memory for a group.
+     * 
+     * @param {string} group_name - Name of the group to load
+     * @returns {Promise<Group|null>} Loaded group or null if not found
      */
     async function loadCurrentGroup(group_name: string) {
         let currentGroup: Group|null = null;
@@ -554,10 +651,12 @@ export const useAlignmentSuggestions = ({
     }
 
     /**
-     * Computes the SHA-256 checksum of the given input data.
-     *
-     * @param {string} data - The input data to hash.
-     * @return {Promise<string>} A promise that resolves to the SHA-256 hash as a hexadecimal string.
+     * Computes a SHA-256 checksum for data
+     * 
+     * Creates a cryptographic hash of the provided data for change detection.
+     * 
+     * @param {string|object} data - Data to hash
+     * @returns {Promise<string>} SHA-256 hash as a hexadecimal string
      */
     async function sha256Checksum(data) {
         if (typeof data !== 'string') {
@@ -571,14 +670,13 @@ export const useAlignmentSuggestions = ({
     }
     
     /**
-     * Deletes a book from a specific group within the current context.
-     * This function identifies a group using a derived group name and removes the book
-     * associated with the provided `bookId` if it exists within the group's book collection.
-     * It also updates the application state and caches the new group settings.
-     *
-     * @async
-     * @param {string} bookId - The unique identifier of the book to be removed from the group.
-     * @throws Will log an error message if the book is not found or if the group does not exist.
+     * Deletes a book from the alignment memory
+     * 
+     * Removes a specific book's alignment data from the translation memory
+     * and updates the application state.
+     * 
+     * @param {string} bookId - ID of the book to delete
+     * @returns {Promise<void>}
      */
     const deleteBookFromGroup = async (bookId: string) => {
         console.log(`deleteBookFromGroup - ${bookId}`);
@@ -608,8 +706,12 @@ export const useAlignmentSuggestions = ({
 
     /**
      * Loads translation memory data into the component state
-     * @param translationMemory Object containing source and target USFM translation data
-     * @throws Error if no resources are selected or if USFM content is missing
+     * 
+     * Processes USFM content for source and target languages, organizing
+     * it into books and chapters for alignment training.
+     * 
+     * @param {TTranslationMemoryType} translationMemory - Object with source and target USFM data
+     * @returns {Promise<void>}
      */
     const loadTranslationMemory = useCallback(async (translationMemory: TTranslationMemoryType) => {
         const targetUsfms = translationMemory?.targetUsfms;
@@ -683,9 +785,6 @@ export const useAlignmentSuggestions = ({
                 return true;
             }
 
-            //TODO Josh: it would be good to come back to this and add confirmation
-            //if the pairing is changing an existing pairing.
-
             const { newGroupCollection, addedVerseCount, droppedVerseCount } = newGroupCollection_.addSourceUsfm({ usfm_json, isResourceSelected: isResourceSelected_ });
             newGroupCollection_ = newGroupCollection;
             setState( { ...stateRef.current, groupCollection: newGroupCollection_ });
@@ -709,17 +808,14 @@ export const useAlignmentSuggestions = ({
     }, [contextId, stateRef]);
 
     /**
-     * Loads the translation memory associated with a specific book.
-     *
-     * This function retrieves and initializes the translation memory data
-     * required for processing translations of the given book. It ensures that
-     * the relevant linguistic data and configurations are prepared for
-     * translation tasks.
-     *
-     * @param {string} bookId - The identifier of the book (e.g., 'mat', 'mrk', 'luk')
-     * @param {string} originalBibleBookUsfm - The USFM content of the original language Bible book
-     * @param {string} targetBibleBookUsfm - The USFM content of the target language Bible book
-     * @returns {TTranslationMemoryType} A structured object containing source and target USFM data
+     * Loads translation memory for a single book
+     * 
+     * Creates a translation memory object for a single book and loads it
+     * into the alignment system.
+     * 
+     * @param {string} bookId - ID of the book (e.g., "gen", "mat")
+     * @param {string} originalBibleBookUsfm - USFM content for the source language
+     * @param {string} targetBibleBookUsfm - USFM content for the target language
      */
     const loadTranslationMemoryWithBook = (bookId: string, originalBibleBookUsfm: string, targetBibleBookUsfm: string): void => {
         const translationMemory = makeTranslationMemory(bookId, originalBibleBookUsfm, targetBibleBookUsfm)
@@ -727,23 +823,22 @@ export const useAlignmentSuggestions = ({
     }
 
     /**
-     * Determines whether the alignment training process is currently running.
-     *
-     * This is a callback function that checks if the `alignmentTrainingRef` has an active reference,
-     * indicating that the training process is ongoing. It also logs the current status to the console.
-     *
-     * @returns {boolean} Returns `true` if the training process is running, otherwise `false`.
+     * Checks if alignment training is currently running
+     * 
+     * @returns {boolean} True if training is active, false otherwise
      */
     const isTraining = useCallback(() => {
         const trainingRunning = !!getTrainingData()?.worker
-        // console.log(`useAlignmentSuggestions - isTraining() - Currently Training: ${trainingRunning}`);
         return trainingRunning;
     }, [])
 
     const trainingRunning = isTraining()
 
     /**
-     * Cleans up worker resources by terminating the worker and clearing the timeout
+     * Cleans up worker resources
+     * 
+     * Terminates the web worker, clears timeouts, and stops the minute counter
+     * to free resources when training is complete or cancelled.
      */
     const cleanupWorker = () => {
         console.log('cleanupWorker')
@@ -761,15 +856,14 @@ export const useAlignmentSuggestions = ({
     }
 
     /**
-     * Adjusts the maximum complexity value based on a given reduction factor.
-     *
-     * This function takes the current maximum complexity value and multiplies it by the provided
-     * reduction factor. The result is rounded up to ensure a whole number and constrained within
-     * predefined limits. The adjusted value is then set as the new maximum complexity.
-     *
-     * @param {number} reductionFactor - Multiplier between 0 and 1 to reduce the maximum complexity
-     * @param {number} maxComplexity_ - new value for maxComplexity
-     * @returns {number} The adjusted and constrained maximum complexity value
+     * Adjusts the maximum complexity based on available resources
+     * 
+     * Modifies the complexity level to optimize training performance
+     * based on observed training times and system capabilities.
+     * 
+     * @param {number} reductionFactor - Factor to reduce complexity (0-1)
+     * @param {number} maxComplexity_ - Current maximum complexity
+     * @returns {number} Adjusted complexity value
      */
     const adjustMaxComplexity = (reductionFactor: number, maxComplexity_ = maxComplexity) => {
         let newMaxComplexity = Math.ceil(maxComplexity_ * reductionFactor);
@@ -780,10 +874,16 @@ export const useAlignmentSuggestions = ({
     }
 
     /**
-     * Starts the alignment training process using a web worker
-     * Only runs if there have been changes since last training and enough training data exists
-     * Updates training state and alignment predictor with trained model results
-     * Includes a timeout that is cleared if worker completes sooner
+     * Executes the alignment training process
+     * 
+     * This function is the core of the training system. It:
+     * 1. Sets up the training data and parameters
+     * 2. Creates and manages the web worker for background training
+     * 3. Handles training completion and model persistence
+     * 4. Manages timeouts and performance optimization
+     * 5. Updates training state throughout the process
+     * 
+     * @returns {Promise<void>}
      */
     const executeTraining = async () => {
         //Use the Refs such as trainingStateRef instead of trainingState
@@ -798,7 +898,7 @@ export const useAlignmentSuggestions = ({
             console.log('executeTraining() - createAlignmentTrainingWorker not defined');
             return;
         }
-        //make sure that lastUsedInstanceCount isn't still the same as groupCollection.instanceCount
+        
         const bookId = contextId?.reference?.bookId;
         if (trainingStateRef.current.lastTrainedInstanceCount !== stateRef.current.groupCollection.instanceCount) {
             if (!isTraining()) { // check if training already running
@@ -809,8 +909,7 @@ export const useAlignmentSuggestions = ({
                 const isNT = bibleHelpers.isNewTestament(bookId)
                 const groupName = getGroupName(contextId)
                 
-                //before creating the worker, check to see if there is any data to train on.
-                //get the information for the alignment to training.
+                // Get the alignment data for training
                 let alignmentTrainingData_:TTrainingAndTestingData|null = null;
                 const group = getAlignmentsForCurrentGroup();
                 if (group) {
@@ -821,7 +920,7 @@ export const useAlignmentSuggestions = ({
                     });
                 }
 
-                //check if there are enough entries in the alignment training data dictionary
+                // Verify we have enough alignment data to train
                 const alignmentCount= group ? Object.values(alignmentTrainingData_.alignments).length : 0
                 if (alignmentCount > 4) {
                     const book = group?.books?.[bookId];
@@ -895,15 +994,15 @@ export const useAlignmentSuggestions = ({
                             })
                         }, WORKER_TIMEOUT);
 
-                        //Define the callback which will be called after the alignment trainer has finished
+                        // Define the callback for worker messages
                         trainingWorkerData.worker.addEventListener('message', (event) => {
                             const workerResults: TTrainedWordAlignerModelWorkerResults = event.data;
                             const trainingData_ = getTrainingData()
 
+                            // Handle training status updates
                             if ('trainingStatus' === workerResults?.type) {
                                 const percentComplete = event.data?.percent_complete;
                                 const contextId_ = event.data?.contextId;
-                                // console.log(`executeTraining() - trainingStatus received: ${percentComplete}%`)
                                 if (typeof percentComplete === 'number') {
                                     trainingData_.trainingProgress = percentComplete; // keep track of progress
                                     handleTrainingStateChange?.({ percentComplete, training: true, contextId: contextId_ });
@@ -911,11 +1010,13 @@ export const useAlignmentSuggestions = ({
                                 return
                             }
 
+                            // Handle non-training results
                             if ('trainingResults' !== workerResults?.type) {
                                 console.log(`executeTraining() - not training results - ignoring`)
                                 return
                             }
 
+                            // Handle training completion
                             console.log(`executeTraining() - alignment training worker completed: `, workerResults);
                             handleTrainingStateChange?.({ training: false })
                             
@@ -928,6 +1029,7 @@ export const useAlignmentSuggestions = ({
                             console.log(`executeTraining() - Training completed in ${elapsedMinutes} minutes`);
                             console.log(`executeTraining() - Training completed after ${getElapsedMinutes(trainingStartTime)} actual minutes`);
 
+                            // Adjust complexity based on training time
                             if (elapsedMinutes > THRESHOLD_TRAINING_MINUTES) {
                                 if (elapsedMinutes > WORKER_TIMEOUT) {
                                     console.log(`executeTraining() - elapsed time greater than timeout, likely went to sleep`);
@@ -951,17 +1053,20 @@ export const useAlignmentSuggestions = ({
 
                             let abstractWordMapWrapper;
 
+                            // Handle training errors
                             if ('error' in workerResults) {
                                 console.log('executeTraining() - Error running alignment worker: ' + workerResults.error);
                                 return;
                             }
 
+                            // Load trained model
                             if ('trainedModel' in workerResults) {
                                 abstractWordMapWrapper = AbstractWordMapWrapper.load(workerResults.trainedModel);
                                 // @ts-ignore
                                 console.log(`executeTraining() - Number of alignments: ${abstractWordMapWrapper?.alignmentStash?.length}`)
                             }
                             
+                            // Check if model is for current context
                             const modelKey = getModelKey(workerResults.contextId)
                             const currentModelKey = getModelKey(contextIdRef?.current)
                             console.log(`executeTraining() - currentModelKey: ${currentModelKey}`)
@@ -979,7 +1084,7 @@ export const useAlignmentSuggestions = ({
                                 console.log(`executeTraining() - currentModelKey: ${currentModelKey} != ${modelKey} - so not replacing current model`)
                             }
 
-                            // save the model to local storage NOW
+                            // save the model to local storage
                             const alignmentCompletedInfo: TAlignmentCompletedInfo = {
                                 ...workerResults,
                                 modelKey,
@@ -991,15 +1096,6 @@ export const useAlignmentSuggestions = ({
                                 handleTrainingCompleted,
                             ).then(() => {
                                 console.log(`executeTraining() - Saved model and settings`);
-                                
-                                // *** disabled training auto-repeat - seems data has not been changed enough to justify a full retraining.
-                                
-                                // if (forCurrentModel) {
-                                //     delay(1000).then(() => { // run async
-                                //         //start the training again.  It won't run again if the instanceCount hasn't changed
-                                //         setKickOffTraining(true);
-                                //     })
-                                // }
                             })
                         });
 
@@ -1032,20 +1128,10 @@ export const useAlignmentSuggestions = ({
     };
 
     /**
-     * A callback function to stop the alignment training process. This function
-     * performs cleanup operations and updates the training state when the alignment
-     * training worker is active.
-     *
-     * Dependencies:
-     * - `handleTrainingStateChange` - Optional function to update the training state.
-     * - `alignmentTrainingRef` - Reference to the alignment training worker.
-     *
-     * Operations performed:
-     * - Logs the invocation of the stopTraining function.
-     * - Checks if the alignment training worker is currently active.
-     * - Calls the `handleTrainingStateChange` function (if provided) to set the training state to false.
-     * - Cleans up resources related to the alignment training worker.
-     * - Logs the successful stoppage of alignment training.
+     * Stops the alignment training process
+     * 
+     * Terminates the web worker and cleans up resources when
+     * training needs to be cancelled.
      */
     const _stopTraining = () => {
         console.log('stopTraining()');
@@ -1060,9 +1146,9 @@ export const useAlignmentSuggestions = ({
     }
 
     /**
-     * Retrieves the training context ID from the alignment training worker reference.
-     *
-     * @return {string|undefined} The training context ID if available, or undefined if not present.
+     * Gets the context ID used for the current training
+     * 
+     * @returns {ContextId|undefined} Current training context ID
      */
     function getTrainingContextId() {
         const trainingContextId = getTrainingData()?.contextId;
@@ -1070,16 +1156,10 @@ export const useAlignmentSuggestions = ({
     }
 
     /**
-     * Checks whether the training process is being conducted within the same Bible and book context.
-     *
-     * This function compares the given context ID with the current alignment training worker's
-     * context ID to determine if they correspond to the same Bible and book. It returns true
-     * if both the Bible ID and book ID are the same; otherwise, false.
-     *
-     * @param {ContextId} contextId_ - The context ID to be compared, which includes the Bible ID
-     * and book ID details.
-     * @returns {boolean} - Returns true if the Bible ID and book ID in the provided context
-     * match the corresponding IDs in the training context; otherwise, false.
+     * Checks if training is for the same book as the specified context
+     * 
+     * @param {ContextId} contextId_ - Context to compare with training context
+     * @returns {boolean} True if training is for same book, false otherwise
      */
     const areTrainingSameBook = (contextId_: ContextId)=> {
         if (isTraining()) {
@@ -1096,17 +1176,9 @@ export const useAlignmentSuggestions = ({
     };
 
     /**
-     * Initiates the training process if it is not already running.
-     * Logs the current state of the training process to the console.
-     * When training is ready to start, invokes a private method `executeTraining`
-     * and logs a message upon completion of the training.
-     *
-     * Preconditions:
-     * - The `trainingRunning` variable must indicate that no training session is currently active.
-     *
-     * Side Effects:
-     * - Outputs log messages to the console for debugging purposes.
-     * - Calls `executeTraining` asynchronously when conditions are met.
+     * Initiates the alignment training process
+     * 
+     * Starts the training process in the background if not already running.
      */
     const startTraining = () => {
         const trainingRunning = isTraining();
@@ -1120,6 +1192,11 @@ export const useAlignmentSuggestions = ({
         }
     }
     
+    /**
+     * Component lifecycle effect
+     * 
+     * Logs when the hook mounts and unmounts for debugging purposes.
+     */
     useEffect(() => {
         console.log('useAlignmentSuggestions - mounted');
         return () => {
@@ -1128,24 +1205,9 @@ export const useAlignmentSuggestions = ({
     },[]);
     
     /**
-     * Effect hook that manages the training process based on training state changes.
-     *
-     * This hook monitors changes to the kickOffTraining flag to start
-     * the alignment training process. When flag changes, it introduces a small delay
-     * before taking action to prevent rapid state changes.
-     *
-     * Behavior:
-     * - uses kickOffTraining flag to determine if training should run
-     * - Adds 500ms delay before executing training state changes
-     * - Resets kickOffTraining flag when triggered
-     * - Starts training process if flag is true
-     *
-     * Requirements:
-     * - executeTraining() function must be defined
-     * - delay() utility must be available
-     * - trainingRunning state must track current training status
-     *
-     * @dependencies {boolean} kickOffTraining - Internal flag to restart training
+     * Training kickoff effect
+     * 
+     * Monitors the kickOffTraining flag and starts training when it changes to true.
      */
     useEffect(() => {
         const trainingRunning = isTraining();
@@ -1164,17 +1226,14 @@ export const useAlignmentSuggestions = ({
     const modelKey = getModelKey(contextId)
 
     /**
-     * Asynchronously loads settings and model data from local storage.
-     *
-     * This function attempts to retrieve and parse data for predictive modeling
-     * and language-based settings from persistent storage. If a valid model is found
-     * in the storage, it initializes the alignment predictor and updates the training
-     * state accordingly. It also retrieves and validates maximum complexity settings
-     * specific to the language pair in use and applies those settings.
-     *
-     * @param {IndexedDBStorage} dbStorage - The persistent storage interface for retrieving stored data.
-     * @param {string} modelKey - The key used to identify and load the predictive model from local storage.
-     * @returns {Promise<boolean>} - A promise that resolves to true if the model was successfully loaded; otherwise, false.
+     * Loads settings and model data from IndexedDB storage
+     * 
+     * Retrieves saved model and configuration settings for the current
+     * context from persistent storage.
+     * 
+     * @param {IndexedDBStorage} dbStorage - IndexedDB storage instance
+     * @param {string} modelKey - Key for the model to load
+     * @returns {Promise<boolean>} True if model was loaded successfully
      */
     const loadSettingsFromStorage = useCallback(async (dbStorage: IndexedDBStorage, modelKey: string) => {
         setState( { ...stateRef.current, failedToLoadCachedTraining: false});
@@ -1247,14 +1306,10 @@ export const useAlignmentSuggestions = ({
     }, [handleTrainingStateChange]);
 
     /**
-     * Retrieves the verse counts for all books within the group for contextId.
-     *
-     * This method accesses a group of books based on the current context and computes
-     * the verse counts for each book within the group.
-     *
-     * @param {ContextId} contextId - selected contextId
-     * @return {TBookVerseCounts} An object containing the verse counts of each book, where
-     * the keys are book IDs and the values are their respective verse counts.
+     * Gets verse counts for all books in the current group
+     * 
+     * @param {ContextId} contextId - Current context
+     * @returns {TBookVerseCounts|null} Verse counts by book or null if no books
      */
     function getGroupVerseCounts(contextId: ContextId):TBookVerseCounts|null {
         const bookVerseCounts:TBookVerseCounts = {}
@@ -1271,9 +1326,12 @@ export const useAlignmentSuggestions = ({
     }
     
     /**
-     * Retrieves the metadata for the current model.
-     *
-     * @return {{ info:TAlignmentCompletedInfo, message:string}} The metadata associated with the current model.
+     * Gets metadata about the current alignment model
+     * 
+     * Retrieves information about the model including training status,
+     * book statistics, and alignment percentages.
+     * 
+     * @returns {TAlignmentMetaData} Model metadata
      */
     function getModelMetaData():TAlignmentMetaData {
         let bookAlignmentInfo:TAlignmentCompletedInfo = modelMetaDataRef?.current
@@ -1321,10 +1379,9 @@ export const useAlignmentSuggestions = ({
     }
 
     /**
-     * Retrieves an instance of IndexedDBStorage. If the storage has not been initialized,
-     * it initializes the storage with the specified database name and object store name.
-     *
-     * @return {Promise<IndexedDBStorage>} A promise that resolves to the initialized IndexedDBStorage instance.
+     * Gets or initializes IndexedDB storage
+     * 
+     * @returns {Promise<IndexedDBStorage>} IndexedDB storage instance
      */
     async function getIndexedDbStorage() {
         if (!dbStorageRef.current) {
@@ -1336,10 +1393,9 @@ export const useAlignmentSuggestions = ({
     }
 
     /**
-     * Retrieves the alignments for the current group based on the context ID.
-     *
-     * @return {Object|undefined} The group object containing alignments for the current group
-     *                            or undefined if the group is not found or the group collection is not initialized.
+     * Gets alignments for the current group
+     * 
+     * @returns {Group|undefined} Group containing alignments
      */
     function getAlignmentsForCurrentGroup() {
         const groupName = getGroupName(contextId)
@@ -1349,11 +1405,11 @@ export const useAlignmentSuggestions = ({
     }
 
     /**
-     * Determines the current SHA state of a book within the system, based on provided context and references.
-     *
-     * @return {TBookShaState} An object containing the trained SHA (`trainedSha`),
-     * the current SHA of the book (`currentBookSha`), and
-     * a boolean (`bookShaChanged`) indicating if the book's SHA has changed compared to the trained SHA.
+     * Gets the current SHA state for the book
+     * 
+     * Determines if the book content has changed since last training.
+     * 
+     * @returns {TBookShaState} Book SHA state information
      */
     function getCurrentBookShaState():TBookShaState {
         const bookId = contextId?.reference?.bookId;
@@ -1365,20 +1421,10 @@ export const useAlignmentSuggestions = ({
     }
 
     /**
-     * Effect hook that loads model settings and data from IndexedDB storage when aligned is shown.
-     *
-     * Initializes IndexedDB storage if not already done and loads saved alignment model
-     * and settings when the modelKey changes or component becomes visible.
-     *
-     * Requirements:
-     * - IndexedDBStorage class must be available
-     * - loadSettingsFromStorage() function must be defined
-     * - modelKey must be a valid string
-     * - shown flag must be true
-     *
-     * Parameters tracked:
-     * @param modelKey - String identifying the model to load
-     * @param shown - Boolean flag indicating if component is visible
+     * Effect to load model settings when component becomes visible
+     * 
+     * Loads cached model and settings from IndexedDB when the modelKey
+     * changes or the component becomes visible.
      */
     useEffect(() => {
         (async () => {
@@ -1407,7 +1453,6 @@ export const useAlignmentSuggestions = ({
                     
                     if (translationMemoryFound) {
                         console.log(`useAlignmentSuggestions - Alignment memory Loaded, checking for sha changes`);
-                        //TODO blm: test if sha is changed, auto start retraining
                         const {trainedSha, currentBookSha, bookShaChanged} = getCurrentBookShaState();
                         if (bookShaChanged) {
                             console.log(`useAlignmentSuggestions - sha changed: current ${currentBookSha}, last trained sha ${trainedSha}`);
@@ -1429,7 +1474,12 @@ export const useAlignmentSuggestions = ({
         })();
     }, [modelKey, shown]);
 
-    // Effect to load translation memory and start training when failure to load cached training Model
+    /**
+     * Effect for auto-training when cached model not found
+     * 
+     * Starts training automatically when a cached model fails to load
+     * and auto-training is enabled.
+     */
     useEffect(() => {
         if (failedToLoadCachedTraining && configRef.current?.doAutoTraining) {
             console.log('useAlignmentSuggestions - failedToLoadCachedTraining', {failedToLoadCachedTraining, contextId, shown})
@@ -1461,18 +1511,10 @@ export const useAlignmentSuggestions = ({
     }, [failedToLoadCachedTraining]);
     
     /**
-     * Prepares the application context and state for initiating a training workflow.
-     *
-     * This function performs the following:
-     * - Checks if a book is referenced in the current context and updates the current book name accordingly.
-     * - Updates the current selection based on the context.
-     * - Clones the current context (`contextId`) for safe manipulation.
-     * - Compares the cloned context with the previous context reference to detect changes.
-     * - If the context has changed, it:
-     *   - Retrieves a new model key based on the updated context.
-     *   - Logs a change in the context ID to the console for debugging.
-     *   - Handles cases where no book is selected by resetting the training state to default values and stopping relevant background operations.
-     * - Updates the reference to the latest context and current book name accordingly.
+     * Prepares the state for a new context
+     * 
+     * Updates state when the context changes, such as when switching
+     * to a different book or Bible.
      */
     const prepareForNewContext = () => {
         console.log(`prepareForNewContext - contextId:`, contextId);
@@ -1499,14 +1541,25 @@ export const useAlignmentSuggestions = ({
     }
 
     /**
-     * Retrieves the suggester function from the current alignment predictor instance.
-     *
-     * @return {TSuggester} The suggester function bound to the current alignment predictor instance, or null if unavailable.
+     * Gets the current suggester function
+     * 
+     * Returns the function used to generate alignment suggestions
+     * based on the trained model.
+     * 
+     * @returns {TSuggester} Suggester function or null if not available
      */
     function getSuggester(): TSuggester {
         return alignmentPredictorRef.current?.predict.bind(alignmentPredictorRef.current) || null;
     }
     
+    /**
+     * Saves changed configuration settings
+     * 
+     * Persists updated configuration to IndexedDB storage.
+     * 
+     * @param {TAlignmentSuggestionsConfig} config - New configuration
+     * @returns {Promise<void>}
+     */
     async function saveChangedSettings(config: TAlignmentSuggestionsConfig) {
         if (config) {
             configRef.current = config;
@@ -1520,11 +1573,14 @@ export const useAlignmentSuggestions = ({
     }
 
     /**
-     * Saves the trained model and associated settings into local storage and invokes a callback function upon completion.
-     *
-     * @param {TAlignmentCompletedInfo} alignmentCompletedInfo - An object containing information about the completed model alignment, including model key and metadata.
-     * @param {THandleTrainingCompleted | null} handleTrainingCompleted - A nullable callback function to handle post-training completion logic.
-     * @return {Promise<void>} A promise that resolves once the model and settings have been successfully saved, or if the storage is not ready.
+     * Saves the trained model and settings to IndexedDB
+     * 
+     * Persists the alignment model and related configuration
+     * to be reused in future sessions.
+     * 
+     * @param {TAlignmentCompletedInfo} alignmentCompletedInfo - Completed training info
+     * @param {THandleTrainingCompleted|null} handleTrainingCompleted - Callback for training completion
+     * @returns {Promise<void>}
      */
     async function saveModelAndSettings(alignmentCompletedInfo: TAlignmentCompletedInfo, handleTrainingCompleted: THandleTrainingCompleted | null) {
         const dbStorage = await getIndexedDbStorage();
@@ -1567,9 +1623,11 @@ export const useAlignmentSuggestions = ({
         handleTrainingCompleted?.(alignmentCompletedInfo);
     }
 
+    // Get the current suggester function
     const suggester: TSuggester = getSuggester()
 
-    return { // see TUseAlignmentSuggestionsReturn interface definition
+    // Return the hook's state and actions
+    return {
         state: {
             failedToLoadCachedTraining,
             maxComplexity,
