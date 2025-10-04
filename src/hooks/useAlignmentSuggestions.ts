@@ -1439,7 +1439,7 @@ export const useAlignmentSuggestions = ({
                 
                 // add the usfm for current book to training memory
                 const bookId = contextId?.reference?.bookId;
-                if (cachedDataLoaded && bookId) {
+                if (bookId) {
                     const group_name = getGroupName(contextId)
                     const targetUsfm = translationMemory?.targetUsfms?.[bookId];
                     const sourceUsfm = translationMemory?.sourceUsfms?.[bookId];
