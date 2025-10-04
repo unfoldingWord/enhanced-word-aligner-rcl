@@ -33,7 +33,7 @@ console.log('Loading WordAlignerComponent.md');
 // ############################################################
 
 const doAutoLoadCachedTraining = false; // Enable to automatically load previously cached training data
-const doAutoTraining = false; // Enable to automatically train models when content changes
+const doAutoTraining = true; // Enable to automatically train models when content changes
 const suggestionsOnly = false; // When true, simplifies UI by removing clear button and adding suggestion label
 const trainOnlyOnCurrentBook = true; // Optimizes training by focusing on current book's alignment data. This could improve suggestions if book is fully aligned, but will have no vocabulary from other books.
 const minTrainingVerseRatio = 1.1; // Protection ratio for incomplete book alignments when using trainOnlyOnCurrentBook.  If a ratio such as 1.1 is set, then training will use a minimum number of verses for training from translation memory.  This minimum is calculated by multiplying the number of verses in the book by this ratio
@@ -52,16 +52,21 @@ const targetLanguage = {
   languageId: targetLanguageId,
   direction,
 }
-const UST = false; // if true then do a test with UST and verse ranges
 
-let bookId = 'tit'; // change book id to change test data loaded
+let isUST = false; // if true then do a test with UST and verse ranges
+
+// Available books for the selector
+const availableBooks = ['2co', 'act', 'eph', 'eph_ust', 'gal', 'jas', 'mat', 'mrk', 'rut', 'tit'];
+
+// Initial state for selected book, chapter, and verse
+let bookId = 'tit';
 let chapter = 2;
 let verse = '5';
 
-if (UST) {
+if (isUST) {
   bookId = 'eph';
-  let chapter = 5;
-  let verse = '22-23';
+  chapter = 5;
+  verse = '22-23';
 }
 
 // ####################################
@@ -75,35 +80,33 @@ const translations = require("../common/locales.json")
 // Load translation memory for training the alignment model
 // This contains aligned source (original language) and target (translation) USFM data
 
-if (bookId === 'tit') {
+const loadTranslationMemoryForBook = (selectedBook) => {
+  let translationMemory = {};
+
+  if (selectedBook === 'mat') {
+    translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryMat.json");
+  } else if (selectedBook === '2co') {
+    translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory2Cor.json");
+  } else if (selectedBook === 'mrk') {
+    translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryMark.json");
+  } else if (selectedBook === 'act') {
+    translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryActs.json");
+  } else if (selectedBook === 'rut') {
+    translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryRuth.json");
+  } else if (isUST && selectedBook === 'eph') { // UST example
+    translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryEphUST.json");
+  }
+
+  if (!translationMemory || !Object.keys(translationMemory).length) { // if it didn't match anything, fall back to multiverse
     // includes gal, eph, tit, jas
     translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory.json");
-    // limit to single book
-    translationMemory.targetUsfms = { "tit": translationMemory.targetUsfms.tit};
-    translationMemory.sourceUsfms = { "tit": translationMemory.sourceUsfms.tit};
+  }
+
+  return translationMemory;
 }
-if (bookId === 'mat') {
-  translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryMat.json");
-}
-if (bookId === '2co') {
-  translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory2Cor.json");
-}
-if (bookId === 'mrk') {
-  translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryMark.json");
-}
-if (bookId === 'act') {
-  translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryActs.json");
-}
-if (bookId === 'rut') {
-  translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryRuth.json");
-}
-if (UST && bookId === 'eph') { // UST example
-  const translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemoryEphUST.json");
-}
-if (!translationMemory || !Object.keys(translationMemory).length) { // if it didn't match anything, fall back to multiverse
-  // includes gal, eph, tit, jas
-  translationMemory = require("../__tests__/fixtures/alignments/full_books/translationMemory.json");
-}
+
+// Load initial translation memory
+translationMemory = loadTranslationMemoryForBook(bookId);
 
 // Initialize localization
 if (!is_initialized()) {
@@ -145,31 +148,32 @@ console.log(`Alignments are ${alignmentComplete ? 'COMPLETE!' : 'incomplete'}`);
 
 /**
  * WordAlignerPanel Component
- * 
+ *
  * This component wraps the EnhancedWordAligner with UI controls for managing
  * translation memory loading and alignment training. It demonstrates how to:
  * 1. Manage translation memory loading state
  * 2. Control training process (start/stop)
  * 3. Connect the alignment suggestions system with the UI
  * 4. Configure the training and suggestion parameters
- * 
+ *
  * @param {Object} props - Component properties
  * @returns {JSX.Element} - Rendered component
  */
 const WordAlignerPanel = ({
-    verseAlignments,
-    targetWords,
-    translate,
     contextId,
-    targetLanguageFont,
-    sourceLanguageId,
-    showPopover,
+    handleBookChange,
     lexicons,
     loadLexiconEntry,
     onChange,
+    showPopover,
+    sourceLanguageId,
+    styles,
+    targetLanguageFont,
+    targetWords,
+    translate,
     translationMemory,
-    styles
-}) => {
+    verseAlignments,
+  }) => {
   const [translationMemoryLoaded, setTranslationMemoryLoaded] = useState(false);
   const [doTraining, setDoTraining] = useState(false);
   const [cancelTraining, setCancelTraining] = useState(false);
@@ -184,7 +188,7 @@ const WordAlignerPanel = ({
 
   /**
    * Toggles the training process on/off
-   * 
+   *
    * When activated, this sets doTraining=true to start the training process.
    * When deactivated, it sets cancelTraining=true to stop any ongoing training.
    */
@@ -203,7 +207,7 @@ const WordAlignerPanel = ({
   // UI control states
   const enableLoadTranslationMemory = !training;
   const enableTrainingToggle = trainingComplete || translationMemoryLoaded;
-  
+
   // Configuration for the alignment suggestions engine
   const alignmentSuggestionsConfig = {
     doAutoLoadCachedTraining,
@@ -230,7 +234,7 @@ const WordAlignerPanel = ({
       trainingButtonStr,
     }
   } = useTrainingStateContext()
-  
+
   /**
    * Handles the completion of a training session.
    *
@@ -277,7 +281,7 @@ const WordAlignerPanel = ({
 
   /**
    * Loads translation memory data into the alignment system
-   * 
+   *
    * This initializes the source-target text pairs needed for training
    * the alignment model and generating suggestions.
    */
@@ -290,7 +294,24 @@ const WordAlignerPanel = ({
   return (
     <>
       <div>{targetLanguageId} - {bookId} {chapter}:{verse}</div>
-      <div style={{display: 'flex', gap: '10px'}}>
+      <div style={{display: 'flex', gap: '10px', marginBottom: '10px'}}>
+        {/* Book selector dropdown */}
+        <select
+          value={bookId}
+          onChange={handleBookChange}
+          style={{
+            padding: '8px 16px',
+            borderRadius: '4px',
+            border: '1px solid #cccccc',
+            backgroundColor: '#ffffff',
+            cursor: 'pointer'
+          }}
+        >
+          {availableBooks.map(book => (
+            <option key={book} value={book}>{book.toUpperCase()}</option>
+          ))}
+        </select>
+
         <button
           onClick={handleLoadTranslationMemory}
           className="load-translation-btn"
@@ -301,8 +322,7 @@ const WordAlignerPanel = ({
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: enableLoadTranslationMemory ? 'pointer' : 'not-allowed',
-            marginBottom: '10px'
+            cursor: enableLoadTranslationMemory ? 'pointer' : 'not-allowed'
           }}
         >
           Load Translation Memory
@@ -318,8 +338,7 @@ const WordAlignerPanel = ({
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: enableTrainingToggle ? 'pointer' : 'not-allowed',
-            marginBottom: '10px'
+            cursor: enableTrainingToggle ? 'pointer' : 'not-allowed'
           }}
         >
           {trainingButtonStr}
@@ -348,6 +367,7 @@ const WordAlignerPanel = ({
         lexicons={lexicons}
         loadLexiconEntry={loadLexiconEntry}
         onChange={onChange}
+        showDialog={shouldShowDialog}
         showPopover={showPopover}
         sourceLanguageId={sourceLanguageId}
         styles={{...styles, maxHeight: '450px', overflowY: 'auto'}}
@@ -356,45 +376,122 @@ const WordAlignerPanel = ({
         targetLanguage={targetLanguage}
         targetWords={targetWords}
         translate={translate}
-        translationMemory={translationMemory}
+        translationMemory={translationMemory || []}
         verboseTraining={verboseTraining}
-        verseAlignments={verseAlignments}
+        verseAlignments={verseAlignments || []}
       />
     </>
   );
 };
 
-/**
- * Main App Component
- * 
- * Sets up the necessary context and data for the word alignment system
- * and renders the WordAlignerPanel component.
- * 
- * @returns {JSX.Element} Rendered application
- */
-const App = () => {
-  const targetLanguageFont = '';
-  const source = bibleHelpers.getOrigLangforBook(bookId);
-  const sourceLanguageId = source && source.languageId || NT_ORIG_LANG;
-  const lexicons = {};
-  
-  // Define the current context for alignment
+function getContextId(selectedBook, chapter, verse, isUST = false) {
+  var bibleId = `unfoldingWord/en_${isUST ? 'ust' : 'ult'}`;
   const contextId = {
     "reference": {
-      "bookId": bookId,
+      "bookId": selectedBook,
       "chapter": chapter,
       "verse": verse,
     },
     "tool": "wordAlignment",
     "groupId": "chapter_1",
-    "bibleId": "unfoldingWord/en_ult"
+    "bibleId": bibleId
   };
-  
+  return contextId;
+}
+
+/**
+ * Main App Component
+ *
+ * Sets up the necessary context and data for the word alignment system
+ * and renders the WordAlignerPanel component.
+ *
+ * @returns {JSX.Element} Rendered application
+ */
+const App = () => {
+  const targetLanguageFont = '';
+  const [currentData, setCurrentData] = useState({
+    contextId: getContextId(bookId, chapter, verse, isUST),
+    selectedBook: bookId,
+    targetWords,
+    translationMemory,
+    verseAlignments,
+  });
+  const {contextId, selectedBook} = currentData
+
+  const source = bibleHelpers.getOrigLangforBook(selectedBook);
+  const sourceLanguageId = source && source.languageId || NT_ORIG_LANG;
+  const lexicons = {};
+
   console.log(`App() - contextId`, contextId);
-  
+
+  function changeBook(bookId, isUST) {
+    if (!bookId) {
+      setCurrentData({...currentData, contextId: {}})
+      return
+    }
+
+    let chapter = 2;
+    let verse = '5';
+
+    if (isUST) {
+      chapter = 5;
+      verse = '22-23';
+    }
+
+    const contextId_ = getContextId(bookId, chapter, verse, isUST)
+
+    // Load translation memory for the selected book
+    const memory = loadTranslationMemoryForBook(bookId);
+
+    try {
+      // Process USFM data for the new book
+      const sourceUsfm = memory.sourceUsfms[bookId] || '';
+      const targetUsfm = memory.targetUsfms[bookId] || '';
+      const sourceVerseUSFM = extractVerseText(sourceUsfm, chapter, verse);
+      const targetVerseUSFM = extractVerseText(targetUsfm, chapter, verse);
+
+      // Parse the USFM for the word aligner
+      const {
+        targetWords,
+        verseAlignments
+      } = AlignmentHelpers.parseUsfmToWordAlignerData(targetVerseUSFM, sourceVerseUSFM);
+
+      // Update state with new data
+      setCurrentData({
+        ...currentData,
+        contextId: contextId_,
+        selectedBook: bookId,
+        targetWords,
+        translationMemory: memory,
+        verseAlignments,
+      });
+    } catch (e) {
+      console.error(`Could not load data for book ${bookId}`, e);
+    }
+  }
+
+  /**
+   * Handles book selection change
+   *
+   * When a different book is selected, reloads all the necessary data
+   * for the new book.
+   */
+  const handleBookChange = (e) => {
+    const parts = (e.target.value || 'tit').split('_');
+    const bookId = parts[0];
+    const isUST = parts[1] === 'ust'
+    
+    // first close aligner
+    changeBook('');
+    delay(500).then(() => {
+      // now open with new book
+      changeBook(bookId, isUST);
+    })
+  };
+
   /**
    * Displays word details in a popover
-   * 
+   *
    * This function is called when a user clicks on a word in the aligner,
    * showing relevant lexical information for the selected word.
    */
@@ -402,10 +499,10 @@ const App = () => {
     console.log(`showPopover()`, rawData)
     window.prompt(`User clicked on ${JSON.stringify(rawData)}`)
   };
-  
+
   /**
    * Loads lexical entry data for a word
-   * 
+   *
    * Retrieves lexical information for source language words,
    * which provides additional context for translators.
    */
@@ -416,21 +513,21 @@ const App = () => {
 
   /**
    * Handles alignment changes
-   * 
+   *
    * Called when alignments are modified by the user or suggestion system.
    * This function updates the alignment data and can synchronize with
    * external systems or persistence mechanisms.
    */
   function onChange(results) {
     console.log(`WordAligner() - alignment changed, results`, results);
-    
+
     // Extract updated alignment data
     const {targetWords, verseAlignments} = results;
-    
+
     // Convert alignments back to USFM format
     const verseUsfm = AlignmentHelpers.addAlignmentsToVerseUSFM(targetWords, verseAlignments, targetVerseUSFM);
     console.log(verseUsfm);
-    
+
     // Check if alignments are complete after changes
     const alignmentComplete = AlignmentHelpers.areAlgnmentsComplete(targetWords, verseAlignments);
     console.log(`Alignments are ${alignmentComplete ? 'COMPLETE!' : 'incomplete'}`);
@@ -440,23 +537,24 @@ const App = () => {
     <TrainingStateProvider
       translate={translate}
       verbose={true}>
-     <div style={{height: '650px', width: '800px'}}>
-      <WordAlignerPanel
-        contextId={contextId}
-        lexicons={lexicons}
-        loadLexiconEntry={loadLexiconEntry}
-        onChange={onChange}
-        showPopover={showPopover}
-        sourceLanguageId={sourceLanguageId}
-        styles={{}}
-        targetLanguageFont={targetLanguageFont}
-        targetWords={targetWords}
-        translate={translate}
-        translationMemory={translationMemory}
-        verseAlignments={verseAlignments}
-      />
-    </div>
-   </TrainingStateProvider> 
+      <div style={{height: '650px', width: '800px'}}>
+        <WordAlignerPanel
+          contextId={contextId}
+          handleBookChange={handleBookChange}
+          lexicons={lexicons}
+          loadLexiconEntry={loadLexiconEntry}
+          onChange={onChange}
+          showPopover={showPopover}
+          sourceLanguageId={sourceLanguageId}
+          styles={{}}
+          targetLanguageFont={targetLanguageFont}
+          targetWords={currentData.targetWords}
+          translate={translate}
+          translationMemory={translationMemory}
+          verseAlignments={currentData.verseAlignments}
+        />
+      </div>
+    </TrainingStateProvider>
   );
 };
 

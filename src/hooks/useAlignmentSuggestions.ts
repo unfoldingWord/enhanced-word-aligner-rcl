@@ -798,7 +798,7 @@ export const useAlignmentSuggestions = ({
             const alignedBookUsfm = targetUsfms?.[bookId] || '0';
             const sha = await sha256Checksum(alignedBookUsfm); 
             console.log(`sha for alignments = ${sha}`);
-            currentShasRef.current = { ...currentShasRef.current, [bookId]:sha}
+            currentShasRef.current = { ...currentShasRef.current, [bookId]: sha}
             const trainingComplete_ = alignmentPredictorRef.current
             handleTrainingStateChange?.({checksumGenerated: true, translationMemoryLoaded: true})
         } catch (error) {
@@ -1259,7 +1259,7 @@ export const useAlignmentSuggestions = ({
                     modelMetaDataRef.current = modelMetaData_;
                     const bookId = modelMetaData_?.contextId?.reference?.bookId || '';
                     const sha = modelMetaData_?.currentSha || '';
-                    currentShasRef.current = { ...currentShasRef.current, [bookId]:sha}
+                    console.log(`loaded model sha ${sha}`);
                 } else if (!trainingRunning) { // if training is running, then don't reset the alignmentPredictorRef
                     alignmentPredictorRef.current = null
                     modelMetaDataRef.current = null
@@ -1439,7 +1439,7 @@ export const useAlignmentSuggestions = ({
                 
                 // add the usfm for current book to training memory
                 const bookId = contextId?.reference?.bookId;
-                if (cachedDataLoaded && bookId) {
+                if (bookId) {
                     const group_name = getGroupName(contextId)
                     const targetUsfm = translationMemory?.targetUsfms?.[bookId];
                     const sourceUsfm = translationMemory?.sourceUsfms?.[bookId];

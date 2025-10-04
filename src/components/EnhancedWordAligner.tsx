@@ -151,6 +151,9 @@ interface EnhancedWordAlignerProps {
      */
     suggestionsOnly?: boolean;
 
+    /** true when dialog is to be shown */
+    showDialog?: boolean;
+
     /** 
      * Function to display word details in a popover.
      * Shows lexical information when users interact with words.
@@ -248,8 +251,9 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     hasRenderedSuggestions,
     infoVerticalOffset,
     onChange,
-    suggestionsOnly,
+    showDialog,
     showPopover,
+    suggestionsOnly,
     sourceLanguageId,
     sourceLanguageFont,
     sourceFontSizePercent,
@@ -305,16 +309,18 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
      * @dependency trainingComplete - Flag indicating previous training is complete
      */
     useEffect(() => {
-        console.log(`EnhancedWordAligner - checksumGenerated = ${checksumGenerated}, translationMemoryLoaded = ${translationMemoryLoaded}`);
-        if (checksumGenerated && translationMemoryLoaded && trainingComplete && config?.doAutoTraining) {
-            const shaState: TBookShaState = getCurrentBookShaState()
-            console.log(`EnhancedWordAligner - Training complete: ${shaState?.bookShaChanged} trained sha ${shaState?.trainedSha} and current book sha ${shaState?.currentBookSha}`);
-            if (shaState?.bookShaChanged) {
-                console.log(`EnhancedWordAligner - Training complete: book changed, retraining`);
-                startTraining();
+        if (showDialog) {
+            console.log(`EnhancedWordAligner - checksumGenerated = ${checksumGenerated}, translationMemoryLoaded = ${translationMemoryLoaded}`);
+            if (checksumGenerated && translationMemoryLoaded && trainingComplete && config?.doAutoTraining) {
+                const shaState: TBookShaState = getCurrentBookShaState()
+                console.log(`EnhancedWordAligner - Training complete: ${shaState?.bookShaChanged} trained sha ${shaState?.trainedSha} and current book sha ${shaState?.currentBookSha}`);
+                if (shaState?.bookShaChanged) {
+                    console.log(`EnhancedWordAligner - Training complete: book changed, retraining`);
+                    startTraining();
+                }
             }
         }
-    },[checksumGenerated, translationMemoryLoaded, trainingComplete]);
+    },[checksumGenerated, showDialog, translationMemoryLoaded, trainingComplete]);
 
     /**
      * Training Control Effect
