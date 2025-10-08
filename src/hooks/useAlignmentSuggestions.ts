@@ -1119,7 +1119,7 @@ export const useAlignmentSuggestions = ({
 
             } else {
                 console.log('executeTraining() - Alignment training already running');
-                handleTrainingStateChange?.({trainingFailed: 'Insufficient Training Data'});
+                handleTrainingStateChange?.({trainingFailed: 'Already Training'});
             }
         } else {
             console.log('executeTraining() - information not changed');
