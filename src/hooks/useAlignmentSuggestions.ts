@@ -1213,13 +1213,25 @@ export const useAlignmentSuggestions = ({
         const trainingRunning = isTraining();
         console.log(`useAlignmentSuggestions - kickOffTraining changed to ${kickOffTraining}, trainingRunning currently ${trainingRunning}`);
         if (kickOffTraining !== trainingRunning) { // check if training change
-            delay(500).then(() => { // run async
-                if (kickOffTraining) {
+            if (kickOffTraining) {
+                delay(500).then(async () => { // run async
                     console.log(`useAlignmentSuggestions - kickOffTraining true, started training`);
                     setState( { ...stateRef.current, kickOffTraining: false});
+
+                    const bookId = contextId?.reference?.bookId;
+                    const translationMemoryFound = isTranslationMemoryAvailable(bookId);
+                    if (!translationMemoryFound) {
+                        console.log(`useAlignmentSuggestions - kickOffTraining translation Memory not found for book ${bookId}`);
+                    } else { // make sure current data loaded into alignment memory
+                        console.log(`useAlignmentSuggestions - kickOffTraining translation Memory found for book ${bookId}, reload to make sure current`);
+                        await loadTranslationMemory(translationMemory);
+                        console.log(`useAlignmentSuggestions - kickOffTraining loaded translation Memory`);
+                    }
+                    
+                    console.log(`useAlignmentSuggestions - kickOffTraining start training`);
                     executeTraining();
-                }
-            })
+                })
+            }
         }
     }, [kickOffTraining]);
 
@@ -1421,6 +1433,22 @@ export const useAlignmentSuggestions = ({
     }
 
     /**
+     * Determines if translation memory is available for a given book ID.
+     *
+     * @param {string} bookId - The unique identifier for the book.
+     * @return {boolean} Returns true if translation memory is available for the specified book, otherwise false.
+     */
+    function isTranslationMemoryAvailable(bookId: string) {
+        if (bookId) {
+            const targetUsfm = translationMemory?.targetUsfms?.[bookId];
+            const sourceUsfm = translationMemory?.sourceUsfms?.[bookId];
+            let translationMemoryFound: boolean = !!(targetUsfm && sourceUsfm);
+            return translationMemoryFound;
+        }
+        return false;
+    }
+
+    /**
      * Effect to load model settings when component becomes visible
      * 
      * Loads cached model and settings from IndexedDB when the modelKey
@@ -1441,9 +1469,7 @@ export const useAlignmentSuggestions = ({
                 const bookId = contextId?.reference?.bookId;
                 if (bookId) {
                     const group_name = getGroupName(contextId)
-                    const targetUsfm = translationMemory?.targetUsfms?.[bookId];
-                    const sourceUsfm = translationMemory?.sourceUsfms?.[bookId];
-                    let translationMemoryFound:boolean = !!(targetUsfm && sourceUsfm);
+                    const translationMemoryFound = isTranslationMemoryAvailable(bookId);
                     if (!translationMemoryFound) {
                         console.log(`useAlignmentSuggestions - translation Memory not found for book`);
                     } else { // make sure current data loaded into alignment memory
