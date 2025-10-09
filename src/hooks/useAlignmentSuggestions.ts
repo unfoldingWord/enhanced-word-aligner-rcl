@@ -1525,6 +1525,8 @@ export const useAlignmentSuggestions = ({
                         if (!trainingSameBook) {
                             console.log(`WordAlignerDialog: stopping training on other book:`, getTrainingContextId())
                             _stopTraining()
+                            // now start training on current book
+                            setState( { ...stateRef.current, kickOffTraining: true});
                         }
                     } else { // training not running
                         if (!autoTrainingCompleted) {
