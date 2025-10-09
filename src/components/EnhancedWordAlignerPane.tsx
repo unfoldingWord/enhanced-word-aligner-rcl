@@ -64,9 +64,6 @@ interface EnhancedWordAlignerPaneProps {
 
     /** Flag control if suggestion buttons are to be enabled, default is true */
     hasRenderedSuggestions?: boolean;
-
-    /** how much to shift vertical for info modal */
-    infoVerticalOffset?: string;
     
     /** Cache of lexicon entries for quick reference */
     lexiconCache?: Record<string, any>;
@@ -148,7 +145,6 @@ export const EnhancedWordAlignerPane: React.FC<EnhancedWordAlignerPaneProps> = (
     loadLexiconEntry,
     getModelMetaData,
     hasRenderedSuggestions,
-    infoVerticalOffset,
     onChange,
     saveChangedSettings,
     suggestionsOnly,
@@ -253,7 +249,6 @@ export const EnhancedWordAlignerPane: React.FC<EnhancedWordAlignerPaneProps> = (
                     onConfigChange={handleConfigChange}
                     handleDeleteBook={handleDeleteBook}
                     info={modelInfo}
-                    infoVerticalOffset={infoVerticalOffset}
                     onClose={() => setShowModelDialog(false)}
                     translate={translate}
                 />

@@ -153,7 +153,8 @@ export interface TAlignmentCompletedInfo {
 }
 
 export interface TAlignmentMetaData {
-    config: TAlignmentSuggestionsConfig,
+    contextId: ContextId;
+    config: TAlignmentSuggestionsConfig;
     currentBookAlignmentInfo?: TAlignmentCompletedInfo;
     globalAlignmentBookVerseCounts?: TBookVerseCounts;
     message: string;

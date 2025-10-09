@@ -113,12 +113,6 @@ interface EnhancedWordAlignerProps {
      * Default is true; when false, suggestion functionality is hidden.
      */
     hasRenderedSuggestions?: boolean;
-    
-    /** 
-     * Vertical offset for the model info dialog.
-     * Adjusts the position of the dialog when displayed.
-     */
-    infoVerticalOffset?: string;
 
     /** 
      * Cache of lexicon entries for quick reference.
@@ -249,7 +243,6 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     lexiconCache,
     loadLexiconEntry,
     hasRenderedSuggestions,
-    infoVerticalOffset,
     onChange,
     showDialog,
     showPopover,
@@ -412,7 +405,6 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             deleteBookFromGroup={deleteBookFromGroup}
             getModelMetaData={getModelMetaData}
             hasRenderedSuggestions={hasRenderedSuggestions}
-            infoVerticalOffset={infoVerticalOffset}
             lexiconCache={lexiconCache}
             loadLexiconEntry={loadLexiconEntry}
             onChange={onChange}

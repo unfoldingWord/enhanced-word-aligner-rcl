@@ -1384,6 +1384,7 @@ export const useAlignmentSuggestions = ({
         }
         
         return {
+            contextId,
             config: configRef.current,
             currentBookAlignmentInfo: bookAlignmentInfo,
             globalAlignmentBookVerseCounts: bookVerseCounts,
