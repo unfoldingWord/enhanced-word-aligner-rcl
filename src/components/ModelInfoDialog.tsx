@@ -40,9 +40,8 @@ import {
 // Dialog styles component
 const DialogOverlay: React.FC<{
     children: React.ReactNode,
-    infoVerticalOffset: string,
     onClose: () => void,
-}> = ({children, infoVerticalOffset, onClose}) => (
+}> = ({children, onClose}) => (
     <div
         style={{
             position: 'fixed',
@@ -54,7 +53,8 @@ const DialogOverlay: React.FC<{
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
-            zIndex: 1000
+            zIndex: 1000,
+            padding: '20px'
         }}
         onClick={onClose}
     >
@@ -63,13 +63,15 @@ const DialogOverlay: React.FC<{
                 backgroundColor: 'white',
                 borderRadius: '8px',
                 padding: '24px',
-                paddingTop: infoVerticalOffset || '24px',
                 maxWidth: '600px',
-                maxHeight: '80vh',
-                overflow: 'auto',
+                maxHeight: '100%',
+                width: '100%',
                 minWidth: '400px',
                 boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
-                border: '1px solid #e0e0e0'
+                border: '1px solid #e0e0e0',
+                display: 'flex',
+                flexDirection: 'column',
+                overflowY: 'auto'
             }}
             onClick={(e) => e.stopPropagation()}
         >
@@ -247,15 +249,13 @@ export const ModelInfoDialog: React.FC<{
     handleDeleteBook: (bookId: string) => void,
     /** Model metadata and information to display */
     info: TAlignmentMetaData,
-    /** how much to shift vertical for info modal */
-    infoVerticalOffset?: string,
     /** Function to close the dialog */
     onClose: () => void,
     /** Optional callback for configuration changes */
     onConfigChange?: (config: TAlignmentSuggestionsConfig) => void,
     /** Translation function for internationalization */
     translate: (key: string, params?: Record<string, string | number>) => string,
-}> = ({handleDeleteBook, info,  infoVerticalOffset, onClose, onConfigChange, translate}) => {
+}> = ({handleDeleteBook, info, onClose, onConfigChange, translate}) => {
     const {
         config,
         currentBookAlignmentInfo,
@@ -508,14 +508,14 @@ export const ModelInfoDialog: React.FC<{
     return (
         <DialogOverlay
             onClose={onClose}
-            infoVerticalOffset={infoVerticalOffset}
         >
-            <div style={{maxWidth: '100%', margin: '0 auto'}}>
+            <div style={{maxWidth: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', height: '100%'}}>
                 <div style={{
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    marginBottom: '20px'
+                    marginBottom: '20px',
+                    flexShrink: 0
                 }}>
                     <h3 style={{margin: 0, color: '#2c3e50', fontSize: '20px'}}>{translate('training.model_info_title')}</h3>
                     <button
@@ -534,7 +534,13 @@ export const ModelInfoDialog: React.FC<{
                     </button>
                 </div>
                 
-                <div style={{fontSize: '14px', lineHeight: '1.5'}}>
+                <div style={{
+                    fontSize: '14px', 
+                    lineHeight: '1.5',
+                    flex: 1,
+                    overflowY: 'auto',
+                    paddingRight: '4px'
+                }}>
                     {formatTrainingInfo()}
                 </div>
             </div>

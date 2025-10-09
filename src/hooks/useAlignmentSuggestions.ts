@@ -1119,7 +1119,7 @@ export const useAlignmentSuggestions = ({
 
             } else {
                 console.log('executeTraining() - Alignment training already running');
-                handleTrainingStateChange?.({trainingFailed: 'Insufficient Training Data'});
+                handleTrainingStateChange?.({trainingFailed: 'Already Training'});
             }
         } else {
             console.log('executeTraining() - information not changed');
@@ -1213,13 +1213,25 @@ export const useAlignmentSuggestions = ({
         const trainingRunning = isTraining();
         console.log(`useAlignmentSuggestions - kickOffTraining changed to ${kickOffTraining}, trainingRunning currently ${trainingRunning}`);
         if (kickOffTraining !== trainingRunning) { // check if training change
-            delay(500).then(() => { // run async
-                if (kickOffTraining) {
+            if (kickOffTraining) {
+                delay(500).then(async () => { // run async
                     console.log(`useAlignmentSuggestions - kickOffTraining true, started training`);
                     setState( { ...stateRef.current, kickOffTraining: false});
+
+                    const bookId = contextId?.reference?.bookId;
+                    const translationMemoryFound = isTranslationMemoryAvailable(bookId);
+                    if (!translationMemoryFound) {
+                        console.log(`useAlignmentSuggestions - kickOffTraining translation Memory not found for book ${bookId}`);
+                    } else { // make sure current data loaded into alignment memory
+                        console.log(`useAlignmentSuggestions - kickOffTraining translation Memory found for book ${bookId}, reload to make sure current`);
+                        await loadTranslationMemory(translationMemory);
+                        console.log(`useAlignmentSuggestions - kickOffTraining loaded translation Memory`);
+                    }
+                    
+                    console.log(`useAlignmentSuggestions - kickOffTraining start training`);
                     executeTraining();
-                }
-            })
+                })
+            }
         }
     }, [kickOffTraining]);
 
@@ -1338,8 +1350,9 @@ export const useAlignmentSuggestions = ({
         const bookId = contextId?.reference?.bookId;
         let message = `Current Book ${bookId}:\n\n`;
         const bookVerseCounts = getGroupVerseCounts(contextId);
+        const sameBook = bookId === bookAlignmentInfo?.contextId?.reference?.bookId;
  
-        if (bookAlignmentInfo) {
+        if (sameBook && bookAlignmentInfo) {
             const alignmentMemoryVerseCounts = bookAlignmentInfo.trainingInfo?.alignmentMemoryVerseCounts;
             const trained = alignmentMemoryVerseCounts?.trained;
             if (trained) {
@@ -1421,6 +1434,22 @@ export const useAlignmentSuggestions = ({
     }
 
     /**
+     * Determines if translation memory is available for a given book ID.
+     *
+     * @param {string} bookId - The unique identifier for the book.
+     * @return {boolean} Returns true if translation memory is available for the specified book, otherwise false.
+     */
+    function isTranslationMemoryAvailable(bookId: string) {
+        if (bookId) {
+            const targetUsfm = translationMemory?.targetUsfms?.[bookId];
+            const sourceUsfm = translationMemory?.sourceUsfms?.[bookId];
+            let translationMemoryFound: boolean = !!(targetUsfm && sourceUsfm);
+            return translationMemoryFound;
+        }
+        return false;
+    }
+
+    /**
      * Effect to load model settings when component becomes visible
      * 
      * Loads cached model and settings from IndexedDB when the modelKey
@@ -1441,9 +1470,7 @@ export const useAlignmentSuggestions = ({
                 const bookId = contextId?.reference?.bookId;
                 if (bookId) {
                     const group_name = getGroupName(contextId)
-                    const targetUsfm = translationMemory?.targetUsfms?.[bookId];
-                    const sourceUsfm = translationMemory?.sourceUsfms?.[bookId];
-                    let translationMemoryFound:boolean = !!(targetUsfm && sourceUsfm);
+                    const translationMemoryFound = isTranslationMemoryAvailable(bookId);
                     if (!translationMemoryFound) {
                         console.log(`useAlignmentSuggestions - translation Memory not found for book`);
                     } else { // make sure current data loaded into alignment memory
@@ -1499,6 +1526,8 @@ export const useAlignmentSuggestions = ({
                         if (!trainingSameBook) {
                             console.log(`WordAlignerDialog: stopping training on other book:`, getTrainingContextId())
                             _stopTraining()
+                            // now start training on current book
+                            setState( { ...stateRef.current, kickOffTraining: true});
                         }
                     } else { // training not running
                         if (!autoTrainingCompleted) {
