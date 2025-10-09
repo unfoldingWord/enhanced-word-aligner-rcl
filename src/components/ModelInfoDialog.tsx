@@ -258,6 +258,7 @@ export const ModelInfoDialog: React.FC<{
 }> = ({handleDeleteBook, info, onClose, onConfigChange, translate}) => {
     const {
         config,
+        contextId,
         currentBookAlignmentInfo,
         globalAlignmentBookVerseCounts,
     } = info;
@@ -288,7 +289,7 @@ export const ModelInfoDialog: React.FC<{
  
         let content: React.ReactNode[] = [];
 
-        const bookId_ = currentBookAlignmentInfo?.contextId?.reference?.bookId;
+        const bookId_ = contextId?.reference?.bookId;
         if (bookId_) {
             content.push(
                 <div key="current-book" style={{marginBottom: '20px'}}>
@@ -299,7 +300,8 @@ export const ModelInfoDialog: React.FC<{
             );
         }
 
-        if (currentBookAlignmentInfo?.trainingInfo?.alignmentMemoryVerseCounts?.trained) {
+        const sameBook = bookId_ === currentBookAlignmentInfo?.contextId?.reference?.bookId;
+        if (sameBook && currentBookAlignmentInfo?.trainingInfo?.alignmentMemoryVerseCounts?.trained) {
             const trained = currentBookAlignmentInfo.trainingInfo.alignmentMemoryVerseCounts.trained;
             content.push(
                 <div key="trained" style={{marginBottom: '20px'}}>
@@ -315,7 +317,7 @@ export const ModelInfoDialog: React.FC<{
             );
         }
 
-        if (currentBookAlignmentInfo?.trainingInfo?.alignmentMemoryVerseCounts?.untrained) {
+        if (sameBook && currentBookAlignmentInfo?.trainingInfo?.alignmentMemoryVerseCounts?.untrained) {
             const untrained = currentBookAlignmentInfo.trainingInfo.alignmentMemoryVerseCounts.untrained;
             content.push(
                 <div key="untrained" style={{marginBottom: '20px'}}>
@@ -331,7 +333,7 @@ export const ModelInfoDialog: React.FC<{
             );
         }
 
-        if (content.length === 0 && !currentBookAlignmentInfo) {
+        if (!sameBook || (content.length === 0 && !currentBookAlignmentInfo)) {
             content.push(
                 <div key="no-data" style={{color: '#e74c3c', fontStyle: 'italic'}}>
                     {translate('training.alignment_not_loaded')}
