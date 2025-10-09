@@ -1350,8 +1350,9 @@ export const useAlignmentSuggestions = ({
         const bookId = contextId?.reference?.bookId;
         let message = `Current Book ${bookId}:\n\n`;
         const bookVerseCounts = getGroupVerseCounts(contextId);
+        const sameBook = bookId === bookAlignmentInfo?.contextId?.reference?.bookId;
  
-        if (bookAlignmentInfo) {
+        if (sameBook && bookAlignmentInfo) {
             const alignmentMemoryVerseCounts = bookAlignmentInfo.trainingInfo?.alignmentMemoryVerseCounts;
             const trained = alignmentMemoryVerseCounts?.trained;
             if (trained) {
