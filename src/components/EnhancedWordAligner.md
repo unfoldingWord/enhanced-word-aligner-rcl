@@ -496,8 +496,14 @@ const App = () => {
    * showing relevant lexical information for the selected word.
    */
   const showPopover = (PopoverTitle, wordDetails, positionCoord, rawData) => {
-    console.log(`showPopover()`, rawData)
-    window.prompt(`User clicked on ${JSON.stringify(rawData)}`)
+    if (typeof wordDetails === 'string') {
+      console.log(`showPopover()`, wordDetails)
+      window.prompt(wordDetails)
+    } else {
+      const message = JSON.stringify(rawData)
+      console.log(`showPopover()`, message)
+      window.prompt(`User clicked on ${message}`)
+    }
   };
 
   /**

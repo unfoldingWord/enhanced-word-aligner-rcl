@@ -20,6 +20,7 @@
       "suggestions.percent_complete"   : "% complete",
       "suggestions.retrain_button"     : "Retrain",
       "suggestions.retrain_button_hint": "Click to improve the quality of alignment suggestions based on current book alignments",
+      "suggestions.no_data"            : "Model is not trained.\nPlease load translation memory by navigating to aligned books and launching alignment tool.\nThen navigate back to this book and do training.",
       "training.model_info_title"      : "Alignment Model Information",
       "training.alignments_title"      : "Global Alignment Memory for Books:",
       "training.delete_book_hint"      : "Delete alignment data for {{bookId}}",
@@ -43,6 +44,7 @@
       "training.source_ngram_hint"     : "Maximum number of source words used for alignment memory.  Higher values can slow down suggestions and training",
       "training.training_steps_label"  : "Training Steps",
       "training.training_steps_hint"   : "Number of iterations used for training wordMap settings. Training time is proportional to this value, and low values may impact quality of suggestions",
-      "delete"                         : "Delete"
+      "delete"                         : "Delete",
+      "warning"                        : "Warning"
     }
 }
