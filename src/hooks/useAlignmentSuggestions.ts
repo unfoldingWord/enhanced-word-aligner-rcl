@@ -353,7 +353,7 @@ export const getSettingsKey = (contextId: ContextId): string => {
  * @param {string} bookId - Book identifier (e.g., "gen", "mat")
  * @returns {string} "NT" for New Testament, "OT" for Old Testament
  */
-function getTestamentStr(bookId: string) {
+export function getTestamentStr(bookId: string) {
     return bibleHelpers.isNewTestament(bookId) ? 'NT' : 'OT';
 }
 
