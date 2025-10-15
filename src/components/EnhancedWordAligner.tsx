@@ -273,6 +273,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             deleteBookFromGroup,
             getCurrentBookShaState,
             getModelMetaData,
+            getSuggester,
             isTraining,
             loadTranslationMemory,
             saveChangedSettings,
@@ -281,8 +282,24 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             stopTraining: stopTraining_,
         }
     } = alignmentSuggestionsManage;
-    
-     /**
+
+    useEffect(() => {
+        if (trainingComplete) {
+            if (!suggester) {
+                console.log(`EnhancedWordAligner - Training complete but suggester is missing`);
+                const _suggester = getSuggester();
+                if (!_suggester) {
+                    console.warn(`EnhancedWordAligner - suggester missing`);
+                } else {
+                    console.log(`EnhancedWordAligner - suggester found`);
+                }
+            }
+        } else if (suggester) {
+            console.warn(`EnhancedWordAligner - suggestor present but Training is not complete`);
+        }
+    },[trainingComplete, suggester]);
+
+    /**
      * Auto-Training Effect
      * ====================
      * 
@@ -396,7 +413,9 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             loadTranslationMemory(addTranslationMemory)
         }
     },[addTranslationMemory]);
-    
+
+    const suggester_ = getSuggester(); // TRICKY: hack for race condition when suggester has not yet been updated, always get the recent suggester
+
     // Render the EnhancedWordAlignerPane with necessary props
     return (
         <EnhancedWordAlignerPane
@@ -414,7 +433,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             sourceLanguageFont={sourceLanguageFont}
             sourceFontSizePercent={sourceFontSizePercent}
             styles={{...styles, maxHeight: '450px', overflowY: 'auto'}}
-            suggester={suggester}
+            suggester={suggester_}
             suggestionsOnly={suggestionsOnly}
             targetLanguageFont={targetLanguageFont}
             targetLanguage={targetLanguage}

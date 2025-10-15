@@ -79,8 +79,8 @@ import {
     ContextId,
     TAlignmentSuggestionsState,
     TCurrentShas,
-    TTrainingStateChangeHandler,
     TrainingState,
+    TTrainingStateChangeHandler,
     TTranslationMemoryType,
 } from '@/common/classes';
 import {
@@ -529,7 +529,7 @@ export const useAlignmentSuggestions = ({
     const {groupCollection, maxComplexity, currentBookName, trainingState, kickOffTraining, failedToLoadCachedTraining} = state;
 
     // References for alignment predictor, metadata, and checksums
-    const alignmentPredictorRef = useRef<AbstractWordMapWrapper | null>(null);
+    const alignmentPredictorRef = useRef<{ model: AbstractWordMapWrapper, contextId: ContextId } | null>(null);
     const modelMetaDataRef = useRef<TAlignmentCompletedInfo | null>(null);
     const currentShasRef = useRef<TCurrentShas>({});
 
@@ -789,7 +789,7 @@ export const useAlignmentSuggestions = ({
             newGroupCollection_ = newGroupCollection;
             setState( { ...stateRef.current, groupCollection: newGroupCollection_ });
 
-            console.log(`${addedVerseCount} connections added.`);
+            console.log(`loadTranslationMemory - ${addedVerseCount} connections added.`);
 
             // cache updated group settings
             await saveCurrentGroup(group_name, newGroupCollection_.groups[group_name]);
@@ -797,12 +797,13 @@ export const useAlignmentSuggestions = ({
             const bookId = contextId?.reference?.bookId;
             const alignedBookUsfm = targetUsfms?.[bookId] || '0';
             const sha = await sha256Checksum(alignedBookUsfm); 
-            console.log(`sha for alignments = ${sha}`);
+            console.log(`loadTranslationMemory - sha for alignments = ${sha}`);
             currentShasRef.current = { ...currentShasRef.current, [bookId]: sha}
-            const trainingComplete_ = alignmentPredictorRef.current
+            const trainingComplete_ = !!getSuggester()
+            console.log(`loadTranslationMemory - training complete state: ${trainingComplete_}`);
             handleTrainingStateChange?.({checksumGenerated: true, translationMemoryLoaded: true})
         } catch (error) {
-            console.error(`error importing ${error}`);
+            console.error(`loadTranslationMemory - error importing ${error}`);
             throw new Error('Failed to load source data');
         }
     }, [contextId, stateRef]);
@@ -1073,7 +1074,7 @@ export const useAlignmentSuggestions = ({
 
                             const forCurrentModel = currentModelKey == modelKey;
                             if (forCurrentModel) { // check if the current model is the same as the one we are training
-                                alignmentPredictorRef.current = abstractWordMapWrapper;
+                                alignmentPredictorRef.current = {model: abstractWordMapWrapper, contextId: cloneDeep(contextId)};
                                 const newTrainingState = {
                                     ...trainingStateRef.current,
                                     lastTrainedInstanceCount: trainingStateRef.current.currentTrainingInstanceCount
@@ -1156,6 +1157,20 @@ export const useAlignmentSuggestions = ({
     }
 
     /**
+     * Determines if two context objects refer to the same book from same bible.
+     *
+     * @param {ContextId} contextId1 - The first context object to compare.
+     * @param {ContextId} contextId2 - The second context object to compare.
+     * @return {boolean} Returns true if both context objects have the same bibleId and bookId, otherwise false.
+     */
+    function isSameBook(contextId1: ContextId, contextId2: ContextId) {
+        const sameBibleId = contextId1?.bibleId === contextId2?.bibleId;
+        const sameBookId = contextId1?.reference?.bookId === contextId2?.reference?.bookId;
+        const areSameBook = sameBibleId && sameBookId;
+        return areSameBook;
+    }
+
+    /**
      * Checks if training is for the same book as the specified context
      * 
      * @param {ContextId} contextId_ - Context to compare with training context
@@ -1164,11 +1179,8 @@ export const useAlignmentSuggestions = ({
     const areTrainingSameBook = (contextId_: ContextId)=> {
         if (isTraining()) {
             const trainingContextId = getTrainingContextId();
-            const trainingBibleId = trainingContextId?.bibleId;
-            const trainingBookId = trainingContextId?.reference?.bookId;
-            const sameBibleId = trainingBibleId === contextId_?.bibleId;
-            const sameBookId = trainingBookId === contextId_?.reference?.bookId;
-            if (sameBibleId && sameBookId) {
+            const areSameBook = isSameBook(trainingContextId, contextId_);
+            if (areSameBook) {
                 return true;
             }
         }
@@ -1260,24 +1272,39 @@ export const useAlignmentSuggestions = ({
                 if (modelMetaData_?.model) {
                     try {
                         predictorModel = AbstractWordMapWrapper.load(modelMetaData_?.model);
-                        console.log('loaded alignmentPredictorRef from local storage');
+                        if (predictorModel) {
+                            if (predictorModel.predict) {
+                                console.log('loaded alignmentPredictorRef from local storage');
+                            } else {
+                                console.warn('load failed, alignmentPredictorRef broken predictor', predictorModel);
+                            }
+                        } else {
+                            console.warn('load failed, alignmentPredictorRef training data empty');
+                        }
                     } catch (e) {
                         console.log(`error loading alignmentPredictor: ${(e as Error).message}`);
                     }
                 }
-                if (predictorModel) {
-                    alignmentPredictorRef.current = predictorModel;
+
+                const trainingComplete = !!predictorModel?.predict;
+                const modelContextId = modelMetaData_?.contextId;
+                if (trainingComplete) {
+                    alignmentPredictorRef.current = {model: predictorModel, contextId: cloneDeep(modelContextId)};
                     modelMetaData_.model = null
                     modelMetaDataRef.current = modelMetaData_;
-                    const bookId = modelMetaData_?.contextId?.reference?.bookId || '';
+                    const bookId = modelContextId?.reference?.bookId || '';
                     const sha = modelMetaData_?.currentSha || '';
                     console.log(`loaded model sha ${sha}`);
-                } else if (!trainingRunning) { // if training is running, then don't reset the alignmentPredictorRef
+                } else if (!trainingRunning) { // if training is not running, then reset the alignmentPredictorRef
+                    console.log('loaded alignmentPredictorRef predictor model not found, clearing previous model');
                     alignmentPredictorRef.current = null
                     modelMetaDataRef.current = null
+                } else {
+                    console.log(`loaded alignmentPredictorRef predictor model not found, previous model was set: ${!!alignmentPredictorRef.current}`);
                 }
             }
-            const trainingComplete = !!predictorModel;
+
+            const trainingComplete = !!predictorModel?.predict;
             if (!trainingComplete) {
                 console.log('no alignmentPredictorRef found in local storage');
                 setState( { ...stateRef.current, failedToLoadCachedTraining: true});
@@ -1579,7 +1606,19 @@ export const useAlignmentSuggestions = ({
      * @returns {TSuggester} Suggester function or null if not available
      */
     function getSuggester(): TSuggester {
-        return alignmentPredictorRef.current?.predict.bind(alignmentPredictorRef.current) || null;
+        const alignmentPredictor = alignmentPredictorRef.current?.model;
+        if (alignmentPredictor) {
+            if (!alignmentPredictor.predict) {
+                console.warn(`useAlignmentSuggestions.getSuggester() - predict is missing`);
+            } else { // if predict is present, then make sure it is for current book
+                const predictorContextId = alignmentPredictorRef.current?.contextId;
+                if (!isSameBook(contextId, predictorContextId)) {
+                    console.log(`useAlignmentSuggestions.getSuggester() - predict is for different book`, predictorContextId);
+                    return null;
+                }
+            }
+        }
+        return alignmentPredictor?.predict.bind(alignmentPredictor) || null;
     }
     
     /**
