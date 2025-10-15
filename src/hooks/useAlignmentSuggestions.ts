@@ -799,7 +799,7 @@ export const useAlignmentSuggestions = ({
             const sha = await sha256Checksum(alignedBookUsfm); 
             console.log(`loadTranslationMemory - sha for alignments = ${sha}`);
             currentShasRef.current = { ...currentShasRef.current, [bookId]: sha}
-            const trainingComplete_ = alignmentPredictorRef.current?.model
+            const trainingComplete_ = !!getSuggester()
             console.log(`loadTranslationMemory - training complete state: ${trainingComplete_}`);
             handleTrainingStateChange?.({checksumGenerated: true, translationMemoryLoaded: true})
         } catch (error) {
@@ -1607,13 +1607,13 @@ export const useAlignmentSuggestions = ({
      */
     function getSuggester(): TSuggester {
         const alignmentPredictor = alignmentPredictorRef.current?.model;
-        if (alignmentPredictor && !alignmentPredictor.predict) {
+        if (alignmentPredictor) {
             if (!alignmentPredictor.predict) {
                 console.warn(`useAlignmentSuggestions.getSuggester() - predict is missing`);
             } else { // if predict is present, then make sure it is for current book
                 let predictorContextId = alignmentPredictorRef.current?.contextId;
                 if (!isSameBook(contextId, predictorContextId)) {
-                    console.warn(`useAlignmentSuggestions.getSuggester() - predict is for different book`, predictorContextId);
+                    console.log(`useAlignmentSuggestions.getSuggester() - predict is for different book`, predictorContextId);
                     return null;
                 }
             }
