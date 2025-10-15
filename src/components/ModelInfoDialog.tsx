@@ -36,6 +36,7 @@ import {
     TAlignmentMetaData,
     TAlignmentSuggestionsConfig,
 } from '@/workers/WorkerComTypes';
+import {getTestamentStr} from "@/hooks/useAlignmentSuggestions";
 
 // Dialog styles component
 const DialogOverlay: React.FC<{
@@ -344,7 +345,7 @@ export const ModelInfoDialog: React.FC<{
         if (globalAlignmentBookVerseCounts) {
             content.push(
                 <div key="global" style={{marginBottom: '20px'}}>
-                    <h4 style={{color: '#34495e', marginBottom: '8px'}}>{translate('training.alignments_title')}</h4>
+                    <h4 style={{color: '#34495e', marginBottom: '8px', fontSize: '16px'}}>{translate('training.alignments_title')}</h4>
                     <div style={{paddingLeft: '16px'}}>
                         {Object.entries(globalAlignmentBookVerseCounts).map(([bookId, verseCount]) => {
                             const totalVerseCounts = Math.max(verseCount.sourceVerseCount, verseCount.targetVerseCount);
@@ -438,6 +439,10 @@ export const ModelInfoDialog: React.FC<{
         }
 
         function createConfigs() {
+            const testament = getTestamentStr(bookId_)
+            const bibleId_ = contextId?.bibleId;
+                
+            const title = translate('training.settings title') + ': ' + bibleId_ + '/' + testament;
             return <div style={{
                 marginBottom: '24px',
                 padding: '16px',
@@ -445,7 +450,7 @@ export const ModelInfoDialog: React.FC<{
                 borderRadius: '6px',
                 border: '1px solid #eee'
             }}>
-                <h3 style={{color: '#2c3e50', marginTop: 0, marginBottom: '12px'}}>{translate('training.settings title')}</h3>
+                <h3 style={{color: '#2c3e50', marginTop: 0, marginBottom: '12px'}}>{title}</h3>
 
                 {createToggleSwitch({
                     id: "autoTrainingToggle",
