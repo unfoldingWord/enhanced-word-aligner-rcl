@@ -414,7 +414,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
         }
     },[addTranslationMemory]);
 
-    const suggester_ = suggester || getSuggester(); // TRICKY: hack for race condition when suggester has not yet been updated, then get the recent suggester
+    const suggester_ = getSuggester(); // TRICKY: hack for race condition when suggester has not yet been updated, always get the recent suggester
 
     // Render the EnhancedWordAlignerPane with necessary props
     return (
