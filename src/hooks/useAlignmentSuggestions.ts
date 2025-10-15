@@ -1611,7 +1611,7 @@ export const useAlignmentSuggestions = ({
             if (!alignmentPredictor.predict) {
                 console.warn(`useAlignmentSuggestions.getSuggester() - predict is missing`);
             } else { // if predict is present, then make sure it is for current book
-                let predictorContextId = alignmentPredictorRef.current?.contextId;
+                const predictorContextId = alignmentPredictorRef.current?.contextId;
                 if (!isSameBook(contextId, predictorContextId)) {
                     console.log(`useAlignmentSuggestions.getSuggester() - predict is for different book`, predictorContextId);
                     return null;
