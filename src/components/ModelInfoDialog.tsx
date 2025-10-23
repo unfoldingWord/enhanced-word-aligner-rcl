@@ -37,6 +37,7 @@ import {
     TAlignmentSuggestionsConfig,
 } from '@/workers/WorkerComTypes';
 import {getTestamentStr} from "@/hooks/useAlignmentSuggestions";
+import {MAX_COMPLEXITY, MIN_COMPLEXITY} from "@/common/constants";
 
 // Dialog styles component
 const DialogOverlay: React.FC<{
@@ -498,6 +499,15 @@ export const ModelInfoDialog: React.FC<{
                     min: 100,
                     max: 2000,
                     description: translate('training.training_steps_hint')
+                })}
+
+                {createValueInput({
+                    id: "maxComplexity",
+                    label: translate('training.training_max_complexity_label'),
+                    variable: "maxComplexity",
+                    min: MIN_COMPLEXITY,
+                    max: MAX_COMPLEXITY,
+                    description: translate('training.training_max_complexity_hint')
                 })}
 
             </div>;

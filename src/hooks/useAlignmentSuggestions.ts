@@ -1409,10 +1409,12 @@ export const useAlignmentSuggestions = ({
         } else {
             message += `\n\nGlobal Alignment Memory not loaded!`
         }
-        
+
+        const config_ = {...configRef.current};
+        config_.maxComplexity = maxComplexity; // inject maxComplexity
         return {
             contextId,
-            config: configRef.current,
+            config: config_,
             currentBookAlignmentInfo: bookAlignmentInfo,
             globalAlignmentBookVerseCounts: bookVerseCounts,
             message,
@@ -1631,10 +1633,13 @@ export const useAlignmentSuggestions = ({
      */
     async function saveChangedSettings(config: TAlignmentSuggestionsConfig) {
         if (config) {
-            configRef.current = config;
+            // pull out maxComplexity
+            const maxComplexity_ = config.maxComplexity || maxComplexity;
+            delete config.maxComplexity;
+            configRef.current = config; // save new settings
             await storeLanguagePreferences(
                 contextId,
-                maxComplexity,
+                maxComplexity_,
                 dbStorageRef,
                 config
             );
