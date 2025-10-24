@@ -1616,7 +1616,7 @@ export const useAlignmentSuggestions = ({
                                 // now start training on current book
                                 setState({...stateRef.current, kickOffTraining: true});
                             } else {
-                                handleTrainingStateChange?.({trainingComplete: true});
+                                handleTrainingStateChange?.({trainingFailed: '', trainingComplete: true});
                             }
                         }
                     }
