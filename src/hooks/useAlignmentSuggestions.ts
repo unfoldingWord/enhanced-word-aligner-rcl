@@ -1259,11 +1259,11 @@ export const useAlignmentSuggestions = ({
      * @param {string} modelKey - Key for the model to load
      * @returns {Promise<boolean>} True if model was loaded successfully
      */
-    const loadSettingsFromStorage = useCallback(async (dbStorage: IndexedDBStorage, modelKey: string) => {
+    const loadSettingsFromStorage = async (dbStorage: IndexedDBStorage, modelKey: string) => {
         setState( { ...stateRef.current, failedToLoadCachedTraining: false});
         let success = false;
         
-        if (modelKey) {
+        if (modelKey && contextId) {
             //load the model.
             let predictorModel: AbstractWordMapWrapper | null = null; // default to null
             const modelMetaDataStr: string | null = await dbStorage.getItem(modelKey);
@@ -1342,7 +1342,7 @@ export const useAlignmentSuggestions = ({
             }
         }
         return success;
-    }, [handleTrainingStateChange]);
+    }
 
     /**
      * Gets verse counts for all books in the current group
@@ -1409,10 +1409,12 @@ export const useAlignmentSuggestions = ({
         } else {
             message += `\n\nGlobal Alignment Memory not loaded!`
         }
-        
+
+        const config_ = {...configRef.current};
+        config_.maxComplexity = stateRef.current?.maxComplexity || maxComplexity; // inject maxComplexity
         return {
             contextId,
-            config: configRef.current,
+            config: config_,
             currentBookAlignmentInfo: bookAlignmentInfo,
             globalAlignmentBookVerseCounts: bookVerseCounts,
             message,
@@ -1631,10 +1633,17 @@ export const useAlignmentSuggestions = ({
      */
     async function saveChangedSettings(config: TAlignmentSuggestionsConfig) {
         if (config) {
-            configRef.current = config;
+            // pull out maxComplexity
+            const maxComplexity_ = config.maxComplexity || maxComplexity;
+            delete config.maxComplexity;
+            configRef.current = config; // save new settings
+            const maxComplexityCurrent = stateRef.current?.maxComplexity
+            if (maxComplexity_ !== maxComplexityCurrent) {
+                setState({...stateRef.current, maxComplexity: maxComplexity_});
+            }
             await storeLanguagePreferences(
                 contextId,
-                maxComplexity,
+                maxComplexity_,
                 dbStorageRef,
                 config
             );
