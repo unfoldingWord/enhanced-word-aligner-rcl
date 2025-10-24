@@ -532,7 +532,8 @@ export const useAlignmentSuggestions = ({
     const alignmentPredictorRef = useRef<{ model: AbstractWordMapWrapper, contextId: ContextId } | null>(null);
     const modelMetaDataRef = useRef<TAlignmentCompletedInfo | null>(null);
     const currentShasRef = useRef<TCurrentShas>({});
-
+    const modelKey = getModelKey(contextId)
+    
     /**
      * Retrieves the current training data
      * 
@@ -705,6 +706,15 @@ export const useAlignmentSuggestions = ({
     }
 
     /**
+     * Checks whether the current context is trained by checking if there is a trained suggester available for current contextId.
+     *
+     * @return {boolean} Returns true if the current context contains a trained suggester, otherwise false.
+     */
+    function isCurrentContextTrained() {
+        return !!getSuggester();
+    }
+
+    /**
      * Loads translation memory data into the component state
      * 
      * Processes USFM content for source and target languages, organizing
@@ -799,7 +809,7 @@ export const useAlignmentSuggestions = ({
             const sha = await sha256Checksum(alignedBookUsfm); 
             console.log(`loadTranslationMemory - sha for alignments = ${sha}`);
             currentShasRef.current = { ...currentShasRef.current, [bookId]: sha}
-            const trainingComplete_ = !!getSuggester()
+            const trainingComplete_ = isCurrentContextTrained()
             console.log(`loadTranslationMemory - training complete state: ${trainingComplete_}`);
             handleTrainingStateChange?.({checksumGenerated: true, translationMemoryLoaded: true})
         } catch (error) {
@@ -1247,8 +1257,6 @@ export const useAlignmentSuggestions = ({
         }
     }, [kickOffTraining]);
 
-    const modelKey = getModelKey(contextId)
-
     /**
      * Loads settings and model data from IndexedDB storage
      * 
@@ -1490,11 +1498,12 @@ export const useAlignmentSuggestions = ({
             let cachedDataLoaded = false;
             const config = configRef.current;
             const doAutoLoad = config?.doAutoTraining || config?.doAutoLoadCachedTraining
-            if (shown && modelKey && doAutoLoad) {
-                console.log(`useAlignmentSuggestions - modelKey changed to ${modelKey}`);
+            const readyToShow = shown && modelKey && contextId;
+            if (readyToShow && doAutoLoad) {
+                console.log(`useAlignmentSuggestions.startup - modelKey changed to ${modelKey}`);
                 const dbStorage = await getIndexedDbStorage();
                 cachedDataLoaded = await loadSettingsFromStorage(dbStorage, modelKey);
-                console.log(`useAlignmentSuggestions - cachedDataLoaded: ${cachedDataLoaded}`);
+                console.log(`useAlignmentSuggestions.startup - cachedDataLoaded: ${cachedDataLoaded}`);
                 
                 // add the usfm for current book to training memory
                 const bookId = contextId?.reference?.bookId;
@@ -1502,17 +1511,17 @@ export const useAlignmentSuggestions = ({
                     const group_name = getGroupName(contextId)
                     const translationMemoryFound = isTranslationMemoryAvailable(bookId);
                     if (!translationMemoryFound) {
-                        console.log(`useAlignmentSuggestions - translation Memory not found for book`);
+                        console.log(`useAlignmentSuggestions.startup - translation Memory not found for book`);
                     } else { // make sure current data loaded into alignment memory
                         console.log(`useAlignmentSuggestions - translation Memory found for book, reload to make sure current`);
                         await loadTranslationMemory(translationMemory);
                     }
                     
                     if (translationMemoryFound) {
-                        console.log(`useAlignmentSuggestions - Alignment memory Loaded, checking for sha changes`);
+                        console.log(`useAlignmentSuggestions.startup - Alignment memory Loaded, checking for sha changes`);
                         const {trainedSha, currentBookSha, bookShaChanged} = getCurrentBookShaState();
                         if (bookShaChanged) {
-                            console.log(`useAlignmentSuggestions - sha changed: current ${currentBookSha}, last trained sha ${trainedSha}`);
+                            console.log(`useAlignmentSuggestions.startup - sha changed: current ${currentBookSha}, last trained sha ${trainedSha}`);
                         }
                     }
                 }
@@ -1527,9 +1536,9 @@ export const useAlignmentSuggestions = ({
                     translationMemoryLoaded: false,
                 })
             }
-            prepareForNewContext()
+            prepareForNewContext(readyToShow)
         })();
-    }, [modelKey, shown]);
+    }, [modelKey, contextId, shown]);
 
     /**
      * Effect for auto-training when cached model not found
@@ -1554,7 +1563,7 @@ export const useAlignmentSuggestions = ({
                     if (trainingRunning) {
                         console.log('useAlignmentSuggestions - training already running trainingSameBook:', trainingSameBook)
                         if (!trainingSameBook) {
-                            console.log(`WordAlignerDialog: stopping training on other book:`, getTrainingContextId())
+                            console.log(`useAlignmentSuggestions: stopping training on other book:`, getTrainingContextId())
                             _stopTraining()
                             // now start training on current book
                             setState( { ...stateRef.current, kickOffTraining: true});
@@ -1575,8 +1584,8 @@ export const useAlignmentSuggestions = ({
      * Updates state when the context changes, such as when switching
      * to a different book or Bible.
      */
-    const prepareForNewContext = () => {
-        console.log(`prepareForNewContext - contextId:`, contextId);
+    const prepareForNewContext = (readyToShow) => {
+        console.log(`useAlignmentSuggestions.prepareForNewContext - contextId:`, contextId);
         const haveBook = contextId?.reference?.bookId;
         if (!!haveBook) {
             setState( { ...stateRef.current, currentBookName: contextId?.reference?.bookId || ''});
@@ -1584,15 +1593,34 @@ export const useAlignmentSuggestions = ({
         const newContextId = cloneDeep(contextId);
         if (!isEqual(contextId, contextIdRef.current)) {
             const newModelKey = getModelKey(newContextId)
-            console.log(`prepareForNewContext - contextId changed to ${JSON.stringify(contextId)}`);
+            console.log(`useAlignmentSuggestions.prepareForNewContext - contextId changed to ${JSON.stringify(contextId)}`);
             if (!newModelKey) {
-                console.log(`prepareForNewContext - no book selected`);
+                console.log(`useAlignmentSuggestions.prepareForNewContext - no book selected`);
                 const newTrainingState = {
                     ...trainingStateRef.current,
                     ...defaultTrainingState(newContextId),
                     failedToLoadCachedTraining: false,
                 };
                 setState( { ...stateRef.current, trainingState: newTrainingState });
+            } else { // have modelKey
+                if (readyToShow) {
+                    const trainingSameBook = areTrainingSameBook(contextId)
+
+                    if (trainingRunning) {
+                        console.log(`useAlignmentSuggestions.prepareForNewContext - ${newModelKey} training already running trainingSameBook:`, trainingSameBook)
+                        if (!trainingSameBook) {
+                            console.log(`useAlignmentSuggestions.prepareForNewContext: stopping training on other book:`, getTrainingContextId())
+                            _stopTraining()
+                            const isTrained_ = isCurrentContextTrained()
+                            if (!isTrained_) {
+                                // now start training on current book
+                                setState({...stateRef.current, kickOffTraining: true});
+                            } else {
+                                handleTrainingStateChange?.({trainingComplete: true});
+                            }
+                        }
+                    }
+                }
             }
             contextIdRef.current = newContextId;
             setState( { ...stateRef.current, currentBookName: contextId?.reference?.bookId || ''});
