@@ -11131,10 +11131,10 @@ wildcard@^2.0.0:
   resolved "https://registry.yarnpkg.com/wildcard/-/wildcard-2.0.1.tgz#5ab10d02487198954836b6349f74fff961e10f67"
   integrity sha512-CC1bOL87PIWSBhDcTrdeLo6eGT7mCFtrg0uIJtqJUFyK+eJnzl8A1niH56uu7KMa5XFrtiV+AQuHO3n7DsHnLQ==
 
-word-aligner-rcl@1.2.7-beta:
-  version "1.2.7-beta"
-  resolved "https://registry.yarnpkg.com/word-aligner-rcl/-/word-aligner-rcl-1.2.7-beta.tgz#fa3bfa13f78f21f390b450352ef35b117071174a"
-  integrity sha512-kXb2+ak/LgDbCvfyzkVBlNoEJ2/8yRvzWrncDLqNI/S8ANsjl3ZkvAKWm/Q47PayFoABb6v4KJQPKIXimxVhzQ==
+word-aligner-rcl@1.2.7:
+  version "1.2.7"
+  resolved "https://registry.yarnpkg.com/word-aligner-rcl/-/word-aligner-rcl-1.2.7.tgz#13c2d6e09b2e17449c862d2ff44644ddd6211288"
+  integrity sha512-sNhrieO1okI5GFOCotYSyuPxaiBAQF+0syCmCSNcEKoNQQwmvYXCEC5g9ZMDUlMaT3E/jPs7MGrNqbTC7oZGIA==
   dependencies:
     "@emotion/react" "^11.10.0"
     "@emotion/styled" "^11.10.0"
