@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import PropTypes from 'prop-types';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
+// @ts-ignore
 import {
   AlignmentHelpers,
   complexScriptFonts,
@@ -9,10 +10,13 @@ import {
   MAPControls,
   ScripturePane,
   usfmHelpers,
-  WordAligner,
+// @ts-ignore
 } from 'word-aligner-rcl'
+import { EnhancedWordAligner } from './EnhancedWordAligner';
 
 import isEqual from 'deep-equal'
+import {TargetWordBank} from "@/common/classes";
+import {Alignment} from "wordmap";
 
 const lexiconCache_ = {};
 const theme = createTheme(); // Create MUI theme
@@ -110,30 +114,8 @@ const localStyles = {
 // };
 
 type AlignmentData = {
-    targetWords?: {
-        text: string;
-        occurrence: number;
-        occurrences: number;
-        position: number;
-        word?: string;
-        index?: number;
-        disabled?: boolean;
-    }[];
-    verseAlignments?: {
-        sourceNgram: {
-            text: string;
-            occurrence: number;
-            occurrences: number;
-            position: number;
-        }[];
-        targetNgram: {
-            text: string;
-            occurrence: number;
-            occurrences: number;
-            position: number;
-        }[];
-        isSuggestion?: boolean;
-    }[];
+    targetWords?: TargetWordBank[];
+    verseAlignments?: Alignment[];
 }
 
 /**
@@ -148,19 +130,26 @@ function notEmptyObject(dataObject) {
 
 export const EnhancedWordAlignmentTool = ({
   addObjectPropertyToManifest,
+  addTranslationMemory,
+  alignmentSuggestionsConfig,
+  alignmentSuggestionsManage,
   bibles,
   bookName,
+  cancelTraining,
   contextId,
+  doTraining,
   editedTargetVerse,
   gatewayBook,
   getLexiconData,
   groupsData,
   groupsIndex,
+  hasRenderedSuggestions,
   initialSettings,
   lexiconCache = lexiconCache_,
   loadLexiconEntry,
   saveNewAlignments,
   setToolSettings,
+  showDialog,
   showPopover = null,
   sourceBook,
   sourceLanguage,
@@ -406,7 +395,8 @@ export const EnhancedWordAlignmentTool = ({
     const targetTokensNeedingDisabled = verseAlignments
       //Now reduce to target words.
       .reduce( (acc, alignment) => {
-        alignment.targetNgram.forEach( targetToken => {
+        // @ts-ignore
+          alignment.targetNgram.forEach( targetToken => {
           acc.push( targetToken );
         });
         return acc;
@@ -538,16 +528,27 @@ export const EnhancedWordAlignmentTool = ({
           }
           <div>
             {haveVerseData ?
-              <WordAligner
+              <EnhancedWordAligner
+                addTranslationMemory={addTranslationMemory}
+                alignmentSuggestionsManage={alignmentSuggestionsManage}
+                cancelTraining={cancelTraining}
+                config={alignmentSuggestionsConfig}
                 contextId={currentContextId}
-                getLexiconData={getLexiconData}
+                doTraining={doTraining}
+                hasRenderedSuggestions={hasRenderedSuggestions}
                 lexiconCache={lexiconCache}
                 loadLexiconEntry={loadLexiconEntry}
                 onChange={handleAlignmentChange}
+                showDialog={showDialog}
                 showPopover={showPopover}
-                sourceLanguage={sourceLanguage}
+                sourceLanguageId={sourceLanguage}
+                sourceLanguageFont={sourceLanguageFont}
+                sourceFontSizePercent={sourceFontSizePercent}
                 styles={{}}
+                suggestionsOnly={true}
+                targetLanguage={targetLanguage}
                 targetLanguageFont={targetLanguageFont}
+                targetFontSizePercent={targetFontSizePercent}
                 targetWords={targetWords}
                 translate={translate}
                 verseAlignments={verseAlignments}
