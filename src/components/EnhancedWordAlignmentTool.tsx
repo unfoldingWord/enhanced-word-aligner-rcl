@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react'
+import React, { useEffect, useState } from 'react'
 import PropTypes from 'prop-types';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import {
@@ -174,133 +174,15 @@ export const EnhancedWordAlignmentTool = ({
   styles: styles_ = {},
   }) => {
 
-    const [currentContextId, setCurrentContextId] = useState(contextId);
-    const [alignmentData, _setAlignmentData] = useState<AlignmentData>({});
-    const [groupsMenuData, setGroupsMenuData] = useState<{ groupsIndex?: any[]; groupsData?: any }>({});
+  const [currentContextId, setCurrentContextId] = useState(contextId);
+  const [alignmentData, _setAlignmentData] = useState<AlignmentData>({});
+  const [groupsMenuData, setGroupsMenuData] = useState<{ groupsIndex?: any[]; groupsData?: any }>({});
 
-    function setAlignmentData(alignmentData_: any) {
-        if (!isEqual(alignmentData, alignmentData_)) {
-            _setAlignmentData(alignmentData_)
-        }
+  function setAlignmentData(alignmentData_: any) {
+    if (!isEqual(alignmentData, alignmentData_)) {
+        _setAlignmentData(alignmentData_)
     }
-
-    // Add instrumentation refs and counters
-  const renderCount = useRef(0);
-  const prevProps = useRef({});
-  const componentMounted = useRef(false);
-
-  // Instrumentation: Track render count and log re-renders
-  renderCount.current += 1;
-  
-
-    if (!componentMounted.current) {
-      console.log(`🚀 EnhancedWordAlignmentTool: Initial Mount (Render #${renderCount.current})`);
-      componentMounted.current = true;
-    } else {
-      console.log(`🔄 EnhancedWordAlignmentTool: Re-render #${renderCount.current}`);
-      
-      // Compare props to identify what changed
-      const currentProps = {
-        addObjectPropertyToManifest,
-        alignmentData,
-        bibles,
-        bookName,
-        contextId,
-        currentContextId,
-        editedTargetVerse,
-        gatewayBook,
-        getLexiconData,
-        groupsData,
-        groupsIndex,
-        groupsMenuData,
-        initialSettings,
-        lexiconCache,
-        loadLexiconEntry,
-        saveNewAlignments,
-        setToolSettings,
-        showPopover,
-        sourceBook,
-        sourceLanguage,
-        sourceLanguageFont,
-        sourceFontSizePercent,
-        targetBook,
-        targetLanguage,
-        targetLanguageFont,
-        targetFontSizePercent,
-        translate,
-        styles: styles_
-      };
-
-      // Check which props changed
-      const changedProps = [];
-      Object.keys(currentProps).forEach(key => {
-        if (!isEqual(prevProps.current[key], currentProps[key])) {
-          changedProps.push({
-            prop: key,
-            old: prevProps.current[key],
-            new: currentProps[key]
-          });
-        }
-      });
-
-      if (changedProps.length > 0) {
-        console.group(`📊 EnhancedWordAlignmentTool: Props Changed`);
-        changedProps.forEach(({ prop, old, new: newVal }) => {
-          console.log(`  ${prop}:`, { old, new: newVal });
-          
-          // Special logging for complex objects
-          if (prop === 'contextId') {
-            console.log(`  📍 contextId details:`, {
-              oldRef: old?.reference,
-              newRef: newVal?.reference,
-              equal: isEqual(old, newVal)
-            });
-          }
-          
-          if (prop === 'bibles') {
-            console.log(`  📖 bibles keys changed:`, {
-              oldKeys: old ? Object.keys(old) : [],
-              newKeys: newVal ? Object.keys(newVal) : []
-            });
-          }
-        });
-        console.groupEnd();
-      } else {
-        console.log(`⚠️  EnhancedWordAlignmentTool: Re-render with no prop changes - possible internal state change`);
-      }
-      
-      prevProps.current = currentProps;
-    }
-
-  // Instrumentation: Log state changes
-  useEffect(() => {
-      console.log(`🎯 State Change - currentContextId:`, {
-      // @ts-ignore
-      old: prevProps.current.contextId,
-      new: currentContextId,
-      // @ts-ignore
-      equal: isEqual(prevProps.current.contextId, currentContextId)
-    });
-  }, [currentContextId]);
-
-  useEffect(() => {
-    console.log(`🎯 State Change - alignmentData:`, {
-      targetWordsLength: alignmentData.targetWords?.length || 0,
-      verseAlignmentsLength: alignmentData.verseAlignments?.length || 0,
-      hasTargetWords: !!alignmentData.targetWords,
-      hasVerseAlignments: !!alignmentData.verseAlignments
-    });
-  }, [alignmentData]);
-
-  useEffect(() => {
-    console.log(`🎯 State Change - groupsMenuData:`, {
-      hasGroupsIndex: !!groupsMenuData.groupsIndex,
-      hasGroupsData: !!groupsMenuData.groupsData,
-      groupsIndexLength: groupsMenuData.groupsIndex?.length || 0
-    });
-  }, [groupsMenuData]);
-
-  // ... rest of existing state logic ...
+  }
 
   const {
     paneSettings,
@@ -317,43 +199,6 @@ export const EnhancedWordAlignmentTool = ({
   const readyToDisplayChecker = notEmptyObject(bibles) && notEmptyObject(groupsMenuData.groupsData) && notEmptyObject(sourceBook) && notEmptyObject(targetBook);
 
   const expandedScripturePaneTitle = bookName;
-
-
-    // Instrumentation: Log when readyToDisplayChecker changes
-    const prevReadyToDisplay = useRef(readyToDisplayChecker);
-    useEffect(() => {
-        if (prevReadyToDisplay.current !== readyToDisplayChecker) {
-            console.log(`🎯 readyToDisplayChecker changed:`, {
-                old: prevReadyToDisplay.current,
-                new: readyToDisplayChecker,
-                reasons: {
-                    hasBibles: notEmptyObject(bibles),
-                    hasGroupsData: notEmptyObject(groupsMenuData.groupsData),
-                    hasSourceBook: notEmptyObject(sourceBook),
-                    hasTargetBook: notEmptyObject(targetBook)
-                }
-            });
-            prevReadyToDisplay.current = readyToDisplayChecker;
-        }
-    }, [readyToDisplayChecker, bibles, groupsMenuData.groupsData, sourceBook, targetBook]);
-
-    // Memoize expensive computations to prevent unnecessary re-renders
-    const memoizedStyles = useMemo(() => ({
-        ...localStyles.containerDiv,
-        ...styles_,
-    }), [styles_]);
-
-    // Memoize the haveVerseData calculation
-    const haveVerseData = useMemo(() => {
-        const result = verseAlignments?.length && targetWords?.length;
-        console.log(`🎯 haveVerseData recalculated:`, {
-            result,
-            verseAlignmentsLength: verseAlignments?.length || 0,
-            targetWordsLength: targetWords?.length || 0
-        });
-        return result;
-    }, [verseAlignments, targetWords]);
-
   const currentSelections = [] // TODO not sure if selections are even used in word Aligner
 
   /**
@@ -643,18 +488,14 @@ export const EnhancedWordAlignmentTool = ({
       targetWords: alignmentData.targetWords,
     })
   }
+
+  const haveVerseData = verseAlignments?.length && targetWords?.length
+
   const _checkerStyles = {
     ...localStyles.containerDiv,
     ...styles_,
   }
 
-    // Log the final render
-    console.log(`🎨 EnhancedWordAlignmentTool Rendering (${renderCount.current}):`, {
-        readyToDisplayChecker,
-        haveVerseData,
-        contextId: currentContextId?.reference
-    });
-  
   return (
     <ThemeProvider theme={theme}>
       {readyToDisplayChecker ?
