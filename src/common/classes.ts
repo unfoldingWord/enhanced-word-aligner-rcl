@@ -149,9 +149,9 @@ export interface ContextId {
         /** Book identifier (e.g., 'gen', 'mat') */
         bookId: string;
         /** Chapter number */
-        chapter: number;
+        chapter: number|string;
         /** Verse number */
-        verse: number;
+        verse: number|string;
     };
     /** Tool or component identifier */
     tool: string;

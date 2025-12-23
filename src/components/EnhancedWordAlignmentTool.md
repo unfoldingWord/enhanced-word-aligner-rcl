@@ -56,6 +56,22 @@ let translationMemory = {
   }
 };
 
+// Set up languages
+
+const targetLanguageId = 'en';
+const targetDirection = 'ltr' // language direction
+const targetLanguage = {
+  languageId: targetLanguageId,
+  direction: targetDirection,
+}
+
+const sourceLanguageId = CommonConstants.NT_ORIG_LANG;
+const sourceDirection = 'ltr' // language direction
+const sourceLanguage = {
+  languageId: sourceLanguageId,
+  direction: sourceDirection,
+}
+
 const bookName = '1 John'
 const bookId = 'ijn'
 const toolName = 'wordAligner'
@@ -157,6 +173,7 @@ const WordAlignerPanel = ({
                             sourceBook,
                             sourceLanguage,
                             styles,
+                            targetLanguage,
                             targetLanguageFont,
                             targetBook,
                             translate,
@@ -165,9 +182,8 @@ const WordAlignerPanel = ({
   const [doTraining, setDoTraining] = useState(false);
   const [cancelTraining, setCancelTraining] = useState(false);
 
-  const bookId = contextId && contextId.reference && contextId.reference.bookId
-  const shouldShowDialog = !!(targetWords && verseAlignments && bookId)
-  const targetLanguageId = targetLanguage && targetLanguage.languageId;
+  const ref = contextId && contextId.reference || {};
+  const bookId = ref.bookId
   const verboseTraining = false;
 
   // Extract book-specific translation memory for current context
@@ -242,7 +258,7 @@ const WordAlignerPanel = ({
     createAlignmentTrainingWorker,
     handleTrainingStateChange,
     handleTrainingCompleted,
-    shown: shouldShowDialog,
+    shown: true,
     sourceLanguageId: sourceLanguageId,
     targetLanguageId: targetLanguageId,
     targetUsfm,
@@ -281,41 +297,8 @@ const WordAlignerPanel = ({
 
   return (
     <>
-      <div>{targetLanguageId} - {bookId} {chapter}:{verse}</div>
+      <div>{targetLanguageId} - {bookId} {ref.chapter}:{ref.verse}</div>
       <div style={{display: 'flex', gap: '10px', marginBottom: '10px'}}>
-        {/* Book selector dropdown */}
-        <select
-          value={bookId}
-          onChange={handleBookChange}
-          style={{
-            padding: '8px 16px',
-            borderRadius: '4px',
-            border: '1px solid #cccccc',
-            backgroundColor: '#ffffff',
-            cursor: 'pointer'
-          }}
-        >
-          {availableBooks.map(book => (
-            <option key={book} value={book}>{book.toUpperCase()}</option>
-          ))}
-        </select>
-
-        <button
-          onClick={handleLoadTranslationMemory}
-          className="load-translation-btn"
-          disabled={!enableLoadTranslationMemory}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: enableLoadTranslationMemory ? '#4285f4' : '#cccccc',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: enableLoadTranslationMemory ? 'pointer' : 'not-allowed'
-          }}
-        >
-          Load Translation Memory
-        </button>
-
         <button
           onClick={handleToggleTraining}
           className="toggle-training-btn"
@@ -349,24 +332,26 @@ const WordAlignerPanel = ({
         addTranslationMemory={addTranslationMemory}
         alignmentSuggestionsConfig={alignmentSuggestionsConfig}
         alignmentSuggestionsManage={alignmentSuggestionsManage}
+        bibles={biblesObject}
         cancelTraining={cancelTraining}
         contextId={contextId}
         doTraining={doTraining}
-        lexicons={lexicons}
+        groupsData={groupsData}
+        groupsIndex={groupsIndex}
+        initialSettings={initialSettings}
+        lexiconCache={lexiconCache}
         loadLexiconEntry={loadLexiconEntry}
-        onChange={onChange}
-        showDialog={shouldShowDialog}
         showPopover={showPopover}
-        sourceLanguageId={sourceLanguageId}
+        sourceBook={sourceBook}
+        sourceLanguage={sourceLanguage}
         styles={styles}
         suggestionsOnly={suggestionsOnly}
+        targetBook={targetBook}
         targetLanguageFont={targetLanguageFont}
         targetLanguage={targetLanguage}
-        targetWords={targetWords}
         translate={translate}
         translationMemory={translationMemory || []}
         verboseTraining={verboseTraining}
-        verseAlignments={verseAlignments || []}
       />
     </>
   );
@@ -534,30 +519,35 @@ const App = () => {
 
   return (
     <>
-      <div style={{ width: '900px', overflow: 'auto' }}>
-        <WordAlignerPanel
-          addObjectPropertyToManifest={addObjectPropertyToManifest}
-          bibles={biblesObject}
-          bookName={bookName}
-          contextId={contextId}
-          editedTargetVerse={editedTargetVerse}
-          gatewayBook={enGlBook}
-          getLexiconData={getLexiconData_}
-          groupsData={groupsData}
-          groupsIndex={groupsIndex}
-          initialSettings={toolSettings}
-          lexiconCache={lexicons}
-          loadLexiconEntry={loadLexiconEntry}
-          saveNewAlignments={saveNewAlignments}
-          saveToolSettings={saveToolSettings}
-          showPopover={showPopover}
-          sourceBook={sourceBook}
-          sourceLanguage={sourceLanguage}
-          styles={{ maxHeight: '800px', overflowY: 'auto' }}
-          targetLanguageFont={targetLanguageFont}
-          targetBook={targetBook}
+      <div style={{width: '900px', overflow: 'auto'}}>
+        <TrainingStateProvider
           translate={translate}
-        />
+          verbose={true}>
+          <WordAlignerPanel
+            addObjectPropertyToManifest={addObjectPropertyToManifest}
+            bibles={biblesObject}
+            bookName={bookName}
+            contextId={contextId}
+            editedTargetVerse={editedTargetVerse}
+            gatewayBook={enGlBook}
+            getLexiconData={getLexiconData_}
+            groupsData={groupsData}
+            groupsIndex={groupsIndex}
+            initialSettings={toolSettings}
+            lexiconCache={lexicons}
+            loadLexiconEntry={loadLexiconEntry}
+            saveNewAlignments={saveNewAlignments}
+            saveToolSettings={saveToolSettings}
+            showPopover={showPopover}
+            sourceBook={sourceBook}
+            sourceLanguage={sourceLanguage}
+            styles={{maxHeight: '800px', overflowY: 'auto'}}
+            targetLanguage={targetLanguage}
+            targetLanguageFont={targetLanguageFont}
+            targetBook={targetBook}
+            translate={translate}
+          />
+        </TrainingStateProvider>
       </div>
     </>
   );

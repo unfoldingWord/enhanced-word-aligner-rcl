@@ -15,8 +15,15 @@ import {
 import { EnhancedWordAligner } from './EnhancedWordAligner';
 
 import isEqual from 'deep-equal'
-import {TargetWordBank} from "@/common/classes";
-import {Alignment} from "wordmap";
+import {
+    ContextId,
+    SourceWord,
+    TargetWordBank,
+    TTranslationMemoryType,
+} from "@/common/classes";
+import { Alignment } from "wordmap";
+import { TUseAlignmentSuggestionsReturn } from "@/hooks/useAlignmentSuggestions";
+import { TAlignmentSuggestionsConfig } from "@/workers/WorkerComTypes";
 
 const lexiconCache_ = {};
 const theme = createTheme(); // Create MUI theme
@@ -118,17 +125,244 @@ type AlignmentData = {
     verseAlignments?: Alignment[];
 }
 
+type LanguageType = {
+    languageId: string;
+    direction: string;
+}
+
 /**
  * Checks if the given object is not empty.
  *
  * @param {Object} dataObject - The object to check.
  * @return {boolean} Returns true if the object is not empty, otherwise false.
  */
-function notEmptyObject(dataObject) {
+function notEmptyObject(dataObject: Object) {
   return dataObject && Object.keys(dataObject).length
 }
 
-export const EnhancedWordAlignmentTool = ({
+/**
+ * Props for the EnhancedWordAlignmentTool component
+ *
+ * @interface EnhancedWordAlignmentToolProps
+ */
+interface EnhancedWordAlignmentToolProps {
+    /**
+     * Function to add a property to the manifest object.
+     * Used for updating project manifest with alignment-related metadata.
+     */
+    addObjectPropertyToManifest: (key: string, value: any) => void;
+
+    /**
+     * Translation memory data to be loaded into the alignment engine.
+     * Contains source and target USFM content for training alignment models.
+     */
+    addTranslationMemory?: TTranslationMemoryType;
+
+    /**
+     * Configuration settings for the alignment suggestions engine.
+     * Controls parameters like n-gram length, training steps, and memory settings.
+     */
+    alignmentSuggestionsConfig?: TAlignmentSuggestionsConfig;
+
+    /**
+     * State and actions from the useAlignmentSuggestions hook.
+     * Provides access to alignment training, suggestion generation, and model management.
+     */
+    alignmentSuggestionsManage: TUseAlignmentSuggestionsReturn;
+
+    /**
+     * Collection of Bible translations and source texts used for alignment.
+     * Contains both source language and target language Bible data.
+     */
+    bibles: Record<string, any>;
+
+    /**
+     * Display name of the current book being aligned.
+     * Used for UI labels and user feedback.
+     */
+    bookName: string;
+
+    /**
+     * Flag to cancel any ongoing alignment training process.
+     * When set to true, the component will stop the training worker.
+     */
+    cancelTraining: boolean;
+
+    /**
+     * Current context identifier with bible, book, chapter, and verse reference.
+     * Used to determine the scope for alignment operations.
+     */
+    contextId: ContextId;
+
+    /**
+     * Flag to initiate alignment training.
+     * When set to true, the component will start the training process.
+     */
+    doTraining: boolean;
+
+    /**
+     * Function to handle edited target verse content.
+     * Processes user modifications to target language verses.
+     */
+    editedTargetVerse: (verseData: any) => void;
+
+    /**
+     * Gateway language book data used as intermediate translation reference.
+     * Optional reference material for alignment assistance.
+     */
+    gatewayBook?: Record<string, any>;
+
+    /**
+     * Function to retrieve lexicon data for source language words.
+     * Fetches dictionary and grammatical information for alignment context.
+     */
+    getLexiconData?: (lexiconId: string, entryId: string) => any;
+
+    /**
+     * Grouped alignment data organized by categories or chapters.
+     * Contains structured alignment information for navigation and processing.
+     */
+    groupsData?: Record<string, any>;
+
+    /**
+     * Index of groups for navigation and organization.
+     * Provides ordered access to alignment group structure.
+     */
+    groupsIndex?: any[];
+
+    /**
+     * Controls whether suggestion buttons are enabled in the UI.
+     * Default is true; when false, suggestion functionality is hidden.
+     */
+    hasRenderedSuggestions?: boolean;
+
+    /**
+     * Initial settings configuration for the tool.
+     * Contains pane settings, key mappings, and tool-specific configurations.
+     */
+    initialSettings: Record<string, any>;
+
+    /**
+     * Cache of lexicon entries for quick reference.
+     * Improves performance by avoiding repeated lexicon lookups.
+     */
+    lexiconCache?: Record<string, any>;
+
+    /**
+     * Function to load lexicon entry for a source word.
+     * Fetches lexical data when users interact with source text words.
+     */
+    loadLexiconEntry: (lexiconId: string, entryId: string) => void;
+
+    /**
+     * Callback function to save new alignment data.
+     * Persists alignment changes to storage or external system.
+     */
+    saveNewAlignments?: (alignmentData: any) => void;
+
+    /**
+     * Function to save tool settings and configuration.
+     * Persists user preferences and tool state.
+     */
+    setToolSettings?: (settings: any) => void;
+
+    /** true when dialog is to be shown */
+    showDialog?: boolean;
+
+    /**
+     * Function to display word details in a popover.
+     * Shows lexical information when users interact with words.
+     */
+    showPopover: (
+        PopoverTitle: React.ReactNode,
+        wordDetails: React.ReactNode,
+        positionCoord: any,
+        rawData: {
+            token: SourceWord;
+            lexiconData: any;
+        }
+    ) => void;
+
+    /**
+     * Source language book data containing the original text.
+     * The authoritative text being aligned from (e.g., Greek, Hebrew).
+     */
+    sourceBook?: Record<string, any>;
+
+    /**
+     * Source language identifier (e.g., 'el-x-koine' for Greek, 'hbo' for Hebrew).
+     * Used for language-specific processing and display.
+     */
+    sourceLanguage: LanguageType;
+
+    /**
+     * Font family for the source language text.
+     * Ensures proper display of source language characters.
+     */
+    sourceLanguageFont?: string;
+
+    /**
+     * Font size percentage for source text.
+     * Controls the display size of source language text.
+     */
+    sourceFontSizePercent?: number;
+
+    /**
+     * Custom CSS styles for the component.
+     * Allows visual customization of the alignment interface.
+     */
+    styles?: React.CSSProperties;
+
+    /**
+     * When true, only suggestion buttons are shown (the clear-all button is removed).
+     * Used to simplify the UI in certain contexts.
+     */
+    suggestionsOnly?: boolean;
+
+    /**
+     * Target language book data containing translation text.
+     * The text being aligned to the source language.
+     */
+    targetBook?: Record<string, any>;
+
+    /**
+     * Information about the target language (id code, direction, localized name).
+     * Used for proper language rendering and processing.
+     */
+    targetLanguage: LanguageType;
+
+    /**
+     * Font family for the target language text.
+     * Ensures proper display of target language characters.
+     */
+    targetLanguageFont?: string;
+
+    /**
+     * Font size percentage for target text.
+     * Controls the display size of target language text.
+     */
+    targetFontSizePercent?: number;
+
+    /**
+     * Array of target words to be aligned.
+     * The words from the target language that need to be aligned with source words.
+     */
+    targetWords: TargetWordBank[];
+
+    /**
+     * Function to translate UI strings.
+     * Provides internationalization support for the component.
+     */
+    translate: (key: string, params?: Record<string, string | number>) => string;
+
+    /**
+     * Current alignments between source and target words.
+     * The existing alignment data for the current verse.
+     */
+    verseAlignments: Alignment[];
+}
+
+export const EnhancedWordAlignmentTool: React.FC<EnhancedWordAlignmentToolProps>  = ({
   addObjectPropertyToManifest,
   addTranslationMemory,
   alignmentSuggestionsConfig,
@@ -178,7 +412,7 @@ export const EnhancedWordAlignmentTool = ({
     paneKeySettings,
     toolsSettings,
     manifest
-  } = initialSettings
+  } = initialSettings || {}
   const {
     targetWords,
     verseAlignments
@@ -196,7 +430,7 @@ export const EnhancedWordAlignmentTool = ({
    * @param {Object} _currentContextId - The current context ID containing a reference to the chapter and verse.
    * @return {boolean} Returns true if the alignment data was successfully updated; otherwise, returns false.
    */
-  function updateAlignmentData(_currentContextId) {
+  function updateAlignmentData(_currentContextId: ContextId) {
     const ref = _currentContextId?.reference
     const targetVerseUSFM = groupDataHelpers.getVerseUSFM(targetBook, ref.chapter, ref.verse)
     const sourceVerseUSFM = groupDataHelpers.getVerseUSFM(sourceBook, ref.chapter, ref.verse)
@@ -244,7 +478,7 @@ export const EnhancedWordAlignmentTool = ({
    * @param {object} _settings - Settings object to save
    * @private
    */
-  function _saveSettings(_settings) {
+  function _saveSettings(_settings: Record<string, any>) {
     if (setToolSettings && _settings) {
       const newSettings = { ..._settings }
       delete newSettings.manifest
@@ -349,13 +583,6 @@ export const EnhancedWordAlignmentTool = ({
    *
    * @function
    * @name handleSaveAlignments
-   * @param {Object} contextId - The current context ID containing verse reference details.
-   * @param {Array} targetWords - The list of words in the target language verse.
-   * @param {Array} verseAlignments - The list of alignment data to be applied.
-   * @param {Function} addAlignmentsToVerseUSFM - Function to add alignments to the verse text in USFM.
-   * @param {Function} getVerseUSFM - Function to retrieve the verse text in USFM.
-   * @param {Function} usfmVerseToJson - Function to convert USFM verse text to JSON format.
-   * @param {Function} saveNewAlignments - Callback function to save the new alignments.
    */
   const handleSaveAlignments = () => {
     console.log( "handleSaveAlignments" );
@@ -541,7 +768,7 @@ export const EnhancedWordAlignmentTool = ({
                 onChange={handleAlignmentChange}
                 showDialog={showDialog}
                 showPopover={showPopover}
-                sourceLanguageId={sourceLanguage}
+                sourceLanguageId={sourceLanguage.languageId}
                 sourceLanguageFont={sourceLanguageFont}
                 sourceFontSizePercent={sourceFontSizePercent}
                 styles={{}}
@@ -575,31 +802,4 @@ export const EnhancedWordAlignmentTool = ({
   );
 };
 
-EnhancedWordAlignmentTool.propTypes = {
-  addObjectPropertyToManifest: PropTypes.func.isRequired,
-  bibles: PropTypes.object.isRequired,
-  bookName: PropTypes.string.isRequired,
-  contextId: PropTypes.object.isRequired,
-  editedTargetVerse: PropTypes.func.isRequired,
-  gatewayBook: PropTypes.object,
-  getLexiconData: PropTypes.func,
-  groupData: PropTypes.object,
-  groupsIndex: PropTypes.array,
-  initialSettings: PropTypes.object.isRequired,
-  lexiconCache: PropTypes.object,
-  loadLexiconEntry: PropTypes.func.isRequired,
-  saveNewAlignments: PropTypes.func,
-  saveToolSettings: PropTypes.func.isRequired,
-  showPopover: PropTypes.func.isRequired,
-  sourceBook: PropTypes.object,
-  sourceLanguage: PropTypes.string.isRequired,
-  sourceLanguageFont: PropTypes.string,
-  sourceFontSizePercent: PropTypes.number,
-  styles: PropTypes.object,
-  targetBook: PropTypes.object,
-  targetFontSizePercent: PropTypes.number,
-  targetLanguage: PropTypes.object,
-  targetLanguageFont: PropTypes.string,
-  translate: PropTypes.func.isRequired,
-};
 
