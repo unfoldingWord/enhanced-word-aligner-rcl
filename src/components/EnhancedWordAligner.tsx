@@ -56,14 +56,11 @@ import {
     TTranslationMemoryType,
 } from '@/common/classes';
 import {Alignment, Suggestion} from 'wordmap';
-import {Token} from 'wordmap-lexer'
 
 import {TBookShaState, TUseAlignmentSuggestionsReturn} from '@/hooks/useAlignmentSuggestions';
 import {createAlignmentTrainingWorker as createAlignmentTrainingWorker_} from '@/workers/utils/startAlignmentTrainer';
 import {TAlignmentCompletedInfo, TAlignmentSuggestionsConfig} from '@/workers/WorkerComTypes';
 import {useTrainingStateContext} from '@/hooks/TrainingStateProvider';
-import ModelInfoDialog from './ModelInfoDialog';
-import delay from "@/utils/delay";
 import { EnhancedWordAlignerPane } from "./EnhancedWordAlignerPane";
 
 /**
