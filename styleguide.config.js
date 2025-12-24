@@ -24,6 +24,11 @@ module.exports = {
   serverPort: 6003,
   exampleMode: 'expand',
   usageMode: 'expand',
+  // Add theme configuration to increase width
+  theme: {
+    maxWidth: '1800px', // Increase from default ~1200px
+    sidebarWidth: 240,
+  },
   webpackConfig: {
     devServer: { 
       port: 6003, 

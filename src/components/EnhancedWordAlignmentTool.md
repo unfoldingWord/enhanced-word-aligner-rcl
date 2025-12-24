@@ -45,14 +45,10 @@ const keepAllAlignmentMinThreshold = 90; // EXPERIMENTAL FEATURE - if threshold 
 
 let translationMemory = {
   "targetUsfms": {
-    "1jn": {
-      targetBook,
-    }
+    "1jn": usfmjs.toUSFM(targetBook, { chunk: true, forcedNewLines: true })
   },
   "sourceUsfms": {
-    "1jn": {
-      ugntBook,
-    }
+    "1jn":usfmjs.toUSFM(ugntBook, { chunk: true, forcedNewLines: true })
   }
 };
 
@@ -73,7 +69,7 @@ const sourceLanguage = {
 }
 
 const bookName = '1 John'
-const bookId = 'ijn'
+const bookId = '1jn'
 const toolName = 'wordAligner'
 const gatewayBook = enGlBook;
 const sourceBook = ugntBook;
@@ -196,7 +192,7 @@ const WordAlignerPanel = ({
    * When deactivated, it sets cancelTraining=true to stop any ongoing training.
    */
   const handleToggleTraining = () => {
-    const newTrainingState = !training;
+    const newTrainingState = !doTraining;
     console.log('Toggle training to: ' + newTrainingState);
     if (newTrainingState) {
       setCancelTraining(false)
@@ -357,22 +353,36 @@ const WordAlignerPanel = ({
   );
 };
 
+function getContextId(selectedBook, chapter, verse, bibleId) {
+  // var bibleId = `unfoldingWord/en_${isUST ? 'ust' : 'ult'}`;
+  const contextId = {
+    "reference": {
+      "bookId": selectedBook,
+      "chapter": chapter,
+      "verse": verse,
+    },
+    "tool": "wordAlignment",
+    "groupId": "chapter_1",
+    "bibleId": bibleId
+  };
+  return contextId;
+}
+
+/**
+ * Main App Component
+ *
+ * Sets up the necessary context and data for the word alignment system
+ * and renders the WordAlignerPanel component.
+ *
+ * @returns {JSX.Element} Rendered application
+ */
 const App = () => {
   const [toolSettings, _setToolSettings] = useState(initialTooleSettings); // TODO: need to persist tools state, and read back state on startup
 
   const targetLanguageFont = '';
   const sourceLanguage = CommonConstants.NT_ORIG_LANG;
   const lexicons = {};
-  const contextId = {
-    "reference": {
-      "bookId": bookId,
-      "chapter": 1,
-      "verse": 1
-    },
-    "tool": "wordAlignment",
-    "groupId": "chapter_1"
-  };
-
+  const contextId = getContextId(bookId, 1, 1, 'unfoldingWord/en_target')
 
   /**
    * Displays a popover with word details when a user clicks on a word
@@ -519,7 +529,7 @@ const App = () => {
 
   return (
     <>
-      <div style={{width: '900px', overflow: 'auto'}}>
+      <div style={{width: '1200px', overflow: 'auto'}}>
         <TrainingStateProvider
           translate={translate}
           verbose={true}>
@@ -541,7 +551,7 @@ const App = () => {
             showPopover={showPopover}
             sourceBook={sourceBook}
             sourceLanguage={sourceLanguage}
-            styles={{maxHeight: '800px', overflowY: 'auto'}}
+            styles={{maxHeight: '800px', overflow: 'auto'}}
             targetLanguage={targetLanguage}
             targetLanguageFont={targetLanguageFont}
             targetBook={targetBook}

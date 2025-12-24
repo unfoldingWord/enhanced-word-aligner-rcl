@@ -397,7 +397,7 @@ export const EnhancedWordAlignmentTool: React.FC<EnhancedWordAlignmentToolProps>
   styles: styles_ = {},
   }) => {
 
-  const [currentContextId, setCurrentContextId] = useState(contextId);
+  const [currentContextId, setCurrentContextId] = useState<ContextId>(contextId);
   const [alignmentData, _setAlignmentData] = useState<AlignmentData>({});
   const [groupsMenuData, setGroupsMenuData] = useState<{ groupsIndex?: any[]; groupsData?: any }>({});
 
