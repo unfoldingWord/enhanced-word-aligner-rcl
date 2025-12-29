@@ -52,10 +52,10 @@ import React, {useEffect} from 'react'
 import {
     ContextId,
     SourceWord,
+    TAlignment,
     TargetWordBank,
     TTranslationMemoryType,
 } from '@/common/classes';
-import {Alignment, Suggestion} from 'wordmap';
 
 import {TBookShaState, TUseAlignmentSuggestionsReturn} from '@/hooks/useAlignmentSuggestions';
 import {createAlignmentTrainingWorker as createAlignmentTrainingWorker_} from '@/workers/utils/startAlignmentTrainer';
@@ -85,7 +85,7 @@ interface EnhancedWordAlignerProps {
      * Flag to cancel any ongoing alignment training process.
      * When set to true, the component will stop the training worker.
      */
-    cancelTraining: boolean;
+    cancelTraining?: boolean;
 
     /** 
      * Configuration settings for the alignment suggestions engine.
@@ -131,7 +131,7 @@ interface EnhancedWordAlignerProps {
         type: 'MERGE_ALIGNMENT_CARDS' | 'CREATE_NEW_ALIGNMENT_CARD' | 'UNALIGN_TARGET_WORD' | 'ALIGN_TARGET_WORD' | 'ALIGN_SOURCE_WORD';
         source: 'TARGET_WORD_BANK' | 'GRID';
         destination: 'TARGET_WORD_BANK' | 'GRID';
-        verseAlignments: Alignment[];
+        verseAlignments: TAlignment[];
         targetWords: TargetWordBank[];
         contextId: ContextId;
     }) => void;
@@ -217,7 +217,7 @@ interface EnhancedWordAlignerProps {
      * Current alignments between source and target words.
      * The existing alignment data for the current verse.
      */
-    verseAlignments: Alignment[];
+    verseAlignments: TAlignment[];
 }
 
 /**

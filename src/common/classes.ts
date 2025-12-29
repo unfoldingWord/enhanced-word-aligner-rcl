@@ -1,7 +1,7 @@
 import GroupCollection from '@/shared/GroupCollection';
 import {TAlignerData, TSourceTargetAlignment, TWord} from 'word-aligner-rcl';
 import {Token} from 'wordmap-lexer'
-import {Suggestion} from 'wordmap'
+import {Alignment, Suggestion} from 'wordmap'
 
 // USFM and Translation Memory Types
 // =================================
@@ -203,11 +203,20 @@ export interface TargetWordBank extends TargetWord {
 }
 
 /** Alignment between source and target word groups */
-interface Alignment {
+export interface TAlignment {
     /** Group of source language words */
     sourceNgram: SourceWord[];
     /** Group of target language words */
     targetNgram: TargetWord[];
+}
+
+export interface TSaveAlignmentData {
+    contextId: ContextId;
+    targetWords: TargetWordBank[];
+    verseAlignments: TAlignment[];
+    targetVerseUSFM: string;
+    targetVerseJSON: any;
+    haveSuggestions: boolean;
 }
 
 // Scripture Reference Types

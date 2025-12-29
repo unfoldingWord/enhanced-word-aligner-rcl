@@ -19,13 +19,20 @@ import {
     ContextId,
     SourceWord,
     TargetWordBank,
+    TSaveAlignmentData,
     TTranslationMemoryType,
 } from "@/common/classes";
 import { Alignment } from "wordmap";
-import { TUseAlignmentSuggestionsReturn } from "@/hooks/useAlignmentSuggestions";
+import { TUseAlignmentSuggestionsReturn, useAlignmentSuggestions } from "@/hooks/useAlignmentSuggestions";
 import { TAlignmentSuggestionsConfig } from "@/workers/WorkerComTypes";
 // @ts-ignore
 import {cloneDeep} from "lodash";
+import {getTranslationMemoryForBook} from "@/workers/utils/AlignmentTrainerUtils";
+import {useTrainingStateContext} from "@/hooks/TrainingStateProvider";
+import {EnhancedWordAlignmentToolSub} from "@/components/EnhancedWordAlignmentToolSub";
+import {Button} from "@mui/material";
+import PromptDialog, {TShowPromptDialogProps} from "@/components/PromptDialog";
+import PopoverComponent from "@/components/PopoverComponent";
 
 const lexiconCache_ = {};
 const theme = createTheme(); // Create MUI theme
@@ -185,16 +192,21 @@ interface EnhancedWordAlignmentToolProps {
     bookName: string;
 
     /**
-     * Flag to cancel any ongoing alignment training process.
-     * When set to true, the component will stop the training worker.
-     */
-    cancelTraining: boolean;
-
-    /**
      * Current context identifier with bible, book, chapter, and verse reference.
      * Used to determine the scope for alignment operations.
      */
     contextId: ContextId;
+
+    /**
+     * Represents a promise that resolves to a Web Worker instance specifically designed
+     * for handling alignment training tasks. This worker operates independently
+     * in the background to manage computationally intensive alignment training operations.
+     *
+     * This property is passed in because different platforms initialize workers differently
+     *
+     * @type {Promise<Worker>}
+     */
+    createAlignmentTrainingWorker: () => Promise<Worker>;
 
     /**
      * Flag to initiate alignment training.
@@ -266,7 +278,7 @@ interface EnhancedWordAlignmentToolProps {
      * Function to save tool settings and configuration.
      * Persists user preferences and tool state.
      */
-    setToolSettings?: (settings: any) => void;
+    saveToolSettings?: (settings: any) => void;
 
     /** true when dialog is to be shown */
     showDialog?: boolean;
@@ -358,6 +370,11 @@ interface EnhancedWordAlignmentToolProps {
     translate: (key: string, params?: Record<string, string | number>) => string;
 
     /**
+     * Translation memory containing source and target USFM data for alignment training
+     */
+    translationMemory: TTranslationMemoryType,
+
+    /**
      * Current alignments between source and target words.
      * The existing alignment data for the current verse.
      */
@@ -366,445 +383,258 @@ interface EnhancedWordAlignmentToolProps {
 
 export const EnhancedWordAlignmentTool: React.FC<EnhancedWordAlignmentToolProps>  = ({
   addObjectPropertyToManifest,
-  addTranslationMemory,
   alignmentSuggestionsConfig,
-  alignmentSuggestionsManage,
   bibles,
   bookName,
-  cancelTraining,
   contextId,
-  doTraining,
+  createAlignmentTrainingWorker,
   editedTargetVerse,
   gatewayBook,
   getLexiconData,
   groupsData,
   groupsIndex,
-  hasRenderedSuggestions,
   initialSettings,
   lexiconCache = lexiconCache_,
   loadLexiconEntry,
   saveNewAlignments,
-  setToolSettings,
+  saveToolSettings,
   showDialog,
-  showPopover = null,
+  showPopover,
   sourceBook,
   sourceLanguage,
   sourceLanguageFont = '',
   sourceFontSizePercent = 100,
+  styles,
   targetBook,
-  targetLanguage= {},
+  targetLanguage,
   targetLanguageFont = '',
   targetFontSizePercent = 100,
   translate,
-  styles: styles_ = {},
+  translationMemory,
   }) => {
 
-  const [currentContextId, setCurrentContextId] = useState<ContextId>(contextId);
-  const [alignmentData, _setAlignmentData] = useState<AlignmentData>({});
-  const [groupsMenuData, setGroupsMenuData] = useState<{ groupsIndex?: any[]; groupsData?: any }>({});
+    const [translationMemoryLoaded, setTranslationMemoryLoaded] = useState<boolean>(false);
+    const [doTraining, setDoTraining] = useState<boolean>(false);
+    const [showPrompt, setShowPrompt] = useState<TShowPromptDialogProps|null>(null);
+    const [lexiconData, setLexiconData] = useState<any>(null);
 
-  function setAlignmentData(alignmentData_: any) {
-    if (!isEqual(alignmentData, alignmentData_)) {
-        _setAlignmentData(alignmentData_)
-    }
-  }
+    const ref = contextId && contextId.reference;
+    const bookId = ref?.bookId
+    const verboseTraining = false;
 
-  const {
-    paneSettings,
-    paneKeySettings,
-    toolsSettings,
-    manifest
-  } = initialSettings || {}
-  const {
-    targetWords,
-    verseAlignments
-  } = alignmentData
-  // @ts-ignore
-    const targetDirection = targetLanguage?.direction || 'ltr';
-  const readyToDisplayChecker = notEmptyObject(bibles) && notEmptyObject(groupsMenuData.groupsData) && notEmptyObject(sourceBook) && notEmptyObject(targetBook);
+    // Extract book-specific translation memory for current context
+    const {targetUsfm, sourceUsfm} = getTranslationMemoryForBook(bookId, translationMemory);
 
-  const expandedScripturePaneTitle = bookName;
-  const currentSelections = [] // TODO not sure if selections are even used in word Aligner
+    // Only provide translation memory when auto-training is enabled
+    const addTranslationMemory = alignmentSuggestionsConfig.doAutoTraining ? translationMemory : null;
 
-  /**
-   * Updates the alignment data for the specified context ID by processing the target and source verses.
-   *
-   * @param {Object} _currentContextId - The current context ID containing a reference to the chapter and verse.
-   * @return {boolean} Returns true if the alignment data was successfully updated; otherwise, returns false.
-   */
-  function updateAlignmentData(_currentContextId: ContextId) {
-    const ref = _currentContextId?.reference
-    const targetVerseUSFM = groupDataHelpers.getVerseUSFM(targetBook, ref.chapter, ref.verse)
-    const sourceVerseUSFM = groupDataHelpers.getVerseUSFM(sourceBook, ref.chapter, ref.verse)
-    if (targetVerseUSFM && sourceVerseUSFM) {
-      const {
-        targetWords,
-        verseAlignments
-      } = AlignmentHelpers.parseUsfmToWordAlignerData(targetVerseUSFM, sourceVerseUSFM)
-
-      const alignmentComplete = AlignmentHelpers.areAlgnmentsComplete(targetWords, verseAlignments)
-      console.log(`Alignments are ${alignmentComplete ? 'COMPLETE!' : 'incomplete'}`)
-      setAlignmentData({
-        targetWords,
-        verseAlignments
-      })
-      return true
-    }
-    return false
-  }
-
-  useEffect(() => { // detect change of source alignments
-    if (!isEqual(currentContextId, contextId)) {
-      setCurrentContextId(contextId)
-    }
-
-    let foundData = false
-    if (readyToDisplayChecker) {
-      foundData = updateAlignmentData(contextId)
-    }
-
-    if (!foundData) {
-      setAlignmentData({})
-    }
-  }, [readyToDisplayChecker, contextId])
-
-  useEffect(() => { // detect change of source alignments
-    if (notEmptyObject(groupsData)) {
-      setGroupsMenuData({groupsIndex, groupsData})
-    }
-  }, [groupsIndex, groupsData])
-
-  /**
-   * Persists settings to storage after removing Bible data to reduce size
-   * Creates shallow copies to avoid modifying original objects
-   * @param {object} _settings - Settings object to save
-   * @private
-   */
-  function _saveSettings(_settings: Record<string, any>) {
-    if (setToolSettings && _settings) {
-      const newSettings = { ..._settings }
-      delete newSettings.manifest
-      const _paneSettings = [ ...newSettings.paneSettings ]
-      for (let i = 0; i < _paneSettings.length; i++) {
-        const _paneSetting = {..._paneSettings[i]} // shallow copy
-        if (_paneSetting?.book) {
-          delete _paneSetting.book // remove all the book data before saving
-        }
-        _paneSettings[i] = _paneSetting
-      }
-      newSettings.paneSettings = _paneSettings
-
-      const _paneKeySettings = { ...newSettings.paneKeySettings }
-      const keys = Object.keys(_paneKeySettings)
-      for (const key of keys) {
-        const _paneSetting = {..._paneKeySettings[key]} // shallow copy
-        if (_paneSetting?.book) {
-          delete _paneSetting.book // remove all the book data before saving
-        }
-        _paneKeySettings[key] = _paneSetting
-      }
-      newSettings.paneKeySettings = _paneKeySettings
-
-      setToolSettings(newSettings)
-    }
-  }
-
-  /**
-   * Updates settings state and optionally persists them
-   * @param {object} newSettings - New settings to merge
-   * @param {boolean} doSave - Whether to persist settings
-   */
-  function setSettings(newSettings, doSave = false) {
-    const _settings = {
-      ...initialSettings,
-      ...newSettings
-    }
-
-    // _setSettings(_settings)
-    doSave && _saveSettings(_settings)
-  }
-
-  /**
-   * Navigates to the next check in the sequence
-   */
-  function handleGoToNext() {
-    console.log(`handleGoToNext`)
-    const nextCheck = GroupMenuComponent.findNextCheck(groupsData, currentContextId, false)
-    changeCurrentCheck_(nextCheck, true)
-  }
-
-  /**
-   * Navigates to the previous check in the sequence
-   */
-  function handleGoToPrevious() {
-    console.log(`handleGoToPrevious`)
-    const previousCheck = GroupMenuComponent.findPreviousCheck(groupsData, currentContextId, false)
-    changeCurrentCheck_(previousCheck, true)
-  }
-
-  /**
-   * Handles changes in alignment data by processing the updated alignments
-   * and updating the target verse USFM content. It also determines if the
-   * alignments are complete.
-   *
-   * @param {Object} results - The alignment data containing target words and verse alignments.
-   * @param {Array} results.targetWords - The list of target words in the verse.
-   * @param {Array} results.verseAlignments - The alignment mappings for the target words.
-   * @return {void} This function does not return a value.
-   */
-  function handleAlignmentChange(results) {
-    console.log(`handleAlignmentChange() - alignment changed, results`, results);// merge alignments into target verse and convert to USFM
-    const {targetWords, verseAlignments} = results;
-    // get initial bible text
-    const ref = currentContextId?.reference
-    const targetVerseUSFM_ = groupDataHelpers.getVerseUSFM(targetBook, ref.chapter, ref.verse)
-    const verseUsfm = AlignmentHelpers.addAlignmentsToVerseUSFM(targetWords, verseAlignments, targetVerseUSFM_);
-    console.log(verseUsfm);
-    const alignmentComplete = AlignmentHelpers.areAlgnmentsComplete(targetWords, verseAlignments);
-    console.log(`Alignments are ${alignmentComplete ? 'COMPLETE!' : 'incomplete'}`);
-    setAlignmentData({
-        targetWords,
-        verseAlignments
-    })
-  }
-
-  /**
-   * Handles the saving of Bible text alignments with updated data.
-   *
-   * This function prepares the updated aligned verse data in USFM and JSON formats
-   * and triggers a save operation using the provided `saveNewAlignments` handler.
-   * It uses the current context reference, retrieves the initial Bible text,
-   * updates alignments, and formats the aligned verse text appropriately.
-   *
-   * Dependencies:
-   * - Retrieves the initial Bible verse in USFM format using `getVerseUSFM`.
-   * - Updates the alignments of the target text using `addAlignmentsToVerseUSFM`.
-   * - Converts the updated USFM text into JSON format using `usfmVerseToJson`.
-   *
-   * Preconditions:
-   * - Requires `currentContextId` with a valid `reference` object containing
-   *   `chapter` and `verse`.
-   * - Expects `saveNewAlignments` to be defined for saving the processed alignments.
-   *
-   * @function
-   * @name handleSaveAlignments
-   */
-  const handleSaveAlignments = () => {
-    console.log( "handleSaveAlignments" );
-    const ref = currentContextId?.reference
-    // get initial bible text
-    const targetVerseUSFM_ = groupDataHelpers.getVerseUSFM(targetBook, ref.chapter, ref.verse)
-    // apply new alignments to original verse text
-    const targetVerseUSFM = AlignmentHelpers.addAlignmentsToVerseUSFM(targetWords, verseAlignments, targetVerseUSFM_);
-    const targetVerseJSON = usfmHelpers.usfmVerseToJson(targetVerseUSFM);
-    saveNewAlignments && saveNewAlignments({ contextId: currentContextId,  ...alignmentData, targetVerseUSFM, targetVerseJSON })
-  }
-
-  /**
-   * Removes all alignments and updates the relevant alignment state and data.
-   *
-   * This function clears all existing verse alignments and ensures all target words
-   * in the word bank are re-enabled if they were disabled due to prior alignments.
-   * Updating the state involves the following steps:
-   *
-   * 1. Iterating through all alignments in the verse and identifying target tokens
-   *    that need to be re-enabled in the word bank.
-   * 2. Re-enabling the identified target tokens in the target word list.
-   * 3. Clearing all alignments by setting `targetNgram` to an empty array and
-   *    marking them as no longer suggestions.
-   * 4. Updating the alignment data with the new cleared alignments and modified
-   *    target word states.
-   * 5. Invoking the change callback to notify listeners about the unalignment action.
-   *
-   * This function is intended to manage the reconciliation of alignment data and
-   * ensure that the UI and underlying data align correctly when all alignments
-   * are cleared.
-   */
-  const handleClearAlignments = () => {
-    console.log( "handleClearAlignments" );
-    const newAlignmentData = alignmentData ? cloneDeep(alignmentData) : {};
-    //Make sure all words which were dropped are not disabled in the word list.
-    const targetTokensNeedingDisabled = verseAlignments
-      //Now reduce to target words.
-      .reduce( (acc, alignment) => {
-        // @ts-ignore
-          alignment.targetNgram.forEach( targetToken => {
-          acc.push( targetToken );
-        });
-        return acc;
-      },[])
-      //now reduce these to target words which are still disabled in the wordbox.
-      .filter( targetToken => {
-        const found = AlignmentHelpers.findInWordList(targetWords, targetToken);
-        if( found < 0 ) return false;
-        if( !targetWords[found].disabled ) return false;
-        return true;
-      });
-
-    //if there are any of the target words needing to be disabled
-    if( targetTokensNeedingDisabled.length > 0 ) {
-      //Then map through creating new word objects which are disabled if they are in the targetTokensNeedingDisabled list.
-      const newTargetWords = targetWords.map( targetWord => {
-        if( AlignmentHelpers.findInWordList( targetTokensNeedingDisabled, targetWord ) >= 0 ) return { ...targetWord, disabled: false };
-        return targetWord;
-      });
-      newAlignmentData.targetWords = newTargetWords;
-    }
-
-    //Drop all target tokens from verseAlignments
-    const clearedAlignments = verseAlignments.map( alignment => {
-      return {...alignment, isSuggestion: false, targetNgram: []};
-    });
-    
-    const updatedVerseAlignments = AlignmentHelpers.alignmentCleanup(clearedAlignments);
-    newAlignmentData.verseAlignments = updatedVerseAlignments;
-
-    setAlignmentData(newAlignmentData)
-
-    // doChangeCallback({
-    //   type: UNALIGN_TARGET_WORD,
-    //   source: GRID,
-    //   destination: TARGET_WORD_BANK
-    // }, updatedVerseAlignments);
-  }
-
-  /**
-   * Changes the current check being worked on
-   * Validates for unsaved changes before switching
-   * @param {object} newContext - New check context
-   * @param {boolean} noCheck - Skip validation if true
-   */
-  const changeCurrentCheck_ = (newContext, noCheck = false) => {
-    const newContextId = newContext?.contextId
-
-    if (newContextId) {
-      const {
-        reference: {
-          bookId,
-          chapter,
-          verse,
+    // Access training state and actions from context
+    const {
+        actions: {
+            handleTrainingStateChange
         },
-        tool,
-        groupId,
-      } = newContextId;
-      const refStr = `${tool} ${groupId} ${bookId} ${chapter}:${verse}`;
-      console.info(`changeCurrentCheck_() - setting new contextId to: ${refStr}`);
+        state: {
+            training,
+            trainingComplete,
+            trainingError,
+            trainingStatusStr,
+            trainingButtonStr,
+        }
+    } = useTrainingStateContext()
 
-      setCurrentContextId(newContextId)
-      updateAlignmentData(newContextId)
+    /**
+     * Handles the completion of a training session.
+     *
+     * Called when training process finishes, allowing for post-training actions
+     * such as logging results or updating UI elements.
+     *
+     * @param {TAlignmentCompletedInfo} info - Information about the completed training session
+     */
+    const handleTrainingCompleted = (info) => {
+        console.log('handleTrainingCompleted', info);
     }
-  }
 
-  /**
-   * Resets the alignments by invoking the resetAlignments method and updates the alignment data with the reset values.
-   *
-   * This method logs the reset event, calls the resetAlignments function, and updates the state with the new alignment data.
-   *
-   * @return {void} No return value.
-   */
-  function onReset() {
-    console.log("onReset() - reset Alignments")
-    const alignmentData = AlignmentHelpers.resetAlignments(verseAlignments, targetWords)
-    setAlignmentData({
-      verseAlignments: alignmentData.verseAlignments,
-      targetWords: alignmentData.targetWords,
-    })
-  }
+    // Initialize the alignment suggestions system using the custom hook
+    const alignmentSuggestionsManage = useAlignmentSuggestions({
+        config: alignmentSuggestionsConfig,
+        contextId,
+        createAlignmentTrainingWorker,
+        handleTrainingStateChange,
+        handleTrainingCompleted,
+        shown: true,
+        sourceLanguageId: sourceLanguage.languageId,
+        targetLanguageId: targetLanguage.languageId,
+    });
 
-  const haveVerseData = verseAlignments?.length && targetWords?.length
+    // Extract state and actions from the alignment suggestions system
+    const {
+        state: {
+            failedToLoadCachedTraining,
+            trainingRunning,
+        },
+        actions: {
+            areTrainingSameBook,
+            getSuggester,
+            getTrainingContextId,
+            isTraining,
+            loadTranslationMemory,
+            startTraining,
+            stopTraining,
+            suggester,
+        }
+    } = alignmentSuggestionsManage;
 
-  const _checkerStyles = {
-    ...localStyles.containerDiv,
-    ...styles_,
-  }
+    /**
+     * Initiates the training process using translation memory data if available.
+     * The method checks for cached training data within `targetUsfmsBooks` and,
+     * if present, loads the translation memory and starts the training process.
+     *
+     * @return {void} Does not return a value.
+     */
+    function startTraining_() {
+        const targetUsfmsBooks = translationMemory?.targetUsfms;
+        const haveCachedTrainingData = targetUsfmsBooks && Object.keys(targetUsfmsBooks).length > 0;
 
-  return (
-    <ThemeProvider theme={theme}>
-      {readyToDisplayChecker ?
-      // @ts-ignore
-      <div id='checker' style={localStyles.container}>
-        <GroupMenuComponent
-          bookName={bookName}
-          changeCurrentContextId={changeCurrentCheck_}
-          contextId={currentContextId}
-          direction={targetDirection}
-          groupsData={groupsMenuData.groupsData}
-          groupsIndex={groupsMenuData.groupsIndex}
-          targetLanguageFont={targetLanguageFont}
-          translate={translate}
-        />
-          {/* @ts-ignore */}
-          <div style={localStyles.alignmentAreaContainer}>
-          { notEmptyObject(bibles) &&
-            <div style={localStyles.scripturePaneDiv}>
-              <ScripturePane
+        if (haveCachedTrainingData) {
+            console.log('WordAlignerArea: translation memory changed, loading translation memory')
+            loadTranslationMemory(translationMemory);
+            startTraining();
+        } else {
+            console.log('WordAlignerArea: translation memory not loaded')
+        }
+    }
+
+    function handleDoTrainingClick() {
+        const training = isTraining()
+        console.log(`handleDoTrainingClick, current training ${training}`);
+        if (!training) {
+            startTraining_();
+        } else {
+            console.log('handleDoTrainingClick - already training, cancelling')
+            stopTraining()
+        }
+    }
+
+    /**
+     * Loads translation memory data into the alignment system
+     *
+     * This initializes the source-target text pairs needed for training
+     * the alignment model and generating suggestions.
+     */
+    const handleLoadTranslationMemory = () => {
+        console.log('Calling loadTranslationMemory')
+        loadTranslationMemory(translationMemory);
+        setTranslationMemoryLoaded(true)
+    };
+
+    function onClosePrompt() {
+        setShowPrompt(null);
+    }
+    
+    function _saveAlignment(alignmentData: TSaveAlignmentData) {
+        console.log('saveAlignment')
+        saveNewAlignments?.(alignmentData)
+    }
+
+    function saveAlignment(alignmentData: TSaveAlignmentData) {
+        if (alignmentData.haveSuggestions) {
+            const _showSuggestionWarning = {
+                content: translate('alignments.use_suggestions'),
+                noText: translate('no'),
+                onClose: onClosePrompt,
+                onNo: onClosePrompt,
+                onYes: () => _saveAlignment(alignmentData),
+                title: translate('warning'),
+                yesText: translate('yes'),
+            }
+            setShowPrompt(_showSuggestionWarning );
+        } else {
+            _saveAlignment(alignmentData)
+        }
+    }
+    
+
+    return (
+        <>
+            <div>{targetLanguage?.languageId} - {bookId} {ref.chapter}:{ref.verse}</div>
+            {/* 
+          <div style={{display: 'flex', gap: '10px', marginBottom: '10px'}}>
+            <button
+              onClick={handleToggleTraining}
+              className="toggle-training-btn"
+              disabled={!enableTrainingToggle}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: enableTrainingToggle ? '#4285f4' : '#cccccc',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: enableTrainingToggle ? 'pointer' : 'not-allowed'
+              }}
+            >
+              {trainingButtonStr}
+            </button>
+    
+            <span style={{marginLeft: '8px', color: '#000'}}> {trainingStatusStr} </span>
+          </div>
+      */}
+
+            {/* 
+        EnhancedWordAligner Component
+        
+        This is the core component that provides the alignment functionality:
+        - Displays source and target texts for alignment
+        - Manages alignment model training via Web Workers
+        - Provides suggestions for unaligned words based on training
+        - Supports manual alignment corrections
+        - Handles persistence of alignment data and models
+      */}
+            <EnhancedWordAlignmentToolSub
                 addObjectPropertyToManifest={addObjectPropertyToManifest}
-                bibles={bibles}
-                complexScriptFonts={complexScriptFonts}
-                contextId={currentContextId}
-                currentPaneSettings={paneSettings}
-                editVerseRef={null}
-                editTargetVerse={editedTargetVerse}
-                expandedScripturePaneTitle={expandedScripturePaneTitle}
-                getAvailableScripturePaneSelections={null}
-                getLexiconData={getLexiconData}
-                makeSureBiblesLoadedForTool={null}
-                projectDetailsReducer={{ manifest }}
-                selections={currentSelections}
-                setToolSettings={setSettings}
-                showPopover={showPopover}
-                onExpandedScripturePaneShow={null}
-                translate={translate}
-              />
-            </div>
-          }
-          <div>
-            {haveVerseData ?
-              <EnhancedWordAligner
                 addTranslationMemory={addTranslationMemory}
+                alignmentSuggestionsConfig={alignmentSuggestionsConfig}
                 alignmentSuggestionsManage={alignmentSuggestionsManage}
-                cancelTraining={cancelTraining}
-                config={alignmentSuggestionsConfig}
-                contextId={currentContextId}
+                bibles={bibles}
+                bookName={bookName}
+                contextId={contextId}
                 doTraining={doTraining}
-                hasRenderedSuggestions={hasRenderedSuggestions}
+                editedTargetVerse={editedTargetVerse}
+                groupsData={groupsData}
+                groupsIndex={groupsIndex}
+                initialSettings={initialSettings}
                 lexiconCache={lexiconCache}
                 loadLexiconEntry={loadLexiconEntry}
-                onChange={handleAlignmentChange}
-                showDialog={showDialog}
-                showPopover={showPopover}
-                sourceLanguageId={sourceLanguage.languageId}
-                sourceLanguageFont={sourceLanguageFont}
-                sourceFontSizePercent={sourceFontSizePercent}
-                styles={{}}
-                suggestionsOnly={true}
-                targetLanguage={targetLanguage}
+                showPopover={setLexiconData}
+                sourceBook={sourceBook}
+                sourceLanguage={sourceLanguage}
+                styles={styles}
+                targetBook={targetBook}
                 targetLanguageFont={targetLanguageFont}
-                targetFontSizePercent={targetFontSizePercent}
-                targetWords={targetWords}
+                targetLanguage={targetLanguage}
                 translate={translate}
-                verseAlignments={verseAlignments}
-              />
-            :
-              "no verse data"
-            }
-            <MAPControls
-              disableSuggestions={true}
-              hasSuggestions={false}
-              onClear={handleClearAlignments}
-              onSave={handleSaveAlignments}
-              showPopover={showPopover}
-              showSaveOptions={true}
-              translate={translate}
             />
-          </div>
-        </div>
-      </div>
-      :
-        'Waiting for Data'
-      }
-    </ThemeProvider>
-  );
+
+            {/** Lexicon Popup dialog */}
+            <PopoverComponent
+                popoverVisibility={!!lexiconData}
+                title={lexiconData?.PopoverTitle || ''}
+                bodyText={lexiconData?.wordDetails || ''}
+                positionCoord={lexiconData?.positionCoord}
+                onClosePopover={() => setLexiconData( null )}
+            />
+
+            <PromptDialog
+                content={showPrompt?.content}
+                onNo={showPrompt?.onNo}
+                noText={showPrompt?.noText}
+                onYes={showPrompt?.onYes}
+                open={!!showPrompt}
+                title={showPrompt?.title}
+                translate={translate}
+                yesText={showPrompt?.yesText}
+            />
+        </>
+    );
 };
 
 

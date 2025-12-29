@@ -13,7 +13,6 @@ import {
 import { EnhancedWordAlignmentTool } from './EnhancedWordAlignmentTool';
 import cloneDeep from 'lodash.clonedeep';
 import usfmjs from 'usfm-js';
-import {EnhancedWordAligner} from './EnhancedWordAligner'
 import {extractVerseText} from '../utils/misc';
 import {useAlignmentSuggestions} from '../hooks/useAlignmentSuggestions'
 import {TrainingStateProvider, useTrainingStateContext} from '../hooks/TrainingStateProvider'
@@ -35,13 +34,23 @@ console.log("starting EnhancedWordAlignmentTool demo")
 // Configuration options for alignment training and suggestions
 // ############################################################
 
-const doAutoLoadCachedTraining = false; // Enable to automatically load previously cached training data
+const doAutoLoadCachedTraining = true; // Enable to automatically load previously cached training data
 const doAutoTraining = true; // Enable to automatically train models when content changes
 const suggestionsOnly = false; // When true, simplifies UI by removing clear button and adding suggestion label
 const trainOnlyOnCurrentBook = true; // Optimizes training by focusing on current book's alignment data. This could improve suggestions if book is fully aligned, but will have no vocabulary from other books.
 const minTrainingVerseRatio = 1.1; // Protection ratio for incomplete book alignments when using trainOnlyOnCurrentBook.  If a ratio such as 1.1 is set, then training will use a minimum number of verses for training from translation memory.  This minimum is calculated by multiplying the number of verses in the book by this ratio
 const keepAllAlignmentMemory = true; // EXPERIMENTAL FEATURE - if true, then alignment data not used for training will be added back into wordMap after training.  This should improve alignment vocabulary, but may negatively impact accuracy in the case of fully aligned books.
 const keepAllAlignmentMinThreshold = 90; // EXPERIMENTAL FEATURE - if threshold percentage is set (such as value 90), then alignment data not used for training will be added back into wordMap after training, but only if the percentage of book alignment is less than this threshold.  This should improve alignment vocabulary for books not completely aligned
+
+// Configuration for the alignment suggestions engine
+const alignmentSuggestionsConfig = {
+  doAutoLoadCachedTraining,
+  doAutoTraining,
+  minTrainingVerseRatio,
+  trainOnlyOnCurrentBook,
+  keepAllAlignmentMemory,
+  keepAllAlignmentMinThreshold,
+};
 
 function bookDataToUsfm(bookData) {
   const chapters = {...bookData}
@@ -102,53 +111,9 @@ const bibles = [
   },
 ]
 
-
-/**
- * Look up translation for key value.
- * @param {object} translations - hierarchical object
- * @param {string} key - in format such as 'alert' or 'menu.label'
- * @param {object} data - data to insert into translated string (e.g. instances of `${name}` will be replaced with `value.name`)
- * @param {string} defaultStr - default string to return if translation is not found
- * @returns {string}
- */
-function lookupTranslationForKey(translations, key, data = null, defaultStr = null) {
-  const translation = defaultStr || `translate(${key})` // set to default value
-  const steps = (key || '').split('.') // each level delimted by period
-  let current = translations
-  let newTranslation = translations[key] // check for an exact match first
-
-  if (!newTranslation) { // if exact match not found
-    for (let i = 0; i < steps.length; i++) { // drill down through each level
-      // for (let step of steps) { // drill down through each level
-      const step = steps[i];
-      if (step && current) {
-        newTranslation = current[step]
-        current = newTranslation
-      } else { // not found
-        current = null
-      }
-    }
-  }
-
-  if ((typeof newTranslation == 'string') && data) {
-    const keys = Object.keys(data);
-    for (let j = 0; j < keys.length; j++) {
-      // for (const key of keys) {
-      const key = keys[j]
-      newTranslation = newTranslation.replaceAll('${' + key + '}', data[key]) // format `${key}`
-      newTranslation = newTranslation.replaceAll('{{' + key + '}}', data[key]) // alternate format `{{key}}`
-    }
-  }
-
-  if (typeof newTranslation == 'string') {
-    return Translations.decodeString(newTranslation)
-  }
-  return translation
-}
-
 const translate = (key, data, defaultValue) => {
   // console.log(`translate(${key})`)
-  const translation = lookupTranslationForKey(translations, key, data, defaultValue)
+  const translation = Translations.lookupTranslationForKey(translations, key, data, defaultValue)
   return translation
 };
 
@@ -186,345 +151,6 @@ const initialTooleSettings = {
 
 //convert list to bibleObjects used by aligner
 const biblesObject = verseHelpers.getBibleObject(bibles)
-
-/**
- * WordAlignerPanel Component
- *
- * This component wraps the EnhancedWordAligner with UI controls for managing
- * translation memory loading and alignment training. It demonstrates how to:
- * 1. Manage translation memory loading state
- * 2. Control training process (start/stop)
- * 3. Connect the alignment suggestions system with the UI
- * 4. Configure the training and suggestion parameters
- *
- * @param {Object} props - Component properties
- * @returns {JSX.Element} - Rendered component
- */
-const WordAlignerPanel = ({
-                            addObjectPropertyToManifest,
-                            bibles,
-                            bookName,
-                            contextId,
-                            editedTargetVerse,
-                            gatewayBook,
-                            getLexiconData,
-                            groupsData,
-                            groupsIndex,
-                            initialSettings,
-                            lexiconCache,
-                            loadLexiconEntry,
-                            saveNewAlignments,
-                            saveToolSettings,
-                            showPopover,
-                            sourceBook,
-                            sourceLanguage,
-                            styles,
-                            targetLanguage,
-                            targetLanguageFont,
-                            targetBook,
-                            translate,
-                          }) => {
-  const [translationMemoryLoaded, setTranslationMemoryLoaded] = useState(false);
-  const [doTraining, setDoTraining] = useState(false);
-  const [cancelTraining, setCancelTraining] = useState(false);
-
-  const ref = contextId && contextId.reference || {};
-  const bookId = ref.bookId
-  const verboseTraining = false;
-
-  // Extract book-specific translation memory for current context
-  const {targetUsfm, sourceUsfm} = getTranslationMemoryForBook(bookId, translationMemory);
-
-  /**
-   * Toggles the training process on/off
-   *
-   * When activated, this sets doTraining=true to start the training process.
-   * When deactivated, it sets cancelTraining=true to stop any ongoing training.
-   */
-  const handleToggleTraining = () => {
-    const newTrainingState = !doTraining;
-    console.log('Toggle training to: ' + newTrainingState);
-    if (newTrainingState) {
-      setCancelTraining(false)
-      setDoTraining(true);
-    } else {
-      setDoTraining(false);
-      setCancelTraining(true)
-    }
-  };
-
-  // UI control states
-  const enableLoadTranslationMemory = !training;
-  const enableTrainingToggle = trainingComplete || translationMemoryLoaded;
-
-  // Configuration for the alignment suggestions engine
-  const alignmentSuggestionsConfig = {
-    doAutoLoadCachedTraining,
-    doAutoTraining,
-    minTrainingVerseRatio,
-    trainOnlyOnCurrentBook,
-    keepAllAlignmentMemory,
-    keepAllAlignmentMinThreshold,
-  };
-
-  // Only provide translation memory when auto-training is enabled
-  const addTranslationMemory = doAutoTraining ? translationMemory : null;
-
-  // Access training state and actions from context
-  const {
-    actions: {
-      handleTrainingStateChange
-    },
-    state: {
-      training,
-      trainingComplete,
-      trainingError,
-      trainingStatusStr,
-      trainingButtonStr,
-    }
-  } = useTrainingStateContext()
-
-
-  /**
-   * Handles the completion of a training session.
-   *
-   * Called when training process finishes, allowing for post-training actions
-   * such as logging results or updating UI elements.
-   *
-   * @param {TAlignmentCompletedInfo} info - Information about the completed training session
-   */
-  const handleTrainingCompleted = (info) => {
-    console.log('handleTrainingCompleted', info);
-  }
-
-  // Initialize the alignment suggestions system using the custom hook
-  const alignmentSuggestionsManage = useAlignmentSuggestions({
-    config: alignmentSuggestionsConfig,
-    contextId,
-    createAlignmentTrainingWorker,
-    handleTrainingStateChange,
-    handleTrainingCompleted,
-    shown: true,
-    sourceLanguageId: sourceLanguageId,
-    targetLanguageId: targetLanguageId,
-    targetUsfm,
-    sourceUsfm,
-  });
-
-  // Extract state and actions from the alignment suggestions system
-  const {
-    state: {
-      failedToLoadCachedTraining,
-      trainingRunning,
-    },
-    actions: {
-      areTrainingSameBook,
-      getSuggester,
-      getTrainingContextId,
-      isTraining,
-      loadTranslationMemory,
-      startTraining,
-      stopTraining,
-      suggester,
-    }
-  } = alignmentSuggestionsManage;
-
-  /**
-   * Initiates the training process using translation memory data if available.
-   * The method checks for cached training data within `targetUsfmsBooks` and,
-   * if present, loads the translation memory and starts the training process.
-   *
-   * @return {void} Does not return a value.
-   */
-  function startTraining_() {
-    const targetUsfmsBooks = translationMemory?.targetUsfms;
-    const haveCachedTrainingData = targetUsfmsBooks && Object.keys(targetUsfmsBooks).length > 0;
-
-    if (haveCachedTrainingData) {
-      console.log('WordAlignerArea: translation memory changed, loading translation memory')
-      loadTranslationMemory(translationMemory);
-      startTraining();
-    } else {
-      console.log('WordAlignerArea: translation memory not loaded')
-    }
-  }
-
-  function handleDoTrainingClick() {
-    const training = isTraining()
-    console.log(`handleDoTrainingClick, current training ${training}`);
-    if (!training) {
-      startTraining_();
-    } else {
-      console.log('handleDoTrainingClick - already training, cancelling')
-      stopTraining()
-    }
-  }
-
-  /**
-   * Loads translation memory data into the alignment system
-   *
-   * This initializes the source-target text pairs needed for training
-   * the alignment model and generating suggestions.
-   */
-  const handleLoadTranslationMemory = () => {
-    console.log('Calling loadTranslationMemory')
-    loadTranslationMemory(translationMemory);
-    setTranslationMemoryLoaded(true)
-  };
-
-  function cancelAlignment() {
-    console.log('cancelAlignment')
-    const cancelAlignment = alignmentActions?.cancelAlignment
-    cancelAlignment?.()
-    setState(prevState => ({ ...prevState, alignmentChange: null }));
-  }
-
-  function saveAlignment() {
-    if (haveSuggestions(alignmentChange?.verseAlignments)) {
-      const _showSuggestionWarning = {
-        content: translate('alignments.use_suggestions'),
-        noText: translate('no'),
-        onClose: onClosePrompt,
-        onNo: onClosePrompt,
-        onYes: _saveAlignment,
-        title: translate('warning'),
-        yesText: translate('yes'),
-      }
-      setState(prevState => ({...prevState, showPrompt: _showSuggestionWarning}));
-    } else {
-      _saveAlignment()
-    }
-  }
-
-  function _saveAlignment() {
-    console.log('saveAlignment')
-    const saveAlignment = alignmentActions?.saveAlignment
-    saveAlignment?.(alignmentChange)
-    setState(prevState => ({ ...prevState, alignmentChange: null }));
-  }
-
-  return (
-    <>
-      <div>{targetLanguageId} - {bookId} {ref.chapter}:{ref.verse}</div>
-      {/* 
-          <div style={{display: 'flex', gap: '10px', marginBottom: '10px'}}>
-            <button
-              onClick={handleToggleTraining}
-              className="toggle-training-btn"
-              disabled={!enableTrainingToggle}
-              style={{
-                padding: '8px 16px',
-                backgroundColor: enableTrainingToggle ? '#4285f4' : '#cccccc',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: enableTrainingToggle ? 'pointer' : 'not-allowed'
-              }}
-            >
-              {trainingButtonStr}
-            </button>
-    
-            <span style={{marginLeft: '8px', color: '#000'}}> {trainingStatusStr} </span>
-          </div>
-      */}
-
-      {/* 
-        EnhancedWordAligner Component
-        
-        This is the core component that provides the alignment functionality:
-        - Displays source and target texts for alignment
-        - Manages alignment model training via Web Workers
-        - Provides suggestions for unaligned words based on training
-        - Supports manual alignment corrections
-        - Handles persistence of alignment data and models
-      */}
-      <EnhancedWordAlignmentTool
-        addTranslationMemory={addTranslationMemory}
-        alignmentSuggestionsConfig={alignmentSuggestionsConfig}
-        alignmentSuggestionsManage={alignmentSuggestionsManage}
-        bibles={biblesObject}
-        cancelTraining={cancelTraining}
-        contextId={contextId}
-        doTraining={doTraining}
-        groupsData={groupsData}
-        groupsIndex={groupsIndex}
-        initialSettings={initialSettings}
-        lexiconCache={lexiconCache}
-        loadLexiconEntry={loadLexiconEntry}
-        showPopover={showPopover}
-        sourceBook={sourceBook}
-        sourceLanguage={sourceLanguage}
-        styles={styles}
-        suggestionsOnly={suggestionsOnly}
-        targetBook={targetBook}
-        targetLanguageFont={targetLanguageFont}
-        targetLanguage={targetLanguage}
-        translate={translate}
-        translationMemory={translationMemory || []}
-        verboseTraining={verboseTraining}
-      />
-
-      {/* button bar */}
-      <div
-        style={{
-          width: '100%',
-          height: '40px',
-          display: 'flex',
-          flexDirection: 'row',
-          justifyContent: 'center',
-          position: 'sticky',
-          bottom: 0,
-          backgroundColor: '#fff',
-          zIndex: 12,
-        }}
-      >
-        <Button
-          variant="outlined"
-          style={{margin: '10px 30px'}}
-          onClick={cancelAlignment}
-          title={translate('alignments.cancel_hint')}
-        >
-          {translate('alignments.cancel')}
-        </Button>
-        {!errorMessage && // only show if there is no error
-          <Button
-            variant="outlined"
-            style={{margin: '10px 30px'}}
-            onClick={showResetWarning}
-            title={translate('alignments.reset_hint')}
-          >
-            {translate('alignments.reset')}
-          </Button>
-        }
-        {!errorMessage && // only show if there is no error
-          <Button
-            variant="outlined"
-            style={{margin: '10px 30px'}}
-            onClick={saveAlignment}
-            title={translate('alignments.accept_hint')}
-          >
-            {translate('alignments.accept')}
-          </Button>
-        }
-        { !errorMessage && trainingButtonStr && !training &&
-          <Button
-            variant="outlined"
-            style={{margin: '10px 30px'}}
-            onClick={handleDoTrainingClick}
-            title={trainingButtonHintStr}
-          >
-            {trainingButtonStr}
-          </Button>
-        }
-        {!errorMessage && // only show if there is no error
-          <Label style={{margin: '10px 30px', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-            {trainingStatusStr || ''}
-          </Label>
-        }
-      </div>
-</>
-  );
-};
 
 function getContextId(selectedBook, chapter, verse, bibleId) {
   // var bibleId = `unfoldingWord/en_${isUST ? 'ust' : 'ult'}`;
@@ -657,14 +283,12 @@ const App = () => {
     if (!isEqual(toolSettings, _toolSettings)) {
       console.log(`new toolSettings`, _toolSettings)
       _setToolSettings(_toolSettings)
+      //TODO: persist data
     }
   };
 
   /**
-   * This is called by tool when a verse has been edited. It updates group data reducer for current tool
-   * and updates the file system for tools not loaded.
-   * This will first do TW selections validation and prompt user if invalidations are found.
-   * Then it calls updateVerseEditStatesAndCheckAlignments to save verse edits and then validate alignments.
+   * This is called by tool when a verse has been edited. These allows other tools to do invalidation checking
    * @param {int} chapterWithVerseEdit
    * @param {int|string} verseWithVerseEdit
    * @param {string} before - the verse text before the edit
@@ -698,7 +322,11 @@ const App = () => {
         verse: verseWithVerseEdit,
       },
     };
+
+    // TODO - validation is not implemented
   };
+
+  const _CreateAlignmentTrainingWorker = createAlignmentTrainingWorker;
 
   return (
     <>
@@ -706,11 +334,13 @@ const App = () => {
         <TrainingStateProvider
           translate={translate}
           verbose={true}>
-          <WordAlignerPanel
+          <EnhancedWordAlignmentTool
             addObjectPropertyToManifest={addObjectPropertyToManifest}
+            alignmentSuggestionsConfig={alignmentSuggestionsConfig}
             bibles={biblesObject}
             bookName={bookName}
             contextId={contextId}
+            createAlignmentTrainingWorker={_CreateAlignmentTrainingWorker}
             editedTargetVerse={editedTargetVerse}
             gatewayBook={enGlBook}
             getLexiconData={getLexiconData_}
@@ -729,6 +359,7 @@ const App = () => {
             targetLanguageFont={targetLanguageFont}
             targetBook={targetBook}
             translate={translate}
+            translationMemory={translationMemory}
           />
         </TrainingStateProvider>
       </div>
