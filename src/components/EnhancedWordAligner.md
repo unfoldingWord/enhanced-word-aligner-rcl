@@ -195,7 +195,7 @@ const WordAlignerPanel = ({
    * When deactivated, it sets cancelTraining=true to stop any ongoing training.
    */
   const handleToggleTraining = () => {
-    const newTrainingState = !training;
+    const newTrainingState = !doTraining;
     console.log('Toggle training to: ' + newTrainingState);
     if (newTrainingState) {
       setCancelTraining(false)

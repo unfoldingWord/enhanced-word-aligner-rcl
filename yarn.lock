@@ -11298,9 +11298,9 @@ word-aligner-lib@1.0.1:
     word-aligner "1.0.3"
     wordmap-lexer "^0.3.6"
 
-"word-aligner-rcl@file:../../RCL/word-aligner-rcl/word-aligner-rcl-v1.3.3-beta.6.tgz":
-  version "1.3.3-beta.6"
-  resolved "file:../../RCL/word-aligner-rcl/word-aligner-rcl-v1.3.3-beta.6.tgz#d8076aeda04446794b9b5714aa4e1f42cfa43db9"
+"word-aligner-rcl@file:../../RCL/word-aligner-rcl/word-aligner-rcl-v1.3.3-beta.7.tgz":
+  version "1.3.3-beta.7"
+  resolved "file:../../RCL/word-aligner-rcl/word-aligner-rcl-v1.3.3-beta.7.tgz#ef09fc17913cfdcfae1ac5a77ddc9acd036eaf96"
   dependencies:
     "@emotion/react" "^11.10.0"
     "@emotion/styled" "^11.10.0"

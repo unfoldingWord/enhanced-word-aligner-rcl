@@ -43,12 +43,18 @@ const minTrainingVerseRatio = 1.1; // Protection ratio for incomplete book align
 const keepAllAlignmentMemory = true; // EXPERIMENTAL FEATURE - if true, then alignment data not used for training will be added back into wordMap after training.  This should improve alignment vocabulary, but may negatively impact accuracy in the case of fully aligned books.
 const keepAllAlignmentMinThreshold = 90; // EXPERIMENTAL FEATURE - if threshold percentage is set (such as value 90), then alignment data not used for training will be added back into wordMap after training, but only if the percentage of book alignment is less than this threshold.  This should improve alignment vocabulary for books not completely aligned
 
+function bookDataToUsfm(bookData) {
+  const chapters = {...bookData}
+  delete chapters.manifest;
+  return usfmjs.toUSFM({ chapters }, {chunk: true, forcedNewLines: true});
+}
+
 let translationMemory = {
   "targetUsfms": {
-    "1jn": usfmjs.toUSFM(targetBook, { chunk: true, forcedNewLines: true })
+    "1jn": bookDataToUsfm(targetBook)
   },
   "sourceUsfms": {
-    "1jn":usfmjs.toUSFM(ugntBook, { chunk: true, forcedNewLines: true })
+    "1jn": bookDataToUsfm(ugntBook)
   }
 };
 
@@ -96,9 +102,53 @@ const bibles = [
   },
 ]
 
-const translate = (key, defaultValue) => {
+
+/**
+ * Look up translation for key value.
+ * @param {object} translations - hierarchical object
+ * @param {string} key - in format such as 'alert' or 'menu.label'
+ * @param {object} data - data to insert into translated string (e.g. instances of `${name}` will be replaced with `value.name`)
+ * @param {string} defaultStr - default string to return if translation is not found
+ * @returns {string}
+ */
+function lookupTranslationForKey(translations, key, data = null, defaultStr = null) {
+  const translation = defaultStr || `translate(${key})` // set to default value
+  const steps = (key || '').split('.') // each level delimted by period
+  let current = translations
+  let newTranslation = translations[key] // check for an exact match first
+
+  if (!newTranslation) { // if exact match not found
+    for (let i = 0; i < steps.length; i++) { // drill down through each level
+      // for (let step of steps) { // drill down through each level
+      const step = steps[i];
+      if (step && current) {
+        newTranslation = current[step]
+        current = newTranslation
+      } else { // not found
+        current = null
+      }
+    }
+  }
+
+  if ((typeof newTranslation == 'string') && data) {
+    const keys = Object.keys(data);
+    for (let j = 0; j < keys.length; j++) {
+      // for (const key of keys) {
+      const key = keys[j]
+      newTranslation = newTranslation.replaceAll('${' + key + '}', data[key]) // format `${key}`
+      newTranslation = newTranslation.replaceAll('{{' + key + '}}', data[key]) // alternate format `{{key}}`
+    }
+  }
+
+  if (typeof newTranslation == 'string') {
+    return Translations.decodeString(newTranslation)
+  }
+  return translation
+}
+
+const translate = (key, data, defaultValue) => {
   // console.log(`translate(${key})`)
-  const translation = Translations.lookupTranslationForKey(translations, key)
+  const translation = lookupTranslationForKey(translations, key, data, defaultValue)
   return translation
 };
 
@@ -280,6 +330,37 @@ const WordAlignerPanel = ({
   } = alignmentSuggestionsManage;
 
   /**
+   * Initiates the training process using translation memory data if available.
+   * The method checks for cached training data within `targetUsfmsBooks` and,
+   * if present, loads the translation memory and starts the training process.
+   *
+   * @return {void} Does not return a value.
+   */
+  function startTraining_() {
+    const targetUsfmsBooks = translationMemory?.targetUsfms;
+    const haveCachedTrainingData = targetUsfmsBooks && Object.keys(targetUsfmsBooks).length > 0;
+
+    if (haveCachedTrainingData) {
+      console.log('WordAlignerArea: translation memory changed, loading translation memory')
+      loadTranslationMemory(translationMemory);
+      startTraining();
+    } else {
+      console.log('WordAlignerArea: translation memory not loaded')
+    }
+  }
+
+  function handleDoTrainingClick() {
+    const training = isTraining()
+    console.log(`handleDoTrainingClick, current training ${training}`);
+    if (!training) {
+      startTraining_();
+    } else {
+      console.log('handleDoTrainingClick - already training, cancelling')
+      stopTraining()
+    }
+  }
+
+  /**
    * Loads translation memory data into the alignment system
    *
    * This initializes the source-target text pairs needed for training
@@ -291,28 +372,61 @@ const WordAlignerPanel = ({
     setTranslationMemoryLoaded(true)
   };
 
+  function cancelAlignment() {
+    console.log('cancelAlignment')
+    const cancelAlignment = alignmentActions?.cancelAlignment
+    cancelAlignment?.()
+    setState(prevState => ({ ...prevState, alignmentChange: null }));
+  }
+
+  function saveAlignment() {
+    if (haveSuggestions(alignmentChange?.verseAlignments)) {
+      const _showSuggestionWarning = {
+        content: translate('alignments.use_suggestions'),
+        noText: translate('no'),
+        onClose: onClosePrompt,
+        onNo: onClosePrompt,
+        onYes: _saveAlignment,
+        title: translate('warning'),
+        yesText: translate('yes'),
+      }
+      setState(prevState => ({...prevState, showPrompt: _showSuggestionWarning}));
+    } else {
+      _saveAlignment()
+    }
+  }
+
+  function _saveAlignment() {
+    console.log('saveAlignment')
+    const saveAlignment = alignmentActions?.saveAlignment
+    saveAlignment?.(alignmentChange)
+    setState(prevState => ({ ...prevState, alignmentChange: null }));
+  }
+
   return (
     <>
       <div>{targetLanguageId} - {bookId} {ref.chapter}:{ref.verse}</div>
-      <div style={{display: 'flex', gap: '10px', marginBottom: '10px'}}>
-        <button
-          onClick={handleToggleTraining}
-          className="toggle-training-btn"
-          disabled={!enableTrainingToggle}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: enableTrainingToggle ? '#4285f4' : '#cccccc',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: enableTrainingToggle ? 'pointer' : 'not-allowed'
-          }}
-        >
-          {trainingButtonStr}
-        </button>
-
-        <span style={{marginLeft: '8px', color: '#000'}}> {trainingStatusStr} </span>
-      </div>
+      {/* 
+          <div style={{display: 'flex', gap: '10px', marginBottom: '10px'}}>
+            <button
+              onClick={handleToggleTraining}
+              className="toggle-training-btn"
+              disabled={!enableTrainingToggle}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: enableTrainingToggle ? '#4285f4' : '#cccccc',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: enableTrainingToggle ? 'pointer' : 'not-allowed'
+              }}
+            >
+              {trainingButtonStr}
+            </button>
+    
+            <span style={{marginLeft: '8px', color: '#000'}}> {trainingStatusStr} </span>
+          </div>
+      */}
 
       {/* 
         EnhancedWordAligner Component
@@ -349,7 +463,66 @@ const WordAlignerPanel = ({
         translationMemory={translationMemory || []}
         verboseTraining={verboseTraining}
       />
-    </>
+
+      {/* button bar */}
+      <div
+        style={{
+          width: '100%',
+          height: '40px',
+          display: 'flex',
+          flexDirection: 'row',
+          justifyContent: 'center',
+          position: 'sticky',
+          bottom: 0,
+          backgroundColor: '#fff',
+          zIndex: 12,
+        }}
+      >
+        <Button
+          variant="outlined"
+          style={{margin: '10px 30px'}}
+          onClick={cancelAlignment}
+          title={translate('alignments.cancel_hint')}
+        >
+          {translate('alignments.cancel')}
+        </Button>
+        {!errorMessage && // only show if there is no error
+          <Button
+            variant="outlined"
+            style={{margin: '10px 30px'}}
+            onClick={showResetWarning}
+            title={translate('alignments.reset_hint')}
+          >
+            {translate('alignments.reset')}
+          </Button>
+        }
+        {!errorMessage && // only show if there is no error
+          <Button
+            variant="outlined"
+            style={{margin: '10px 30px'}}
+            onClick={saveAlignment}
+            title={translate('alignments.accept_hint')}
+          >
+            {translate('alignments.accept')}
+          </Button>
+        }
+        { !errorMessage && trainingButtonStr && !training &&
+          <Button
+            variant="outlined"
+            style={{margin: '10px 30px'}}
+            onClick={handleDoTrainingClick}
+            title={trainingButtonHintStr}
+          >
+            {trainingButtonStr}
+          </Button>
+        }
+        {!errorMessage && // only show if there is no error
+          <Label style={{margin: '10px 30px', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+            {trainingStatusStr || ''}
+          </Label>
+        }
+      </div>
+</>
   );
 };
 
@@ -415,7 +588,7 @@ const App = () => {
   const getLexiconData_ = (lexiconId, entryId) => {
     console.log(`loadLexiconEntry(${lexiconId}, ${entryId})`)
     const entryData = (LexiconData && LexiconData[lexiconId]) ? LexiconData[lexiconId][entryId] : null;
-    return { [lexiconId]: { [entryId]: entryData } };
+    return {[lexiconId]: {[entryId]: entryData}};
   };
 
   /**
@@ -425,7 +598,7 @@ const App = () => {
    * @param {Array} results.targetVerseJSON - The verse data with updated alignments
    */
   function saveNewAlignments(results) {
-    const { contextId, targetVerseJSON } = results;
+    const {contextId, targetVerseJSON} = results;
     console.log(`EnhancedWordAlignmentTool.saveNewAlignments() - alignment changed for `, contextId);// merge alignments into target verse and convert to USFM
     const ref = contextId.reference
     if (targetBook) {
@@ -433,8 +606,8 @@ const App = () => {
       if (targetChapter) {
         const targetVerse = targetChapter[ref.verse]
         if (targetVerse) {
-          const newChapter = { ...targetChapter }
-          newChapter[ref.verse] = { verseObjects: targetVerseJSON } // replace with new verse
+          const newChapter = {...targetChapter}
+          newChapter[ref.verse] = {verseObjects: targetVerseJSON} // replace with new verse
           targetBook[ref.chapter] = newChapter
         } else {
           console.error(`Invalid verse '${ref.chapter}:${ref.verse}'`)

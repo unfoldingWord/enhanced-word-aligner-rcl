@@ -744,7 +744,7 @@ export const useAlignmentSuggestions = ({
                 const toc3Name = usfmHeaders.toc3 || bookId; //label to use
                 const currentBookId = contextId?.reference?.bookId;
                 if (bookId === currentBookId) {
-                    currentBookName_ = usfmHeaders.h;
+                    currentBookName_ = usfmHeaders?.h || bookId;
                 }
                 const newBook = new Book({
                     chapters: {},

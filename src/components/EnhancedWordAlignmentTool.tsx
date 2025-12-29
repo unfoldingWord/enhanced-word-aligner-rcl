@@ -24,6 +24,8 @@ import {
 import { Alignment } from "wordmap";
 import { TUseAlignmentSuggestionsReturn } from "@/hooks/useAlignmentSuggestions";
 import { TAlignmentSuggestionsConfig } from "@/workers/WorkerComTypes";
+// @ts-ignore
+import {cloneDeep} from "lodash";
 
 const lexiconCache_ = {};
 const theme = createTheme(); // Create MUI theme
@@ -560,7 +562,10 @@ export const EnhancedWordAlignmentTool: React.FC<EnhancedWordAlignmentToolProps>
     console.log(verseUsfm);
     const alignmentComplete = AlignmentHelpers.areAlgnmentsComplete(targetWords, verseAlignments);
     console.log(`Alignments are ${alignmentComplete ? 'COMPLETE!' : 'incomplete'}`);
-    setAlignmentData(results)
+    setAlignmentData({
+        targetWords,
+        verseAlignments
+    })
   }
 
   /**
@@ -617,7 +622,7 @@ export const EnhancedWordAlignmentTool: React.FC<EnhancedWordAlignmentToolProps>
    */
   const handleClearAlignments = () => {
     console.log( "handleClearAlignments" );
-    const newAlignmentData = alignmentData || {}
+    const newAlignmentData = alignmentData ? cloneDeep(alignmentData) : {};
     //Make sure all words which were dropped are not disabled in the word list.
     const targetTokensNeedingDisabled = verseAlignments
       //Now reduce to target words.
@@ -650,8 +655,8 @@ export const EnhancedWordAlignmentTool: React.FC<EnhancedWordAlignmentToolProps>
     const clearedAlignments = verseAlignments.map( alignment => {
       return {...alignment, isSuggestion: false, targetNgram: []};
     });
-
-    const updatedVerseAlignments = AlignmentHelpers.updateVerseAlignments( clearedAlignments )
+    
+    const updatedVerseAlignments = AlignmentHelpers.alignmentCleanup(clearedAlignments);
     newAlignmentData.verseAlignments = updatedVerseAlignments;
 
     setAlignmentData(newAlignmentData)
