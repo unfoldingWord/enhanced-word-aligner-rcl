@@ -17,14 +17,17 @@ import { EnhancedWordAligner } from './EnhancedWordAligner';
 import isEqual from 'deep-equal'
 import {
     ContextId,
-    SourceWord, TAlignment,
-    TargetWordBank, TSaveAlignmentData,
+    SourceWord,
+    TAlignment,
+    TargetWordBank,
+    TSaveAlignmentData,
     TTranslationMemoryType,
 } from "@/common/classes";
 import { TUseAlignmentSuggestionsReturn } from "@/hooks/useAlignmentSuggestions";
 import { TAlignmentSuggestionsConfig } from "@/workers/WorkerComTypes";
 // @ts-ignore
-import {cloneDeep} from "lodash";
+import { cloneDeep } from "lodash";
+import { useTrainingStateContext } from "@/hooks/TrainingStateProvider";
 
 const lexiconCache_ = {};
 const theme = createTheme(); // Create MUI theme
@@ -121,12 +124,12 @@ const localStyles = {
 //   EXPAND: os === 'mac' ? 'command+w' : 'ctrl+w',
 // };
 
-type AlignmentData = {
+interface AlignmentData {
     targetWords?: TargetWordBank[];
     verseAlignments?: TAlignment[];
 }
 
-type LanguageType = {
+interface LanguageType {
     languageId: string;
     direction: string;
 }
@@ -202,12 +205,6 @@ interface EnhancedWordAlignmentToolSubProps {
     editedTargetVerse: (verseData: any) => void;
 
     /**
-     * Gateway language book data used as intermediate translation reference.
-     * Optional reference material for alignment assistance.
-     */
-    gatewayBook?: Record<string, any>;
-
-    /**
      * Function to retrieve lexicon data for source language words.
      * Fetches dictionary and grammatical information for alignment context.
      */
@@ -224,12 +221,6 @@ interface EnhancedWordAlignmentToolSubProps {
      * Provides ordered access to alignment group structure.
      */
     groupsIndex?: any[];
-
-    /**
-     * Controls whether suggestion buttons are enabled in the UI.
-     * Default is true; when false, suggestion functionality is hidden.
-     */
-    hasRenderedSuggestions?: boolean;
 
     /**
      * Initial settings configuration for the tool.
@@ -259,7 +250,7 @@ interface EnhancedWordAlignmentToolSubProps {
      * Function to save tool settings and configuration.
      * Persists user preferences and tool state.
      */
-    setToolSettings?: (settings: any) => void;
+    saveToolSettings?: (settings: any) => void;
 
     /** true when alignments are to be shown */
     showAlignments?: boolean;
@@ -309,12 +300,6 @@ interface EnhancedWordAlignmentToolSubProps {
     styles?: React.CSSProperties;
 
     /**
-     * When true, only suggestion buttons are shown (the clear-all button is removed).
-     * Used to simplify the UI in certain contexts.
-     */
-    suggestionsOnly?: boolean;
-
-    /**
      * Target language book data containing translation text.
      * The text being aligned to the source language.
      */
@@ -355,38 +340,35 @@ export const EnhancedWordAlignmentToolSub: React.FC<EnhancedWordAlignmentToolSub
     contextId,
     doTraining,
     editedTargetVerse,
-    gatewayBook,
     getLexiconData,
     groupsData,
     groupsIndex,
-    hasRenderedSuggestions,
     initialSettings,
     lexiconCache = lexiconCache_,
     loadLexiconEntry,
     saveNewAlignments,
-    setToolSettings,
-    showAlignments,
+    saveToolSettings,
     showPopover = null,
     sourceBook,
     sourceFontSizePercent = 100,
     sourceLanguage,
     sourceLanguageFont = '',
-    suggestionsOnly,
+    styles: styles_ = {},
     targetBook,
     targetLanguage= {},
     targetLanguageFont = '',
     targetFontSizePercent = 100,
     translate,
-    styles: styles_ = {},
   }) => {
 
   const [currentContextId, setCurrentContextId] = useState<ContextId>(contextId);
   const [alignmentData, _setAlignmentData] = useState<AlignmentData>({});
+  const [initialAlignmentData, setInitialAlignmentData] = useState<AlignmentData>({});
   const [groupsMenuData, setGroupsMenuData] = useState<{ groupsIndex?: any[]; groupsData?: any }>({});
 
-  function setAlignmentData(alignmentData_: any) {
+  function setAlignmentData(alignmentData_: AlignmentData) {
     if (!isEqual(alignmentData, alignmentData_)) {
-        _setAlignmentData(alignmentData_)
+        _setAlignmentData(cloneDeep(alignmentData_))
     }
   }
 
@@ -400,21 +382,32 @@ export const EnhancedWordAlignmentToolSub: React.FC<EnhancedWordAlignmentToolSub
     targetWords,
     verseAlignments
   } = alignmentData
+
+  // Extract training state management functions and state values
+  const {
+      state: {
+          trainingStatusStr,
+          trainingButtonStr,
+      }
+  } = useTrainingStateContext()  
+
   // @ts-ignore
-    const targetDirection = targetLanguage?.direction || 'ltr';
+  const targetDirection = targetLanguage?.direction || 'ltr';
   const readyToDisplayChecker = notEmptyObject(bibles) && notEmptyObject(groupsMenuData.groupsData) && notEmptyObject(sourceBook) && notEmptyObject(targetBook);
 
   const expandedScripturePaneTitle = bookName;
   const currentSelections = [] // TODO not sure if selections are even used in word Aligner
 
+
   /**
-   * Updates the alignment data for the specified context ID by processing the target and source verses.
+   * Retrieves alignment data based on a given context ID, extracting USFM data for both target and source verses,
+   * and analyzing the alignment between their words.
    *
-   * @param {Object} _currentContextId - The current context ID containing a reference to the chapter and verse.
-   * @return {boolean} Returns true if the alignment data was successfully updated; otherwise, returns false.
+   * @param {ContextId} contextId_ - The context ID containing reference details (e.g., book, chapter, and verse).
+   * @return {AlignmentData|null} An object containing target words and verse alignments if the data exists and is parsed successfully, otherwise null.
    */
-  function updateAlignmentData(_currentContextId: ContextId) {
-    const ref = _currentContextId?.reference
+  function getAlignmentData(contextId_: ContextId) {
+    const ref = contextId_?.reference
     const targetVerseUSFM = groupDataHelpers.getVerseUSFM(targetBook, ref.chapter, ref.verse)
     const sourceVerseUSFM = groupDataHelpers.getVerseUSFM(sourceBook, ref.chapter, ref.verse)
     if (targetVerseUSFM && sourceVerseUSFM) {
@@ -425,13 +418,28 @@ export const EnhancedWordAlignmentToolSub: React.FC<EnhancedWordAlignmentToolSub
 
       const alignmentComplete = AlignmentHelpers.areAlgnmentsComplete(targetWords, verseAlignments)
       console.log(`Alignments are ${alignmentComplete ? 'COMPLETE!' : 'incomplete'}`)
-      setAlignmentData({
+      const newAlignmentData:AlignmentData = {
         targetWords,
         verseAlignments
-      })
-      return true
+      };
+      return newAlignmentData;
     }
-    return false
+    return null;
+  }
+
+  /**
+   * Updates the alignment data for the specified context ID by processing the target and source verses.
+   *
+   * @param {Object} contextId_ - The current context ID containing a reference to the chapter and verse.
+   * @return {boolean} Returns true if the alignment data was successfully updated; otherwise, returns false.
+   */
+  function updateAlignmentData(contextId_: ContextId) {
+      const newAlignmentData = getAlignmentData(contextId_);
+      if (newAlignmentData) {
+          setAlignmentData(newAlignmentData)
+          return true
+      }
+      return false
   }
 
   useEffect(() => { // detect change of source alignments
@@ -441,7 +449,12 @@ export const EnhancedWordAlignmentToolSub: React.FC<EnhancedWordAlignmentToolSub
 
     let foundData = false
     if (readyToDisplayChecker) {
-      foundData = updateAlignmentData(contextId)
+        const newAlignmentData = getAlignmentData(contextId);
+        if (newAlignmentData) {
+            foundData = true
+            setAlignmentData(newAlignmentData)
+            setInitialAlignmentData(cloneDeep(newAlignmentData))
+        }
     }
 
     if (!foundData) {
@@ -462,7 +475,7 @@ export const EnhancedWordAlignmentToolSub: React.FC<EnhancedWordAlignmentToolSub
    * @private
    */
   function _saveSettings(_settings: Record<string, any>) {
-    if (setToolSettings && _settings) {
+    if (saveToolSettings && _settings) {
       const newSettings = { ..._settings }
       delete newSettings.manifest
       const _paneSettings = [ ...newSettings.paneSettings ]
@@ -486,7 +499,7 @@ export const EnhancedWordAlignmentToolSub: React.FC<EnhancedWordAlignmentToolSub
       }
       newSettings.paneKeySettings = _paneKeySettings
 
-      setToolSettings(newSettings)
+      saveToolSettings(newSettings)
     }
   }
 
@@ -528,14 +541,16 @@ export const EnhancedWordAlignmentToolSub: React.FC<EnhancedWordAlignmentToolSub
    * and updating the target verse USFM content. It also determines if the
    * alignments are complete.
    *
-   * @param {Object} results - The alignment data containing target words and verse alignments.
-   * @param {Array} results.targetWords - The list of target words in the verse.
-   * @param {Array} results.verseAlignments - The alignment mappings for the target words.
+   * @param {Object} newAlignmentData - The alignment data containing target words and verse alignments.
+   * @param {Array} newAlignmentData.targetWords - The list of target words in the verse.
+   * @param {Array} newAlignmentData.verseAlignments - The alignment mappings for the target words.
    * @return {void} This function does not return a value.
    */
-  function handleAlignmentChange(results) {
-    console.log(`handleAlignmentChange() - alignment changed, results`, results);// merge alignments into target verse and convert to USFM
-    const {targetWords, verseAlignments} = results;
+  function handleAlignmentChange(newAlignmentData:AlignmentData) {
+    console.log(`handleAlignmentChange() - alignment changed, results`, newAlignmentData);
+    
+    // merge alignments into target verse and convert to USFM
+    const {targetWords, verseAlignments} = newAlignmentData;
     // get initial bible text
     const ref = currentContextId?.reference
     const targetVerseUSFM_ = groupDataHelpers.getVerseUSFM(targetBook, ref.chapter, ref.verse)
@@ -544,28 +559,51 @@ export const EnhancedWordAlignmentToolSub: React.FC<EnhancedWordAlignmentToolSub
     const alignmentComplete = AlignmentHelpers.areAlgnmentsComplete(targetWords, verseAlignments);
     console.log(`Alignments are ${alignmentComplete ? 'COMPLETE!' : 'incomplete'}`);
     setAlignmentData({
-        targetWords,
-        verseAlignments
+      targetWords,
+      verseAlignments
     })
   }
 
-    /**
-     * Determines if there are any suggestions in the provided verse alignments.
-     *
-     * @param {Array<Object>} verseAlignments - An array of alignment objects where each object may include an `isSuggestion` property.
-     * @return {boolean} Returns true if any alignment object has the `isSuggestion` property set to true; otherwise, returns false.
-     */
-    function areThereSuggestions(verseAlignments:any[]) {
-        const _verseAlignments = verseAlignments || [];
-        for (let i = 0; i < _verseAlignments.length; i++) {
-            if (_verseAlignments[i]?.isSuggestion) {
-                return true;
-            }
-        }
-        return false
-    }
+  /**
+   * Reverts alignments to their initial state by setting alignment data
+   * to predefined initialAlignmentData.
+   *
+   * @return {void} Does not return any value.
+   */
+  function handleRevertAlignments() {
+    console.log(`handleRevertAlignments() - revering alignments to initial`);
+    setAlignmentData(initialAlignmentData)
+  }
 
-    /**
+  /**
+   * Reverts alignments to their initial state by setting alignment data
+   * to predefined initialAlignmentData.
+   *
+   * @return {void} Does not return any value.
+   */
+  function onTrainingClick() {
+    console.warn(`handleRevertAlignments() - need to implement`);
+    setAlignmentData(initialAlignmentData)
+  }
+
+
+  /**
+   * Determines if there are any suggestions in the provided verse alignments.
+   *
+   * @param {Array<Object>} verseAlignments - An array of alignment objects where each object may include an `isSuggestion` property.
+   * @return {boolean} Returns true if any alignment object has the `isSuggestion` property set to true; otherwise, returns false.
+   */
+  function checkForSuggestions(verseAlignments:any[]) {
+      const _verseAlignments = verseAlignments || [];
+      for (let i = 0; i < _verseAlignments.length; i++) {
+          if (_verseAlignments[i]?.isSuggestion) {
+              return true;
+          }
+      }
+      return false
+  }
+
+  /**
    * Handles the saving of Bible text alignments with updated data.
    *
    * This function prepares the updated aligned verse data in USFM and JSON formats
@@ -589,7 +627,7 @@ export const EnhancedWordAlignmentToolSub: React.FC<EnhancedWordAlignmentToolSub
   const handleSaveAlignments = () => {
     console.log( "handleSaveAlignments" );
     const ref = currentContextId?.reference
-    const haveSuggestions = areThereSuggestions(verseAlignments)
+    const haveSuggestions = checkForSuggestions(verseAlignments)
 
     // get initial bible text
     const targetVerseUSFM_ = groupDataHelpers.getVerseUSFM(targetBook, ref.chapter, ref.verse)
@@ -773,11 +811,11 @@ export const EnhancedWordAlignmentToolSub: React.FC<EnhancedWordAlignmentToolSub
                 config={alignmentSuggestionsConfig}
                 contextId={currentContextId}
                 doTraining={doTraining}
-                hasRenderedSuggestions={hasRenderedSuggestions}
+                hasRenderedSuggestions={true}
                 lexiconCache={lexiconCache}
                 loadLexiconEntry={loadLexiconEntry}
                 onChange={handleAlignmentChange}
-                showDialog={showAlignments}
+                showDialog={true}
                 showPopover={showPopover}
                 sourceLanguageId={sourceLanguage.languageId}
                 sourceLanguageFont={sourceLanguageFont}
@@ -796,9 +834,11 @@ export const EnhancedWordAlignmentToolSub: React.FC<EnhancedWordAlignmentToolSub
             }
             <ToolControls
               onClearClick={handleClearAlignments}
-              onSave={handleSaveAlignments}
-              showPopover={showPopover}
-              showSaveOptions={true}
+              onRevertClick={handleRevertAlignments}
+              onSaveClick={handleSaveAlignments}
+              onTrainingClick={onTrainingClick}
+              trainingButtonLabel={trainingButtonStr}
+              trainingStatusStr={trainingStatusStr}
               translate={translate}
             />
           </div>

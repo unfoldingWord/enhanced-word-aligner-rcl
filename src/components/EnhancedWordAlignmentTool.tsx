@@ -280,9 +280,6 @@ interface EnhancedWordAlignmentToolProps {
      */
     saveToolSettings?: (settings: any) => void;
 
-    /** true when dialog is to be shown */
-    showDialog?: boolean;
-
     /**
      * Function to display word details in a popover.
      * Shows lexical information when users interact with words.
@@ -398,7 +395,6 @@ export const EnhancedWordAlignmentTool: React.FC<EnhancedWordAlignmentToolProps>
   loadLexiconEntry,
   saveNewAlignments,
   saveToolSettings,
-  showDialog,
   showPopover,
   sourceBook,
   sourceLanguage,
@@ -599,11 +595,14 @@ export const EnhancedWordAlignmentTool: React.FC<EnhancedWordAlignmentToolProps>
                 contextId={contextId}
                 doTraining={doTraining}
                 editedTargetVerse={editedTargetVerse}
+                getLexiconData={getLexiconData}
                 groupsData={groupsData}
                 groupsIndex={groupsIndex}
                 initialSettings={initialSettings}
                 lexiconCache={lexiconCache}
                 loadLexiconEntry={loadLexiconEntry}
+                saveNewAlignments={saveNewAlignments}
+                saveToolSettings={saveToolSettings}
                 showPopover={setLexiconData}
                 sourceBook={sourceBook}
                 sourceLanguage={sourceLanguage}

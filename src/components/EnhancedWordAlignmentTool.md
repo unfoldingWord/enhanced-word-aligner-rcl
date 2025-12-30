@@ -179,7 +179,6 @@ const App = () => {
   const [toolSettings, _setToolSettings] = useState(initialTooleSettings); // TODO: need to persist tools state, and read back state on startup
 
   const targetLanguageFont = '';
-  const sourceLanguage = CommonConstants.NT_ORIG_LANG;
   const lexicons = {};
   const contextId = getContextId(bookId, 1, 1, 'unfoldingWord/en_target')
 
@@ -326,7 +325,18 @@ const App = () => {
     // TODO - validation is not implemented
   };
 
-  const _CreateAlignmentTrainingWorker = createAlignmentTrainingWorker;
+  function createAlignmentTrainingWorker_() {
+    try {
+      // TRICKY: this createAlignmentTrainingWorker function works in styleguidist,
+      // but another example is gateway-edit web app - see the example at:
+      //    https://github.com/unfoldingWord/gateway-edit/blob/develop/src/workers/startAlignmentTrainer.js
+      // different platforms initialize workers differently
+      createAlignmentTrainingWorker()
+      console.log('createAlignmentTrainingWorker_() - success creating training worker')
+    } catch (e) {
+      console.error('createAlignmentTrainingWorker_() - could not create training worker', e)
+    }
+  }
 
   return (
     <>
@@ -340,7 +350,7 @@ const App = () => {
             bibles={biblesObject}
             bookName={bookName}
             contextId={contextId}
-            createAlignmentTrainingWorker={_CreateAlignmentTrainingWorker}
+            createAlignmentTrainingWorker={createAlignmentTrainingWorker_}
             editedTargetVerse={editedTargetVerse}
             gatewayBook={enGlBook}
             getLexiconData={getLexiconData_}
