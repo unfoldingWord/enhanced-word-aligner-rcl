@@ -7,6 +7,8 @@ The `EnhancedWordAligner` component provides interactive and suggesting word ali
 The example below demonstrates how to integrate the `EnhancedWordAligner` component into a Bible translation application:
 
 ```js
+console.log('Loading EnhancedWordAligner pre.md');
+
 import React, {useRef, useState} from 'react';
 import {
   AlignmentHelpers,
@@ -26,7 +28,7 @@ import delay from "../utils/delay";
 
 import {NT_ORIG_LANG} from "../common/constants";
 
-console.log('Loading WordAlignerComponent.md');
+console.log('Loading EnhancedWordAligner.md');
 
 // ############################################################
 // Configuration options for alignment training and suggestions
@@ -193,7 +195,7 @@ const WordAlignerPanel = ({
    * When deactivated, it sets cancelTraining=true to stop any ongoing training.
    */
   const handleToggleTraining = () => {
-    const newTrainingState = !training;
+    const newTrainingState = !doTraining;
     console.log('Toggle training to: ' + newTrainingState);
     if (newTrainingState) {
       setCancelTraining(false)

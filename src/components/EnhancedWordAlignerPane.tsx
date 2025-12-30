@@ -38,6 +38,7 @@ import {SuggestingWordAligner} from 'word-aligner-rcl'
 import {
     ContextId,
     SourceWord,
+    TAlignment,
     TargetWordBank,
 } from '@/common/classes';
 import {Alignment, Suggestion} from 'wordmap';
@@ -76,7 +77,7 @@ interface EnhancedWordAlignerPaneProps {
         type: 'MERGE_ALIGNMENT_CARDS' | 'CREATE_NEW_ALIGNMENT_CARD' | 'UNALIGN_TARGET_WORD' | 'ALIGN_TARGET_WORD' | 'ALIGN_SOURCE_WORD';
         source: 'TARGET_WORD_BANK' | 'GRID';
         destination: 'TARGET_WORD_BANK' | 'GRID';
-        verseAlignments: Alignment[];
+        verseAlignments: TAlignment[];
         targetWords: TargetWordBank[];
         contextId: ContextId;
     }) => void;
@@ -134,7 +135,7 @@ interface EnhancedWordAlignerPaneProps {
     translate: (key: string, params?: Record<string, string | number>) => string;
     
     /** Current alignments between source and target words */
-    verseAlignments: Alignment[];
+    verseAlignments: TAlignment[];
 }
 
 export const EnhancedWordAlignerPane: React.FC<EnhancedWordAlignerPaneProps> = (

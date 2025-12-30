@@ -737,16 +737,26 @@ export const useAlignmentSuggestions = ({
         // need to get the books from targetUsfms
         const newBooks: { [key: string]: Book } = {};
         Object.entries(targetUsfms).forEach(([bookId, usfm_book]) => {
-            const usfm_json = usfm.toJSON(usfm_book, { convertToInt: ['occurrence', 'occurrences'] });
+            if (typeof usfm_book === 'string') {
+                const usfm_json = usfm.toJSON(usfm_book, {convertToInt: ['occurrence', 'occurrences']});
 
-            const usfmHeaders = parseUsfmHeaders(usfm_json.headers);
-            const toc3Name = usfmHeaders.toc3 || bookId; //label to use
-            const currentBookId = contextId?.reference?.bookId;
-            if (bookId === currentBookId) {
-                currentBookName_ = usfmHeaders.h;
+                const usfmHeaders = parseUsfmHeaders(usfm_json.headers);
+                const toc3Name = usfmHeaders.toc3 || bookId; //label to use
+                const currentBookId = contextId?.reference?.bookId;
+                if (bookId === currentBookId) {
+                    currentBookName_ = usfmHeaders?.h || bookId;
+                }
+                const newBook = new Book({
+                    chapters: {},
+                    filename: bookId,
+                    toc3Name,
+                    targetUsfmBook: null,
+                    sourceUsfmBook: null
+                });
+                newBooks[bookId] = newBook.addTargetUsfm({filename: bookId, usfm_book: usfm_json, toc3Name});
+            } else {
+                console.error(`loadTranslationMemory - ERROR book not found: ${bookId}`, usfm_book);
             }
-            const newBook = new Book({ chapters: {}, filename: bookId, toc3Name, targetUsfmBook: null, sourceUsfmBook: null });
-            newBooks[bookId] = newBook.addTargetUsfm({ filename: bookId, usfm_book: usfm_json, toc3Name });
         });
 
         // check if group exists
