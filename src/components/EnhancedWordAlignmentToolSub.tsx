@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react'
-import PropTypes from 'prop-types';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 // @ts-ignore
 import {
@@ -150,184 +149,191 @@ function notEmptyObject(dataObject: Object) {
  * @interface EnhancedWordAlignmentToolSubProps
  */
 interface EnhancedWordAlignmentToolSubProps {
-    /**
-     * Function to add a property to the manifest object.
-     * Used for updating project manifest with alignment-related metadata.
-     */
-    addObjectPropertyToManifest: (key: string, value: any) => void;
+  /**
+   * Function to add a property to the manifest object.
+   * Used for updating project manifest with alignment-related metadata.
+   */
+  addObjectPropertyToManifest: (key: string, value: any) => void;
 
-    /**
-     * Translation memory data to be loaded into the alignment engine.
-     * Contains source and target USFM content for training alignment models.
-     */
-    addTranslationMemory?: TTranslationMemoryType;
+  /**
+   * Translation memory data to be loaded into the alignment engine.
+   * Contains source and target USFM content for training alignment models.
+   */
+  addTranslationMemory?: TTranslationMemoryType;
 
-    /**
-     * Configuration settings for the alignment suggestions engine.
-     * Controls parameters like n-gram length, training steps, and memory settings.
-     */
-    alignmentSuggestionsConfig?: TAlignmentSuggestionsConfig;
+  /**
+   * Configuration settings for the alignment suggestions engine.
+   * Controls parameters like n-gram length, training steps, and memory settings.
+   */
+  alignmentSuggestionsConfig?: TAlignmentSuggestionsConfig;
 
-    /**
-     * State and actions from the useAlignmentSuggestions hook.
-     * Provides access to alignment training, suggestion generation, and model management.
-     */
-    alignmentSuggestionsManage: TUseAlignmentSuggestionsReturn;
+  /**
+   * State and actions from the useAlignmentSuggestions hook.
+   * Provides access to alignment training, suggestion generation, and model management.
+   */
+  alignmentSuggestionsManage: TUseAlignmentSuggestionsReturn;
 
-    /**
-     * Collection of Bible translations and source texts used for alignment.
-     * Contains both source language and target language Bible data.
-     */
-    bibles: Record<string, any>;
+  /**
+   * Collection of Bible translations and source texts used for alignment.
+   * Contains both source language and target language Bible data.
+   */
+  bibles: Record<string, any>;
 
-    /**
-     * Display name of the current book being aligned.
-     * Used for UI labels and user feedback.
-     */
-    bookName: string;
+  /**
+   * Display name of the current book being aligned.
+   * Used for UI labels and user feedback.
+   */
+  bookName: string;
 
-    /**
-     * Current context identifier with bible, book, chapter, and verse reference.
-     * Used to determine the scope for alignment operations.
-     */
-    contextId: ContextId;
+  /**
+   * Current context identifier with bible, book, chapter, and verse reference.
+   * Used to determine the scope for alignment operations.
+   */
+  contextId: ContextId;
 
-    /**
-     * Flag to initiate alignment training.
-     * When set to true, the component will start the training process.
-     */
-    doTraining: boolean;
+  /**
+   * Flag to initiate alignment training.
+   * When set to true, the component will start the training process.
+   */
+  doTraining: boolean;
 
-    /**
-     * Function to handle edited target verse content.
-     * Processes user modifications to target language verses.
-     */
-    editedTargetVerse: (verseData: any) => void;
+  /**
+   * Function to handle edited target verse content.
+   * Processes user modifications to target language verses.
+   */
+  editedTargetVerse: (verseData: any) => void;
 
-    /**
-     * Function to retrieve lexicon data for source language words.
-     * Fetches dictionary and grammatical information for alignment context.
-     */
-    getLexiconData?: (lexiconId: string, entryId: string) => any;
+  /**
+   * Function to retrieve lexicon data for source language words.
+   * Fetches dictionary and grammatical information for alignment context.
+   */
+  getLexiconData?: (lexiconId: string, entryId: string) => any;
 
-    /**
-     * Grouped alignment data organized by categories or chapters.
-     * Contains structured alignment information for navigation and processing.
-     */
-    groupsData?: Record<string, any>;
+  /**
+   * Grouped alignment data organized by categories or chapters.
+   * Contains structured alignment information for navigation and processing.
+   */
+  groupsData?: Record<string, any>;
 
-    /**
-     * Index of groups for navigation and organization.
-     * Provides ordered access to alignment group structure.
-     */
-    groupsIndex?: any[];
+  /**
+   * Index of groups for navigation and organization.
+   * Provides ordered access to alignment group structure.
+   */
+  groupsIndex?: any[];
+  
+  /**
+   * Function to handle the user's click action when initiating the training process.
+   * Typically used as a callback for a button click event.
+   * This function does not take any arguments or return a value.
+   */
+  handleDoTrainingClick: () => void;
+  
+  /**
+   * Initial settings configuration for the tool.
+   * Contains pane settings, key mappings, and tool-specific configurations.
+   */
+  initialSettings: Record<string, any>;
 
-    /**
-     * Initial settings configuration for the tool.
-     * Contains pane settings, key mappings, and tool-specific configurations.
-     */
-    initialSettings: Record<string, any>;
+  /**
+   * Cache of lexicon entries for quick reference.
+   * Improves performance by avoiding repeated lexicon lookups.
+   */
+  lexiconCache?: Record<string, any>;
 
-    /**
-     * Cache of lexicon entries for quick reference.
-     * Improves performance by avoiding repeated lexicon lookups.
-     */
-    lexiconCache?: Record<string, any>;
+  /**
+   * Function to load lexicon entry for a source word.
+   * Fetches lexical data when users interact with source text words.
+   */
+  loadLexiconEntry: (lexiconId: string, entryId: string) => void;
 
-    /**
-     * Function to load lexicon entry for a source word.
-     * Fetches lexical data when users interact with source text words.
-     */
-    loadLexiconEntry: (lexiconId: string, entryId: string) => void;
+  /**
+   * Callback function to save new alignment data.
+   * Persists alignment changes to storage or external system.
+   */
+  saveNewAlignments?: (alignmentData: TSaveAlignmentData) => void;
 
-    /**
-     * Callback function to save new alignment data.
-     * Persists alignment changes to storage or external system.
-     */
-    saveNewAlignments?: (alignmentData: TSaveAlignmentData) => void;
+  /**
+   * Function to save tool settings and configuration.
+   * Persists user preferences and tool state.
+   */
+  saveToolSettings?: (settings: any) => void;
 
-    /**
-     * Function to save tool settings and configuration.
-     * Persists user preferences and tool state.
-     */
-    saveToolSettings?: (settings: any) => void;
+  /** true when alignments are to be shown */
+  showAlignments?: boolean;
 
-    /** true when alignments are to be shown */
-    showAlignments?: boolean;
+  /**
+   * Function to display word details in a popover.
+   * Shows lexical information when users interact with words.
+   */
+  showPopover: (
+      PopoverTitle: React.ReactNode,
+      wordDetails: React.ReactNode,
+      positionCoord: any,
+      rawData: {
+          token: SourceWord;
+          lexiconData: any;
+      }
+  ) => void;
 
-    /**
-     * Function to display word details in a popover.
-     * Shows lexical information when users interact with words.
-     */
-    showPopover: (
-        PopoverTitle: React.ReactNode,
-        wordDetails: React.ReactNode,
-        positionCoord: any,
-        rawData: {
-            token: SourceWord;
-            lexiconData: any;
-        }
-    ) => void;
+  /**
+   * Source language book data containing the original text.
+   * The authoritative text being aligned from (e.g., Greek, Hebrew).
+   */
+  sourceBook?: Record<string, any>;
 
-    /**
-     * Source language book data containing the original text.
-     * The authoritative text being aligned from (e.g., Greek, Hebrew).
-     */
-    sourceBook?: Record<string, any>;
+  /**
+   * Source language identifier (e.g., 'el-x-koine' for Greek, 'hbo' for Hebrew).
+   * Used for language-specific processing and display.
+   */
+  sourceLanguage: LanguageType;
 
-    /**
-     * Source language identifier (e.g., 'el-x-koine' for Greek, 'hbo' for Hebrew).
-     * Used for language-specific processing and display.
-     */
-    sourceLanguage: LanguageType;
+  /**
+   * Font family for the source language text.
+   * Ensures proper display of source language characters.
+   */
+  sourceLanguageFont?: string;
 
-    /**
-     * Font family for the source language text.
-     * Ensures proper display of source language characters.
-     */
-    sourceLanguageFont?: string;
+  /**
+   * Font size percentage for source text.
+   * Controls the display size of source language text.
+   */
+  sourceFontSizePercent?: number;
 
-    /**
-     * Font size percentage for source text.
-     * Controls the display size of source language text.
-     */
-    sourceFontSizePercent?: number;
+  /**
+   * Custom CSS styles for the component.
+   * Allows visual customization of the alignment interface.
+   */
+  styles?: React.CSSProperties;
 
-    /**
-     * Custom CSS styles for the component.
-     * Allows visual customization of the alignment interface.
-     */
-    styles?: React.CSSProperties;
+  /**
+   * Target language book data containing translation text.
+   * The text being aligned to the source language.
+   */
+  targetBook?: Record<string, any>;
 
-    /**
-     * Target language book data containing translation text.
-     * The text being aligned to the source language.
-     */
-    targetBook?: Record<string, any>;
+  /**
+   * Information about the target language (id code, direction, localized name).
+   * Used for proper language rendering and processing.
+   */
+  targetLanguage: LanguageType;
 
-    /**
-     * Information about the target language (id code, direction, localized name).
-     * Used for proper language rendering and processing.
-     */
-    targetLanguage: LanguageType;
+  /**
+   * Font family for the target language text.
+   * Ensures proper display of target language characters.
+   */
+  targetLanguageFont?: string;
 
-    /**
-     * Font family for the target language text.
-     * Ensures proper display of target language characters.
-     */
-    targetLanguageFont?: string;
+  /**
+   * Font size percentage for target text.
+   * Controls the display size of target language text.
+   */
+  targetFontSizePercent?: number;
 
-    /**
-     * Font size percentage for target text.
-     * Controls the display size of target language text.
-     */
-    targetFontSizePercent?: number;
-
-    /**
-     * Function to translate UI strings.
-     * Provides internationalization support for the component.
-     */
-    translate: (key: string, params?: Record<string, string | number>) => string;
+  /**
+   * Function to translate UI strings.
+   * Provides internationalization support for the component.
+   */
+  translate: (key: string, params?: Record<string, string | number>) => string;
 }
 
 export const EnhancedWordAlignmentToolSub: React.FC<EnhancedWordAlignmentToolSubProps>  = ({
@@ -344,6 +350,7 @@ export const EnhancedWordAlignmentToolSub: React.FC<EnhancedWordAlignmentToolSub
     groupsData,
     groupsIndex,
     initialSettings,
+    handleDoTrainingClick,
     lexiconCache = lexiconCache_,
     loadLexiconEntry,
     saveNewAlignments,
@@ -363,9 +370,15 @@ export const EnhancedWordAlignmentToolSub: React.FC<EnhancedWordAlignmentToolSub
 
   const [currentContextId, setCurrentContextId] = useState<ContextId>(contextId);
   const [alignmentData, _setAlignmentData] = useState<AlignmentData>({});
-  const [initialAlignmentData, setInitialAlignmentData] = useState<AlignmentData>({});
+  const [initialAlignmentData, setInitialAlignmentData] = useState<AlignmentData>({}); // keeps track of initial alignments before changes are made
   const [groupsMenuData, setGroupsMenuData] = useState<{ groupsIndex?: any[]; groupsData?: any }>({});
 
+  /**
+   * Updates the alignment data if the provided data differs from the existing one.
+   *
+   * @param {AlignmentData} alignmentData_ - The new alignment data to be set.
+   * @return {void} This function does not return a value.
+   */
   function setAlignmentData(alignmentData_: AlignmentData) {
     if (!isEqual(alignmentData, alignmentData_)) {
         _setAlignmentData(cloneDeep(alignmentData_))
@@ -576,18 +589,6 @@ export const EnhancedWordAlignmentToolSub: React.FC<EnhancedWordAlignmentToolSub
   }
 
   /**
-   * Reverts alignments to their initial state by setting alignment data
-   * to predefined initialAlignmentData.
-   *
-   * @return {void} Does not return any value.
-   */
-  function onTrainingClick() {
-    console.warn(`handleRevertAlignments() - need to implement`);
-    setAlignmentData(initialAlignmentData)
-  }
-
-
-  /**
    * Determines if there are any suggestions in the provided verse alignments.
    *
    * @param {Array<Object>} verseAlignments - An array of alignment objects where each object may include an `isSuggestion` property.
@@ -758,11 +759,6 @@ export const EnhancedWordAlignmentToolSub: React.FC<EnhancedWordAlignmentToolSub
 
   const haveVerseData = verseAlignments?.length && targetWords?.length
 
-  const _checkerStyles = {
-    ...localStyles.containerDiv,
-    ...styles_,
-  }
-
   return (
     <ThemeProvider theme={theme}>
       {readyToDisplayChecker ?
@@ -836,7 +832,7 @@ export const EnhancedWordAlignmentToolSub: React.FC<EnhancedWordAlignmentToolSub
               onClearClick={handleClearAlignments}
               onRevertClick={handleRevertAlignments}
               onSaveClick={handleSaveAlignments}
-              onTrainingClick={onTrainingClick}
+              onTrainingClick={handleDoTrainingClick}
               trainingButtonLabel={trainingButtonStr}
               trainingStatusStr={trainingStatusStr}
               translate={translate}

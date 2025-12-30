@@ -1,20 +1,7 @@
-import React, { useEffect, useState } from 'react'
-import PropTypes from 'prop-types';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
-// @ts-ignore
-import {
-  AlignmentHelpers,
-  complexScriptFonts,
-  groupDataHelpers,
-  GroupMenuComponent,
-  MAPControls,
-  ScripturePane,
-  usfmHelpers,
-// @ts-ignore
-} from 'word-aligner-rcl'
-import { EnhancedWordAligner } from './EnhancedWordAligner';
+// Component containing the complete UI for the Alignment Tool including verse navigation
+//  and alignment suggestions
 
-import isEqual from 'deep-equal'
+import React, { useState } from 'react'
 import {
     ContextId,
     SourceWord,
@@ -25,76 +12,12 @@ import {
 import { Alignment } from "wordmap";
 import { TUseAlignmentSuggestionsReturn, useAlignmentSuggestions } from "@/hooks/useAlignmentSuggestions";
 import { TAlignmentSuggestionsConfig } from "@/workers/WorkerComTypes";
-// @ts-ignore
-import {cloneDeep} from "lodash";
-import {getTranslationMemoryForBook} from "@/workers/utils/AlignmentTrainerUtils";
-import {useTrainingStateContext} from "@/hooks/TrainingStateProvider";
-import {EnhancedWordAlignmentToolSub} from "@/components/EnhancedWordAlignmentToolSub";
-import {Button} from "@mui/material";
-import PromptDialog, {TShowPromptDialogProps} from "@/components/PromptDialog";
+import { useTrainingStateContext } from "@/hooks/TrainingStateProvider";
+import { EnhancedWordAlignmentToolSub } from "@/components/EnhancedWordAlignmentToolSub";
+import PromptDialog, { TShowPromptDialogProps } from "@/components/PromptDialog";
 import PopoverComponent from "@/components/PopoverComponent";
 
 const lexiconCache_ = {};
-const theme = createTheme(); // Create MUI theme
-
-const localStyles = {
-  container: {
-    display: 'flex',
-    flexDirection: 'row',
-    width: '100vw',
-    height: '100%',
-  },
-  groupMenuContainer: {
-    width: '250px',
-    height: '100%',
-  },
-  wordListContainer: {
-    minWidth: '100px',
-    maxWidth: '400px',
-    height: '100%',
-    display: 'flex',
-  },
-  alignmentAreaContainer: {
-    display: 'flex',
-    flex: 1,
-    flexDirection: 'column',
-    width: 'calc(100% - 450px)',
-    height: '100%',
-  },
-  scripturePaneWrapper: {
-    minHeight: '250px',
-    marginBottom: '20px',
-    maxHeight: '310px',
-  },
-  containerDiv:{
-    display: 'flex',
-    flexDirection: 'row',
-    width: '97vw',
-    height: '65vw',
-  },
- centerDiv: {
-    display: 'flex',
-    flexDirection: 'column',
-    width: '85%',
-    overflowX: 'auto',
-    marginLeft: '10px',
-  },
-  scripturePaneDiv: {
-    display: 'flex',
-    flexShrink: '0',
-    height: '250px',
-    paddingBottom: '20px',
-  },
-    alignmentGridWrapper: {
-    display: 'flex',
-    flexDirection: 'column',
-    flex: '1 1 auto',
-    overflow: 'auto',
-    boxSizing: 'border-box',
-    margin: '0 10px 6px 10px',
-    boxShadow: '0 3px 10px var(--background-color)',
-  },
-};
 
 //////////////////////////
 // TODO: connect up accelerator keys
@@ -416,10 +339,6 @@ export const EnhancedWordAlignmentTool: React.FC<EnhancedWordAlignmentToolProps>
 
     const ref = contextId && contextId.reference;
     const bookId = ref?.bookId
-    const verboseTraining = false;
-
-    // Extract book-specific translation memory for current context
-    const {targetUsfm, sourceUsfm} = getTranslationMemoryForBook(bookId, translationMemory);
 
     // Only provide translation memory when auto-training is enabled
     const addTranslationMemory = alignmentSuggestionsConfig.doAutoTraining ? translationMemory : null;
@@ -428,13 +347,6 @@ export const EnhancedWordAlignmentTool: React.FC<EnhancedWordAlignmentToolProps>
     const {
         actions: {
             handleTrainingStateChange
-        },
-        state: {
-            training,
-            trainingComplete,
-            trainingError,
-            trainingStatusStr,
-            trainingButtonStr,
         }
     } = useTrainingStateContext()
 
@@ -464,19 +376,11 @@ export const EnhancedWordAlignmentTool: React.FC<EnhancedWordAlignmentToolProps>
 
     // Extract state and actions from the alignment suggestions system
     const {
-        state: {
-            failedToLoadCachedTraining,
-            trainingRunning,
-        },
         actions: {
-            areTrainingSameBook,
-            getSuggester,
-            getTrainingContextId,
             isTraining,
             loadTranslationMemory,
             startTraining,
             stopTraining,
-            suggester,
         }
     } = alignmentSuggestionsManage;
 
@@ -488,27 +392,34 @@ export const EnhancedWordAlignmentTool: React.FC<EnhancedWordAlignmentToolProps>
      * @return {void} Does not return a value.
      */
     function startTraining_() {
-        const targetUsfmsBooks = translationMemory?.targetUsfms;
-        const haveCachedTrainingData = targetUsfmsBooks && Object.keys(targetUsfmsBooks).length > 0;
+      const targetUsfmsBooks = translationMemory?.targetUsfms;
+      const haveCachedTrainingData = targetUsfmsBooks && Object.keys(targetUsfmsBooks).length > 0;
 
-        if (haveCachedTrainingData) {
-            console.log('WordAlignerArea: translation memory changed, loading translation memory')
-            loadTranslationMemory(translationMemory);
-            startTraining();
-        } else {
-            console.log('WordAlignerArea: translation memory not loaded')
-        }
+      if (haveCachedTrainingData) {
+          console.log('WordAlignerArea: translation memory changed, loading translation memory')
+          loadTranslationMemory(translationMemory);
+          startTraining();
+      } else {
+          console.log('WordAlignerArea: translation memory not loaded')
+      }
     }
 
+    /**
+     * Handles the "Do Training" click event by toggling the training state.
+     * Initiates training if it is not currently active, otherwise stops the training.
+     * Logs the current training state and actions taken in the console.
+     *
+     * @return {void} This method does not return any value.
+     */
     function handleDoTrainingClick() {
-        const training = isTraining()
-        console.log(`handleDoTrainingClick, current training ${training}`);
-        if (!training) {
-            startTraining_();
-        } else {
-            console.log('handleDoTrainingClick - already training, cancelling')
-            stopTraining()
-        }
+      const training = isTraining()
+      console.log(`handleDoTrainingClick, current training ${training}`);
+      if (!training) {
+          startTraining_();
+      } else {
+          console.log('handleDoTrainingClick - already training, cancelling')
+          stopTraining()
+      }
     }
 
     /**
@@ -523,16 +434,33 @@ export const EnhancedWordAlignmentTool: React.FC<EnhancedWordAlignmentToolProps>
         setTranslationMemoryLoaded(true)
     };
 
+    /**
+     * Handles the closure of a prompt by resetting its state.
+     *
+     * @return {void} This function does not return a value.
+     */
     function onClosePrompt() {
         setShowPrompt(null);
     }
-    
-    function _saveAlignment(alignmentData: TSaveAlignmentData) {
-        console.log('saveAlignment')
+
+  /**
+   * Saves the provided alignment data by invoking the saveNewAlignments function if defined.
+   *
+   * @param {TSaveAlignmentData} alignmentData - The alignment data to be saved.
+   * @return {void} This function does not return a value.
+   */
+  function _saveAlignment(alignmentData: TSaveAlignmentData) {
+        console.log('saveAlignmentd')
         saveNewAlignments?.(alignmentData)
     }
 
-    function saveAlignment(alignmentData: TSaveAlignmentData) {
+    /**
+     * Handles saving alignment data with an optional prompt if un accepted suggestions have been made.
+     *
+     * @param {TSaveAlignmentData} alignmentData - The alignment data object containing information about the alignment and suggestions.
+     * @return {void} This function does not return a value.
+     */
+    function handleSaveAlignments(alignmentData: TSaveAlignmentData) {
         if (alignmentData.haveSuggestions) {
             const _showSuggestionWarning = {
                 content: translate('alignments.use_suggestions'),
@@ -549,42 +477,9 @@ export const EnhancedWordAlignmentTool: React.FC<EnhancedWordAlignmentToolProps>
         }
     }
     
-
     return (
         <>
-            <div>{targetLanguage?.languageId} - {bookId} {ref.chapter}:{ref.verse}</div>
-            {/* 
-          <div style={{display: 'flex', gap: '10px', marginBottom: '10px'}}>
-            <button
-              onClick={handleToggleTraining}
-              className="toggle-training-btn"
-              disabled={!enableTrainingToggle}
-              style={{
-                padding: '8px 16px',
-                backgroundColor: enableTrainingToggle ? '#4285f4' : '#cccccc',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: enableTrainingToggle ? 'pointer' : 'not-allowed'
-              }}
-            >
-              {trainingButtonStr}
-            </button>
-    
-            <span style={{marginLeft: '8px', color: '#000'}}> {trainingStatusStr} </span>
-          </div>
-      */}
-
-            {/* 
-        EnhancedWordAligner Component
-        
-        This is the core component that provides the alignment functionality:
-        - Displays source and target texts for alignment
-        - Manages alignment model training via Web Workers
-        - Provides suggestions for unaligned words based on training
-        - Supports manual alignment corrections
-        - Handles persistence of alignment data and models
-      */}
+          <div>{targetLanguage?.languageId} - {bookId} {ref.chapter}:{ref.verse}</div>
             <EnhancedWordAlignmentToolSub
                 addObjectPropertyToManifest={addObjectPropertyToManifest}
                 addTranslationMemory={addTranslationMemory}
@@ -598,10 +493,11 @@ export const EnhancedWordAlignmentTool: React.FC<EnhancedWordAlignmentToolProps>
                 getLexiconData={getLexiconData}
                 groupsData={groupsData}
                 groupsIndex={groupsIndex}
+                handleDoTrainingClick={handleDoTrainingClick}
                 initialSettings={initialSettings}
                 lexiconCache={lexiconCache}
                 loadLexiconEntry={loadLexiconEntry}
-                saveNewAlignments={saveNewAlignments}
+                saveNewAlignments={handleSaveAlignments}
                 saveToolSettings={saveToolSettings}
                 showPopover={setLexiconData}
                 sourceBook={sourceBook}
