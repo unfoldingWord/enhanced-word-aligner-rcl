@@ -440,18 +440,19 @@ export const EnhancedWordAlignmentTool: React.FC<EnhancedWordAlignmentToolProps>
      * @return {void} This function does not return a value.
      */
     function onClosePrompt() {
-        setShowPrompt(null);
+      setShowPrompt(null);
     }
 
-  /**
-   * Saves the provided alignment data by invoking the saveNewAlignments function if defined.
-   *
-   * @param {TSaveAlignmentData} alignmentData - The alignment data to be saved.
-   * @return {void} This function does not return a value.
-   */
-  function _saveAlignment(alignmentData: TSaveAlignmentData) {
-        console.log('saveAlignmentd')
-        saveNewAlignments?.(alignmentData)
+    /**
+     * Saves the provided alignment data by invoking the saveNewAlignments function if defined.
+     *
+     * @param {TSaveAlignmentData} alignmentData - The alignment data to be saved.
+     * @return {void} This function does not return a value.
+     */
+    function _saveAlignment(alignmentData: TSaveAlignmentData) {
+      console.log('saveAlignmentd')
+      saveNewAlignments?.(alignmentData)
+      setShowPrompt(null); // clear prompt after saving
     }
 
     /**
@@ -464,12 +465,12 @@ export const EnhancedWordAlignmentTool: React.FC<EnhancedWordAlignmentToolProps>
         if (alignmentData.haveSuggestions) {
             const _showSuggestionWarning = {
                 content: translate('alignments.use_suggestions'),
-                noText: translate('no'),
+                noText: translate('buttons.no_button'),
                 onClose: onClosePrompt,
                 onNo: onClosePrompt,
                 onYes: () => _saveAlignment(alignmentData),
                 title: translate('warning'),
-                yesText: translate('yes'),
+                yesText: translate('buttons.yes_button'),
             }
             setShowPrompt(_showSuggestionWarning );
         } else {

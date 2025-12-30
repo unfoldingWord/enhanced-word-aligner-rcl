@@ -340,7 +340,7 @@ const App = () => {
 
   return (
     <>
-      <div style={{width: '1200px', overflow: 'auto'}}>
+      <div style={{width: '1600px', overflow: 'auto'}}>
         <TrainingStateProvider
           translate={translate}
           verbose={true}>
