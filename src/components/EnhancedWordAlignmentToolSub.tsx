@@ -262,10 +262,10 @@ interface EnhancedWordAlignmentToolSubProps {
   showAlignments?: boolean;
 
   /**
-   * Function to display word details in a popover.
+   * Function to display lexicon word details in a popover.
    * Shows lexical information when users interact with words.
    */
-  showPopover: (
+  showLexiconDataPopup: (
       PopoverTitle: React.ReactNode,
       wordDetails: React.ReactNode,
       positionCoord: any,
@@ -355,7 +355,7 @@ export const EnhancedWordAlignmentToolSub: React.FC<EnhancedWordAlignmentToolSub
     loadLexiconEntry,
     saveNewAlignments,
     saveToolSettings,
-    showPopover = null,
+    showLexiconDataPopup = null,
     sourceBook,
     sourceFontSizePercent = 100,
     sourceLanguage,
@@ -793,7 +793,7 @@ export const EnhancedWordAlignmentToolSub: React.FC<EnhancedWordAlignmentToolSub
                 projectDetailsReducer={{ manifest }}
                 selections={currentSelections}
                 setToolSettings={setSettings}
-                showPopover={showPopover}
+                showPopover={showLexiconDataPopup}
                 onExpandedScripturePaneShow={null}
                 translate={translate}
               />
@@ -812,7 +812,7 @@ export const EnhancedWordAlignmentToolSub: React.FC<EnhancedWordAlignmentToolSub
                 loadLexiconEntry={loadLexiconEntry}
                 onChange={handleAlignmentChange}
                 showDialog={true}
-                showPopover={showPopover}
+                showPopover={showLexiconDataPopup}
                 sourceLanguageId={sourceLanguage.languageId}
                 sourceLanguageFont={sourceLanguageFont}
                 sourceFontSizePercent={sourceFontSizePercent}
