@@ -253,10 +253,14 @@ interface EnhancedWordAlignmentToolSubProps {
   saveNewAlignments?: (alignmentData: TSaveAlignmentData) => void;
 
   /**
-   * Function to save tool settings and configuration.
-   * Persists user preferences and tool state.
+   * A function that stores the settings for a specific tool or component.
+   * This function can be invoked to save configuration data, helping preserve user preferences or state.
+   *
+   * @param {string} NAMESPACE - A unique identifier representing the context or module to which these settings apply.
+   * @param {string} settingsName - The specific name or key associated with the settings being saved.
+   * @param {any} paneSettings - An object or value representing the details of the settings to be stored.
    */
-  saveToolSettings?: (settings: any) => void;
+  saveToolSettings?: (NAMESPACE:string, settingsName: string, paneSettings: any) => void;
 
   /** true when alignments are to be shown */
   showAlignments?: boolean;
@@ -386,8 +390,6 @@ export const EnhancedWordAlignmentToolSub: React.FC<EnhancedWordAlignmentToolSub
   }
 
   const {
-    paneSettings,
-    paneKeySettings,
     toolsSettings,
     manifest
   } = initialSettings || {}
@@ -396,6 +398,8 @@ export const EnhancedWordAlignmentToolSub: React.FC<EnhancedWordAlignmentToolSub
     verseAlignments
   } = alignmentData
 
+  const currentPaneSettings = toolsSettings?.ScripturePane?.currentPaneSettings || [];
+  
   // Extract training state management functions and state values
   const {
       state: {
@@ -482,53 +486,18 @@ export const EnhancedWordAlignmentToolSub: React.FC<EnhancedWordAlignmentToolSub
   }, [groupsIndex, groupsData])
 
   /**
-   * Persists settings to storage after removing Bible data to reduce size
-   * Creates shallow copies to avoid modifying original objects
-   * @param {object} _settings - Settings object to save
-   * @private
+   * Updates and saves the specified tool settings.
+   *
+   * @param {string} NAMESPACE - The namespace that identifies the tool or module whose settings are being updated.
+   * @param {string} settingsName - The name of the settings group to be updated.
+   * @param {any} paneSettings - The specific settings to be saved for the tool or module.
+   * @return {void} No return value.
    */
-  function _saveSettings(_settings: Record<string, any>) {
-    if (saveToolSettings && _settings) {
-      const newSettings = { ..._settings }
-      delete newSettings.manifest
-      const _paneSettings = [ ...newSettings.paneSettings ]
-      for (let i = 0; i < _paneSettings.length; i++) {
-        const _paneSetting = {..._paneSettings[i]} // shallow copy
-        if (_paneSetting?.book) {
-          delete _paneSetting.book // remove all the book data before saving
-        }
-        _paneSettings[i] = _paneSetting
-      }
-      newSettings.paneSettings = _paneSettings
-
-      const _paneKeySettings = { ...newSettings.paneKeySettings }
-      const keys = Object.keys(_paneKeySettings)
-      for (const key of keys) {
-        const _paneSetting = {..._paneKeySettings[key]} // shallow copy
-        if (_paneSetting?.book) {
-          delete _paneSetting.book // remove all the book data before saving
-        }
-        _paneKeySettings[key] = _paneSetting
-      }
-      newSettings.paneKeySettings = _paneKeySettings
-
-      saveToolSettings(newSettings)
+  function _setToolSettings(NAMESPACE:string, settingsName: string, paneSettings: any) {
+    if (saveToolSettings) {
+      console.log(`Saving settings for ${NAMESPACE} - ${settingsName}`)
+      saveToolSettings(NAMESPACE, settingsName, paneSettings)
     }
-  }
-
-  /**
-   * Updates settings state and optionally persists them
-   * @param {object} newSettings - New settings to merge
-   * @param {boolean} doSave - Whether to persist settings
-   */
-  function setSettings(newSettings, doSave = false) {
-    const _settings = {
-      ...initialSettings,
-      ...newSettings
-    }
-
-    // _setSettings(_settings)
-    doSave && _saveSettings(_settings)
   }
 
   /**
@@ -783,7 +752,7 @@ export const EnhancedWordAlignmentToolSub: React.FC<EnhancedWordAlignmentToolSub
                 bibles={bibles}
                 complexScriptFonts={complexScriptFonts}
                 contextId={currentContextId}
-                currentPaneSettings={paneSettings}
+                currentPaneSettings={currentPaneSettings}
                 editVerseRef={null}
                 editTargetVerse={editedTargetVerse}
                 expandedScripturePaneTitle={expandedScripturePaneTitle}
@@ -792,7 +761,7 @@ export const EnhancedWordAlignmentToolSub: React.FC<EnhancedWordAlignmentToolSub
                 makeSureBiblesLoadedForTool={null}
                 projectDetailsReducer={{ manifest }}
                 selections={currentSelections}
-                setToolSettings={setSettings}
+                setToolSettings={_setToolSettings}
                 showPopover={showLexiconDataPopup}
                 onExpandedScripturePaneShow={null}
                 translate={translate}

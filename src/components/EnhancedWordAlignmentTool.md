@@ -134,19 +134,28 @@ for (let verse = 1; verse < 25; verse++) {
   }
 }
 
-const initialTooleSettings = {
-  paneSettings: bibles.map(bible => ({
-    bibleId: bible.bibleId,
-    font: null,
-    fontSize: 100,
-    languageId: bible.languageId,
-    owner: bible.owner,
-    actualLanguage: false,
-    isPreRelease: false,
-  })),
+// set up the panes for the current bibles
+const currentPaneSettings = bibles.map(bible => ({
+  bibleId: bible.bibleId,
+  font: null,
+  fontSize: 100,
+  languageId: bible.languageId,
+  owner: bible.owner,
+  actualLanguage: false,
+  isPreRelease: false,
+}));
+
+// build the tools settings
+const initialToolSettings = {
   paneKeySettings: {},
-  toolsSettings: {},
-  manifest: {}
+  toolsSettings: {
+    ScripturePane: {
+      currentPaneSettings
+    }
+  },
+  manifest: {
+    projectFont: "CharisSIL",
+  }
 }
 
 //convert list to bibleObjects used by aligner
@@ -176,7 +185,7 @@ function getContextId(selectedBook, chapter, verse, bibleId) {
  * @returns {JSX.Element} Rendered application
  */
 const App = () => {
-  const [toolSettings, _setToolSettings] = useState(initialTooleSettings); // TODO: need to persist tools state, and read back state on startup
+  const [toolSettings, _setToolSettings] = useState(initialToolSettings); // TODO: need to persist tools state, and read back state on startup
 
   const targetLanguageFont = '';
   const lexicons = {};
@@ -258,6 +267,12 @@ const App = () => {
    */
   function addObjectPropertyToManifest(propertyName, value) {
     console.log(`addObjectPropertyToManifest - ${propertyName} = ${value}`)
+    const _toolSettings = cloneDeep(toolSettings); // close to make new tools state object
+    const manifest = _toolSettings.manifest;
+    if (manifest && propertyName) {
+      manifest[propertyName] = value;
+      _setToolSettings(_toolSettings) // update current settings
+    }
     // TODO need to save setting in project manifest
   }
 
