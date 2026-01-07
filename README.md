@@ -32,8 +32,15 @@ Start styleguidist:
 yarn && yarn start
 ```
 
-Then open browser to `http://localhost:6003/
-`
+Then open browser to `http://localhost:6003/`
+
+- **Note that there are two demos**, but only one can be running or the suggester will break
+    - the `EnhancedWordAligner.md` example shows a basic suggesting aligner.
+    - the `EnhancedWordAlignmentTool.md` example shows a complete word alignment tool.
+    - to only show the complete word alignment tool:
+        - rename `EnhancedWordAlignmentTool.md.hide` to `EnhancedWordAlignmentTool.md` and rename `EnhancedWordAligner.md` to `EnhancedWordAligner.md.hide`
+    - then to only show the basic suggesting aligner:
+        - rename `EnhancedWordAligner.md.hide` to `EnhancedWordAligner.md` and rename `EnhancedWordAlignmentTool.md` to `EnhancedWordAlignmentTool.md.hide` 
 
 ## 🧩 Components
 
