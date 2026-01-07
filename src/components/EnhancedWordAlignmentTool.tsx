@@ -477,6 +477,25 @@ export const EnhancedWordAlignmentTool: React.FC<EnhancedWordAlignmentToolProps>
             _saveAlignment(alignmentData)
         }
     }
+
+  /**
+   * Displays a popup with lexicon data, including title, word details, and position coordinates.
+   *
+   * @param {string} PopoverTitle - The title to be displayed on the popup.
+   * @param {Object} wordDetails - An object containing detailed information about the word.
+   * @param {Object} positionCoord - An object specifying the coordinates where the popup should appear.
+   * @param {Object} rawData - Additional raw data associated with the lexicon entry.
+   * @return {void} This function does not return a value.
+   */
+    function showLexiconDataPopup(PopoverTitle, wordDetails, positionCoord, rawData) {
+      const newLexiconData = {
+        PopoverTitle,
+        wordDetails,
+        positionCoord,
+      }
+      // console.log('showLexiconDataPopup', rawData);
+      setLexiconData(newLexiconData);
+    }
     
     return (
         <>
@@ -500,7 +519,7 @@ export const EnhancedWordAlignmentTool: React.FC<EnhancedWordAlignmentToolProps>
                 loadLexiconEntry={loadLexiconEntry}
                 saveNewAlignments={handleSaveAlignments}
                 saveToolSettings={saveToolSettings}
-                showPopover={setLexiconData}
+                showLexiconDataPopup={showLexiconDataPopup}
                 sourceBook={sourceBook}
                 sourceLanguage={sourceLanguage}
                 styles={styles}
