@@ -1,7 +1,7 @@
 Enhance Word Alignment Tool Example with Verse Navigation and Scriptures Pane:
 
 ```js
-import React, {useState} from 'react';
+import React, { useState } from 'react';
 import {
   AlignmentHelpers,
   CommonConstants,
@@ -56,7 +56,7 @@ const alignmentSuggestionsConfig = {
 function bookDataToUsfm(bookData) {
   const chapters = {...bookData}
   delete chapters.manifest;
-  return usfmjs.toUSFM({chapters}, {chunk: true, forcedNewLines: true});
+  return usfmjs.toUSFM({ chapters }, {chunk: true, forcedNewLines: true});
 }
 
 let translationMemory = {
