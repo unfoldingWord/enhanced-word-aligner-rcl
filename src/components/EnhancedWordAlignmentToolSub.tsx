@@ -488,15 +488,38 @@ export const EnhancedWordAlignmentToolSub: React.FC<EnhancedWordAlignmentToolSub
   /**
    * Updates and saves the specified tool settings.
    *
-   * @param {string} NAMESPACE - The namespace that identifies the tool or module whose settings are being updated.
-   * @param {string} settingsName - The name of the settings group to be updated.
-   * @param {any} paneSettings - The specific settings to be saved for the tool or module.
+   * @param {string} moduleNamespace - The namespace that identifies the tool or module whose settings are being updated.
+   * @param {string} settingsPropertyName - The name of the settings group to be updated.
+   * @param {any} newSettingsData - The specific settings to be saved for the tool or module.
    * @return {void} No return value.
    */
-  function _setToolSettings(NAMESPACE:string, settingsName: string, paneSettings: any) {
+  function _setToolSettings(moduleNamespace:string, settingsPropertyName: string, newSettingsData: any) {
+    console.log(`_setToolSettings() - Saving settings for ${moduleNamespace} - ${settingsPropertyName}`)
     if (saveToolSettings) {
-      console.log(`Saving settings for ${NAMESPACE} - ${settingsName}`)
-      saveToolSettings(NAMESPACE, settingsName, paneSettings)
+      saveToolSettings(moduleNamespace, settingsPropertyName, newSettingsData)
+    } else {
+      console.error(`_setToolSettings() - saveToolSettings not defined`)
+    }
+  }
+
+  /**
+   * Adds a new key name to the manifest object
+   * @param {String} propertyName - key string name.
+   * ex.
+   * manifest {
+   *  ...,
+   *  [propertyName]: 'value',
+   *  ...
+   * }
+   * @param {*} value - value to be saved in the propertyName
+   */
+  function _addObjectPropertyToManifest(propertyName:string, value:any) {
+    console.log(`_addObjectPropertyToManifest() - ${propertyName} = ${value}`)
+    if (addObjectPropertyToManifest) {
+      addObjectPropertyToManifest(propertyName, value)
+    }
+    else {
+      console.error(`_addObjectPropertyToManifest() - addObjectPropertyToManifest not defined`)
     }
   }
 
@@ -748,7 +771,7 @@ export const EnhancedWordAlignmentToolSub: React.FC<EnhancedWordAlignmentToolSub
           { notEmptyObject(bibles) &&
             <div style={localStyles.scripturePaneDiv}>
               <ScripturePane
-                addObjectPropertyToManifest={addObjectPropertyToManifest}
+                addObjectPropertyToManifest={_addObjectPropertyToManifest}
                 bibles={bibles}
                 complexScriptFonts={complexScriptFonts}
                 contextId={currentContextId}

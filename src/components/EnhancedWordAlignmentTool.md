@@ -1,7 +1,7 @@
 Enhance Word Alignment Tool Example with Verse Navigation and Scriptures Pane:
 
 ```js
-import React, { useState } from 'react';
+import React, {useState} from 'react';
 import {
   AlignmentHelpers,
   CommonConstants,
@@ -13,6 +13,7 @@ import {
 import { EnhancedWordAlignmentTool } from './EnhancedWordAlignmentTool';
 import cloneDeep from 'lodash.clonedeep';
 import usfmjs from 'usfm-js';
+import isEqual from 'deep-equal';
 import {extractVerseText} from '../utils/misc';
 import {useAlignmentSuggestions} from '../hooks/useAlignmentSuggestions'
 import {TrainingStateProvider, useTrainingStateContext} from '../hooks/TrainingStateProvider'
@@ -55,7 +56,7 @@ const alignmentSuggestionsConfig = {
 function bookDataToUsfm(bookData) {
   const chapters = {...bookData}
   delete chapters.manifest;
-  return usfmjs.toUSFM({ chapters }, {chunk: true, forcedNewLines: true});
+  return usfmjs.toUSFM({chapters}, {chunk: true, forcedNewLines: true});
 }
 
 let translationMemory = {
@@ -146,7 +147,7 @@ const currentPaneSettings = bibles.map(bible => ({
 }));
 
 // build the tools settings
-const initialToolSettings = {
+const initialAppSettings = {
   paneKeySettings: {},
   toolsSettings: {
     ScripturePane: {
@@ -185,7 +186,7 @@ function getContextId(selectedBook, chapter, verse, bibleId) {
  * @returns {JSX.Element} Rendered application
  */
 const App = () => {
-  const [toolSettings, _setToolSettings] = useState(initialToolSettings); // TODO: need to persist tools state, and read back state on startup
+  const [appSettings, _setAppSettings] = useState(initialAppSettings); // TODO: need to persist tools state, and read back state on startup
 
   const targetLanguageFont = '';
   const lexicons = {};
@@ -267,13 +268,13 @@ const App = () => {
    */
   function addObjectPropertyToManifest(propertyName, value) {
     console.log(`addObjectPropertyToManifest - ${propertyName} = ${value}`)
-    const _toolSettings = cloneDeep(toolSettings); // close to make new tools state object
-    const manifest = _toolSettings.manifest;
+    const _appSettings = cloneDeep(appSettings); // close to make new tools state object
+    const manifest = _appSettings.manifest;
     if (manifest && propertyName) {
       manifest[propertyName] = value;
-      _setToolSettings(_toolSettings) // update current settings
+      _setAppSettings(_appSettings) // update current settings
     }
-    // TODO need to save setting in project manifest
+    // TODO need to save manifest setting in project manifest
   }
 
   /**
@@ -281,22 +282,22 @@ const App = () => {
    * @param {string} moduleNamespace - module name that would be saved
    * @param {string} settingsPropertyName - is the property name to be used
    *  to save multiple settings names for a module.
-   * @param {object} toolSettingsData - settings data.
+   * @param {object} newSettingsData - settings data.
    * @return {object} acton object.
    */
-  function saveToolSettings(moduleNamespace, settingsPropertyName, toolSettingsData) {
-    const _toolSettings = cloneDeep(toolSettings); // close to make new tools state object
-
-    let moduleData = _toolSettings[moduleNamespace]
-    if (!moduleData) {
+  function saveToolSettings(moduleNamespace, settingsPropertyName, newSettingsData) {
+    const newAppSettings = cloneDeep(appSettings); // close to make new tools state object
+    const newToolSettings = newAppSettings && newAppSettings.toolsSettings
+    let moduleData = newToolSettings && newToolSettings[moduleNamespace]
+    if (!moduleData) { // if doesn't exist yet, create it
       moduleData = {}
-      _toolSettings[moduleNamespace] = moduleData
+      newToolSettings[moduleNamespace] = moduleData
     }
 
-    moduleData[settingsPropertyName] = toolSettingsData
-    if (!isEqual(toolSettings, _toolSettings)) {
-      console.log(`new toolSettings`, _toolSettings)
-      _setToolSettings(_toolSettings)
+    moduleData[settingsPropertyName] = newSettingsData
+    if (!isEqual(appSettings, newAppSettings)) {
+      console.log(`saveToolSettings() - new toolSettings`, newAppSettings)
+      _setAppSettings(newAppSettings)
       //TODO: persist data
     }
   };
@@ -371,7 +372,7 @@ const App = () => {
             getLexiconData={getLexiconData_}
             groupsData={groupsData}
             groupsIndex={groupsIndex}
-            initialSettings={toolSettings}
+            initialSettings={appSettings}
             lexiconCache={lexicons}
             loadLexiconEntry={loadLexiconEntry}
             saveNewAlignments={saveNewAlignments}
