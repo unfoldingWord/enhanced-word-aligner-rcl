@@ -75,7 +75,7 @@ const { suggester } = alignmentSuggestionsManager.actions;
 
 ### TrainingStateProvider
 
-Manages and provides access to the current training state of the alignment model.
+Manages and provides access to the current training state of the alignment model.  The useTrainingStateContext hook can be used anywhere within the component tree that is wrapped by the TrainingStateProvider to get the current training state.
 
 ```js
 import { TrainingStateProvider, useTrainingStateContext } from 'enhanced-word-aligner-rcl';
@@ -91,6 +91,18 @@ const { trainingComplete, trainingStatusStr } = state;
 const { handleTrainingStateChange } = actions;
 ```
 
+## High-level View of Alignment Suggestor
+
+- the `TrainingStateProvider` wraps the _UsersAlignmentApp_
+
+```
+  <TrainingStateProvider
+  />
+    <UsersAlignmentApp>
+  </TrainingStateProvider>
+```
+
+- in the _UsersAlignmentApp_, `useTrainingStateContext` hook is used to get the current training state. And `useAlignmentSuggestions` hook will be used once within the component tree to handle initialization of the background training of alignment suggestions, as well as management of the suggestor.  If control of the suggestor is needed in a child component, then the actions returned by `useAlignmentSuggestions()` can be passed as a property to the child component. 
 
 ## 💻 Development
 
@@ -108,7 +120,7 @@ Then open your browser to `http://localhost:6003/`
 ## 🔄 Platform-Specific Information
 
 - the `EnhancedWordAligner.md` example shows how to run in StyleGuidist.
-- For NextJS integration, please refer to [README_NEXTJS.md](README_NEXTJS.md) which describes how to run the Model training background worker.
+- For NextJS integration, please refer to [README_NEXTJS.md](README_NEXTJS.md) which describes how to run the Model training background worker in a web app (not styleguidist).  Note that the difference is in the implementation of TrainingStateProvider.
 
 ## 📚 Documentation
 
