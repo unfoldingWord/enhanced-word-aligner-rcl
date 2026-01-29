@@ -272,6 +272,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
         actions: {
             deleteBookFromGroup,
             getCurrentBookShaState,
+            getLatestConfig,
             getModelMetaData,
             getSuggester,
             isTraining,
@@ -321,16 +322,19 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     useEffect(() => {
         if (showDialog) {
             console.log(`EnhancedWordAligner - checksumGenerated = ${checksumGenerated}, translationMemoryLoaded = ${translationMemoryLoaded}`);
-            const info = getModelMetaData() // make sure we have latest config settings
-            const _doAutoTraining = info?.config?.doAutoTraining
-            if (checksumGenerated && translationMemoryLoaded && trainingComplete && _doAutoTraining) {
-                const shaState: TBookShaState = getCurrentBookShaState()
-                console.log(`EnhancedWordAligner - Training complete: ${shaState?.bookShaChanged} trained sha ${shaState?.trainedSha} and current book sha ${shaState?.currentBookSha}`);
-                if (shaState?.bookShaChanged) {
-                    console.log(`EnhancedWordAligner - Training complete: book changed, retraining`);
-                    startTraining();
+            getLatestConfig().then(config => {
+                const _doAutoTraining = config?.doAutoTraining
+                if (checksumGenerated && translationMemoryLoaded && trainingComplete && _doAutoTraining) {
+                    const shaState: TBookShaState = getCurrentBookShaState()
+                    console.log(`EnhancedWordAligner - Training complete: ${shaState?.bookShaChanged} trained sha ${shaState?.trainedSha} and current book sha ${shaState?.currentBookSha}`);
+                    if (shaState?.bookShaChanged) {
+                        console.log(`EnhancedWordAligner - Training complete: book changed, retraining`);
+                        startTraining();
+                    }
                 }
-            }
+            }).catch(error => {
+                console.error('EnhancedWordAligner - Error getting latest config:', error);
+            })
         }
     },[checksumGenerated, showDialog, translationMemoryLoaded, trainingComplete]);
 
