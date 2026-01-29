@@ -321,7 +321,9 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     useEffect(() => {
         if (showDialog) {
             console.log(`EnhancedWordAligner - checksumGenerated = ${checksumGenerated}, translationMemoryLoaded = ${translationMemoryLoaded}`);
-            if (checksumGenerated && translationMemoryLoaded && trainingComplete && config?.doAutoTraining) {
+            const info = getModelMetaData()
+            const _doAutoTraining = info?.config?.doAutoTraining
+            if (checksumGenerated && translationMemoryLoaded && trainingComplete && _doAutoTraining) {
                 const shaState: TBookShaState = getCurrentBookShaState()
                 console.log(`EnhancedWordAligner - Training complete: ${shaState?.bookShaChanged} trained sha ${shaState?.trainedSha} and current book sha ${shaState?.currentBookSha}`);
                 if (shaState?.bookShaChanged) {
