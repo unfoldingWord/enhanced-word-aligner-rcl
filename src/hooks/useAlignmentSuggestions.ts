@@ -96,6 +96,7 @@ import {
     TAlignmentSuggestionsConfig,
     TAlignmentTrainingWorkerData,
     TBookVerseCounts,
+    TCurrentSettings,
     TTrainedWordAlignerModelWorkerResults,
     TTrainingAndTestingData,
     TVerseCounts,
@@ -234,7 +235,7 @@ export interface TUseAlignmentSuggestionsReturn {
         getCurrentBookShaState: () => TBookShaState;
 
         /** Retrieves the latest configuration settings */
-        getLatestConfig: () => Promise<TAlignmentSuggestionsConfig>;
+        getLatestSetting: () => Promise<TCurrentSettings>;
         
         /** Retrieves metadata about the current alignment model */
         getModelMetaData: () => TAlignmentMetaData|null;
@@ -1254,7 +1255,9 @@ export const useAlignmentSuggestions = ({
                     }
                     
                     console.log(`useAlignmentSuggestions - kickOffTraining start training`);
-                    executeTraining();
+                    if (configRef.current?.doAutoTraining) {
+                        executeTraining();
+                    }
                 })
             }
         }
@@ -1263,13 +1266,16 @@ export const useAlignmentSuggestions = ({
     /**
      * Fetches the latest configuration for alignment suggestions.
      *
-     * @return {Promise<TAlignmentSuggestionsConfig>} A promise that resolves to the latest configuration object of type TAlignmentSuggestionsConfig.
+     * @return {Promise<TCurrentSettings>} A promise that resolves to the latest configuration object of type TAlignmentSuggestionsConfig.
      */
-    async function getLatestConfig(): Promise<TAlignmentSuggestionsConfig> {
-
+    async function getLatestSetting(): Promise<TCurrentSettings> {
         const dbStorage = await getIndexedDbStorage();
-        await loadLanguageBasedSettings(dbStorage);
-        return configRef.current;
+        const settings = await loadLanguageBasedSettings(dbStorage);
+        return {
+            config: settings.config,
+            contextId,
+            settingsKey: getSettingsKey(contextId),
+        };
     }
 
     /**
@@ -1278,14 +1284,15 @@ export const useAlignmentSuggestions = ({
      * and constraints where necessary.
      *
      * @param {IndexedDBStorage} dbStorage - The database storage object used to retrieve the settings.
-     * @return {Promise<number>} A promise that resolves to the maximum complexity value derived from the settings.
+     * @return {Promise<settings>} A promise that resolves to the maximum complexity value derived from the settings.
      */
     async function loadLanguageBasedSettings(dbStorage: IndexedDBStorage) {
         const langSettingsPair = getSettingsKey(contextId);
-        let settings_: string | null = await dbStorage.getItem(langSettingsPair);
+        let settings = null
+        let settingsStr: string | null = await dbStorage.getItem(langSettingsPair);
         let maxComplexity_ = DEFAULT_MAX_COMPLEXITY; // default to max complexity
-        if (settings_ && settings_ !== 'undefined') {
-            const settings = JSON.parse(settings_);
+        if (settingsStr && settingsStr !== 'undefined') {
+            settings = JSON.parse(settingsStr);
             if (settings?.maxComplexity) {
                 maxComplexity_ = settings.maxComplexity;
                 const limitComplexity = limitRangeOfComplexity(maxComplexity_);
@@ -1299,7 +1306,7 @@ export const useAlignmentSuggestions = ({
                 configRef.current = getDefaultConfig(settings.config);
             }
         }
-        return maxComplexity_;
+        return settings;
     }
 
     /**
@@ -1371,7 +1378,8 @@ export const useAlignmentSuggestions = ({
             });
 
             // load language based settings
-            let maxComplexity_ = await loadLanguageBasedSettings(dbStorage);
+            const settings = await loadLanguageBasedSettings(dbStorage);
+            let maxComplexity_ = settings?.maxComplexity;
             setState( { ...stateRef.current, maxComplexity: maxComplexity_});
             if (maxComplexity_ === DEFAULT_MAX_COMPLEXITY) {
                 console.log(`maxComplexity not found in local storage, using default ${maxComplexity_}`);
@@ -1773,7 +1781,7 @@ export const useAlignmentSuggestions = ({
             cleanupWorker,
             deleteBookFromGroup,
             getCurrentBookShaState,
-            getLatestConfig,
+            getLatestSetting,
             getModelMetaData,
             getSuggester,
             getTrainingContextId,

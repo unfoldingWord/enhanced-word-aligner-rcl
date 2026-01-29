@@ -272,7 +272,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
         actions: {
             deleteBookFromGroup,
             getCurrentBookShaState,
-            getLatestConfig,
+            getLatestSetting,
             getModelMetaData,
             getSuggester,
             isTraining,
@@ -322,9 +322,13 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     useEffect(() => {
         if (showDialog) {
             console.log(`EnhancedWordAligner - checksumGenerated = ${checksumGenerated}, translationMemoryLoaded = ${translationMemoryLoaded}`);
-            getLatestConfig().then(config => {
-                const _doAutoTraining = config?.doAutoTraining
+            getLatestSetting().then(settings => {
+                const _doAutoTraining = settings?.config?.doAutoTraining
+                console.log('EnhancedWordAligner - current state', {
+                    checksumGenerated, translationMemoryLoaded, trainingComplete, _doAutoTraining, settingsKey: settings?.settingsKey
+                });
                 if (checksumGenerated && translationMemoryLoaded && trainingComplete && _doAutoTraining) {
+                    console.log('EnhancedWordAligner - current settings', settings);
                     const shaState: TBookShaState = getCurrentBookShaState()
                     console.log(`EnhancedWordAligner - Training complete: ${shaState?.bookShaChanged} trained sha ${shaState?.trainedSha} and current book sha ${shaState?.currentBookSha}`);
                     if (shaState?.bookShaChanged) {
