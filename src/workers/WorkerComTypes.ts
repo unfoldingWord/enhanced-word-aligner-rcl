@@ -64,6 +64,12 @@ export interface TTrainedWordAlignerModelResults {
     }
 }
 
+export interface TCurrentSettings {
+    config: TAlignmentSuggestionsConfig;
+    contextId: ContextId;
+    settingsKey: string;
+}
+
 export interface TAlignmentTrainingWorkerData {
     contextId: ContextId;
     minuteCounter?: number;
