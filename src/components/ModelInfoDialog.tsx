@@ -454,6 +454,13 @@ export const ModelInfoDialog: React.FC<{
                 <h3 style={{color: '#2c3e50', marginTop: 0, marginBottom: '12px'}}>{title}</h3>
 
                 {createToggleSwitch({
+                    id: "disableSuggestionsToggle",
+                    label: translate('suggestions.disable_suggestions_label'),
+                    variable: "disableSuggestions",
+                    description: translate('suggestions.disable_suggestions_hint')
+                })}
+
+                {createToggleSwitch({
                     id: "autoTrainingToggle",
                     label: translate('training.auto_training_label'),
                     variable: "doAutoTraining",
