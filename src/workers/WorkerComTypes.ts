@@ -125,6 +125,7 @@ export interface TWordAlignmentTestResults{
 }
 
 export interface TAlignmentSuggestionsConfig {
+    disableSuggestions?: boolean; // set true to disable alignment suggestions
     doAutoLoadCachedTraining?: boolean; // set true to auto load previous cached training for book
     doAutoTraining?: boolean; // set true to enable auto training of alignment suggestions
     keepAllAlignmentMemory?: boolean; // EXPERIMENTAL FEATURE - if true, then alignment data not used for training will be added back into wordMap after training.  This should improve alignment vocabulary, but may negatively impact accuracy in the case of fully aligned books.

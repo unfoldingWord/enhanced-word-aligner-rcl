@@ -323,7 +323,8 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
         if (showDialog) {
             console.log(`EnhancedWordAligner - checksumGenerated = ${checksumGenerated}, translationMemoryLoaded = ${translationMemoryLoaded}`);
             getLatestSetting().then(settings => {
-                const _doAutoTraining = settings?.config?.doAutoTraining
+                const _disableSuggestions = settings?.config?.disableSuggestions
+                const _doAutoTraining = !_disableSuggestions && settings?.config?.doAutoTraining
                 console.log('EnhancedWordAligner - current state', {
                     checksumGenerated, translationMemoryLoaded, trainingComplete, _doAutoTraining, settingsKey: settings?.settingsKey
                 });

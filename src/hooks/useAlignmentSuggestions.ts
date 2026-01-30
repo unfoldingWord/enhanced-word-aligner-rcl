@@ -474,6 +474,7 @@ function getAlignmentMemoryKey(group_name: string) {
 function getDefaultConfig(config_: TAlignmentSuggestionsConfig) {
     const defaultConfig = {
         ...config_,
+        disableSuggestions: config_.disableSuggestions ?? false,
         doAutoLoadCachedTraining: config_.doAutoLoadCachedTraining ?? true,
         doAutoTraining: config_.doAutoTraining ?? false,
         keepAllAlignmentMemory: config_.keepAllAlignmentMemory ?? true,
@@ -1255,7 +1256,9 @@ export const useAlignmentSuggestions = ({
                     }
                     
                     console.log(`useAlignmentSuggestions - kickOffTraining start training`);
-                    if (configRef.current?.doAutoTraining) {
+                    const _disableSuggestions = configRef.current?.disableSuggestions
+                    const _doAutoTraining = !_disableSuggestions && configRef.current?.doAutoTraining;
+                    if (_doAutoTraining) {
                         executeTraining();
                     }
                 })
@@ -1533,7 +1536,9 @@ export const useAlignmentSuggestions = ({
         (async () => {
             let cachedDataLoaded = false;
             const config = configRef.current;
-            const doAutoLoad = config?.doAutoTraining || config?.doAutoLoadCachedTraining
+            const _disableSuggestions = config?.disableSuggestions
+            const doAutoLoad = !_disableSuggestions &&
+                (config?.doAutoTraining || config?.doAutoLoadCachedTraining)
             const readyToShow = shown && modelKey && contextId;
             if (readyToShow && doAutoLoad) {
                 console.log(`useAlignmentSuggestions.startup - modelKey changed to ${modelKey}`);
@@ -1545,8 +1550,12 @@ export const useAlignmentSuggestions = ({
                 const bookId = contextId?.reference?.bookId;
                 if (bookId) {
                     const group_name = getGroupName(contextId)
+
+                    const disableSuggestions = configRef.current?.disableSuggestions
                     const translationMemoryFound = isTranslationMemoryAvailable(bookId);
-                    if (!translationMemoryFound) {
+                    if (disableSuggestions) {
+                        console.log(`useAlignmentSuggestions.startup - suggestions disabled`);
+                    } else if (!translationMemoryFound) {
                         console.log(`useAlignmentSuggestions.startup - translation Memory not found for book`);
                     } else { // make sure current data loaded into alignment memory
                         console.log(`useAlignmentSuggestions - translation Memory found for book, reload to make sure current`);
@@ -1583,7 +1592,9 @@ export const useAlignmentSuggestions = ({
      * and auto-training is enabled.
      */
     useEffect(() => {
-        if (failedToLoadCachedTraining && configRef.current?.doAutoTraining) {
+        const _disableSuggestions = configRef.current?.disableSuggestions
+        const _doAutoTraining = !_disableSuggestions && configRef.current?.doAutoTraining;
+        if (failedToLoadCachedTraining && _doAutoTraining) {
             console.log('useAlignmentSuggestions - failedToLoadCachedTraining', {failedToLoadCachedTraining, contextId, shown})
             const haveBook = contextId?.reference?.bookId;
             const autoTrainingCompleted = stateRef.current?.autoTrainingCompleted;
@@ -1672,6 +1683,10 @@ export const useAlignmentSuggestions = ({
      * @returns {TSuggester} Suggester function or null if not available
      */
     function getSuggester(): TSuggester {
+        if (configRef.current?.disableSuggestions) {
+            return null;
+        }
+
         const alignmentPredictor = alignmentPredictorRef.current?.model;
         if (alignmentPredictor) {
             if (!alignmentPredictor.predict) {
