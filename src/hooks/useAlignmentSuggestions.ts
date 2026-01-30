@@ -1256,7 +1256,9 @@ export const useAlignmentSuggestions = ({
                     }
                     
                     console.log(`useAlignmentSuggestions - kickOffTraining start training`);
-                    if (configRef.current?.doAutoTraining) {
+                    const _disableSuggestions = configRef.current?.disableSuggestions
+                    const _doAutoTraining = !_disableSuggestions && configRef.current?.doAutoTraining;
+                    if (_doAutoTraining) {
                         executeTraining();
                     }
                 })
@@ -1534,7 +1536,9 @@ export const useAlignmentSuggestions = ({
         (async () => {
             let cachedDataLoaded = false;
             const config = configRef.current;
-            const doAutoLoad = config?.doAutoTraining || config?.doAutoLoadCachedTraining
+            const _disableSuggestions = config?.disableSuggestions
+            const doAutoLoad = !_disableSuggestions &&
+                (config?.doAutoTraining || config?.doAutoLoadCachedTraining)
             const readyToShow = shown && modelKey && contextId;
             if (readyToShow && doAutoLoad) {
                 console.log(`useAlignmentSuggestions.startup - modelKey changed to ${modelKey}`);
@@ -1588,7 +1592,9 @@ export const useAlignmentSuggestions = ({
      * and auto-training is enabled.
      */
     useEffect(() => {
-        if (failedToLoadCachedTraining && configRef.current?.doAutoTraining) {
+        const _disableSuggestions = configRef.current?.disableSuggestions
+        const _doAutoTraining = !_disableSuggestions && configRef.current?.doAutoTraining;
+        if (failedToLoadCachedTraining && _doAutoTraining) {
             console.log('useAlignmentSuggestions - failedToLoadCachedTraining', {failedToLoadCachedTraining, contextId, shown})
             const haveBook = contextId?.reference?.bookId;
             const autoTrainingCompleted = stateRef.current?.autoTrainingCompleted;
