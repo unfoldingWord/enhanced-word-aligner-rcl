@@ -477,6 +477,7 @@ function getDefaultConfig(config_: TAlignmentSuggestionsConfig) {
         disableSuggestions: config_.disableSuggestions ?? false,
         doAutoLoadCachedTraining: config_.doAutoLoadCachedTraining ?? true,
         doAutoTraining: config_.doAutoTraining ?? false,
+        doAutoUpdateTranslationMemory: config_.doAutoUpdateTranslationMemory ?? true,
         keepAllAlignmentMemory: config_.keepAllAlignmentMemory ?? true,
         keepAllAlignmentMinThreshold: config_.keepAllAlignmentMinThreshold ?? 90,
         minTrainingVerseRatio: config_.minTrainingVerseRatio ?? 1.1,

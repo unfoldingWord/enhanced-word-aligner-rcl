@@ -36,7 +36,8 @@ console.log("starting EnhancedWordAlignmentTool demo")
 // ############################################################
 
 const doAutoLoadCachedTraining = true; // Enable to automatically load previously cached training data
-const doAutoTraining = true; // Enable to automatically train models when content changes
+const doAutoTraining = false; // Enable to automatically train models when content changes
+const doAutoUpdateTranslationMemory = true; // Enable to automatically update the translation memory when content changes
 const suggestionsOnly = false; // When true, simplifies UI by removing clear button and adding suggestion label
 const trainOnlyOnCurrentBook = true; // Optimizes training by focusing on current book's alignment data. This could improve suggestions if book is fully aligned, but will have no vocabulary from other books.
 const minTrainingVerseRatio = 1.1; // Protection ratio for incomplete book alignments when using trainOnlyOnCurrentBook.  If a ratio such as 1.1 is set, then training will use a minimum number of verses for training from translation memory.  This minimum is calculated by multiplying the number of verses in the book by this ratio
@@ -47,6 +48,7 @@ const keepAllAlignmentMinThreshold = 90; // EXPERIMENTAL FEATURE - if threshold 
 const alignmentSuggestionsConfig = {
   doAutoLoadCachedTraining,
   doAutoTraining,
+  doAutoUpdateTranslationMemory,
   minTrainingVerseRatio,
   trainOnlyOnCurrentBook,
   keepAllAlignmentMemory,
@@ -341,14 +343,15 @@ const App = () => {
     // TODO - validation is not implemented
   };
 
-  function createAlignmentTrainingWorker_() {
+  async function createAlignmentTrainingWorker_() {
     try {
       // TRICKY: this createAlignmentTrainingWorker function works in styleguidist,
       // but another example is gateway-edit web app - see the example at:
       //    https://github.com/unfoldingWord/gateway-edit/blob/develop/src/workers/startAlignmentTrainer.js
       // different platforms initialize workers differently
-      createAlignmentTrainingWorker()
+      let worker = await createAlignmentTrainingWorker()
       console.log('createAlignmentTrainingWorker_() - success creating training worker')
+      return worker
     } catch (e) {
       console.error('createAlignmentTrainingWorker_() - could not create training worker', e)
     }
