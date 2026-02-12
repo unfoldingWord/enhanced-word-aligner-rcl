@@ -96,6 +96,7 @@ import {
     TAlignmentSuggestionsConfig,
     TAlignmentTrainingWorkerData,
     TBookVerseCounts,
+    TCurrentSettings,
     TTrainedWordAlignerModelWorkerResults,
     TTrainingAndTestingData,
     TVerseCounts,
@@ -232,6 +233,9 @@ export interface TUseAlignmentSuggestionsReturn {
         
         /** Gets the SHA state of the current book */
         getCurrentBookShaState: () => TBookShaState;
+
+        /** Retrieves the latest configuration settings */
+        getLatestSetting: () => Promise<TCurrentSettings>;
         
         /** Retrieves metadata about the current alignment model */
         getModelMetaData: () => TAlignmentMetaData|null;
@@ -470,6 +474,7 @@ function getAlignmentMemoryKey(group_name: string) {
 function getDefaultConfig(config_: TAlignmentSuggestionsConfig) {
     const defaultConfig = {
         ...config_,
+        disableSuggestions: config_.disableSuggestions ?? false,
         doAutoLoadCachedTraining: config_.doAutoLoadCachedTraining ?? true,
         doAutoTraining: config_.doAutoTraining ?? false,
         keepAllAlignmentMemory: config_.keepAllAlignmentMemory ?? true,
@@ -1261,11 +1266,61 @@ export const useAlignmentSuggestions = ({
                     }
                     
                     console.log(`useAlignmentSuggestions - kickOffTraining start training`);
-                    executeTraining();
+                    const _disableSuggestions = configRef.current?.disableSuggestions
+                    const _doAutoTraining = !_disableSuggestions && configRef.current?.doAutoTraining;
+                    if (_doAutoTraining) {
+                        executeTraining();
+                    }
                 })
             }
         }
     }, [kickOffTraining]);
+
+    /**
+     * Fetches the latest configuration for alignment suggestions.
+     *
+     * @return {Promise<TCurrentSettings>} A promise that resolves to the latest configuration object of type TAlignmentSuggestionsConfig.
+     */
+    async function getLatestSetting(): Promise<TCurrentSettings> {
+        const dbStorage = await getIndexedDbStorage();
+        const settings = await loadLanguageBasedSettings(dbStorage);
+        return {
+            config: settings.config,
+            contextId,
+            settingsKey: getSettingsKey(contextId),
+        };
+    }
+
+    /**
+     * Asynchronously loads language-based settings from a provided database storage.
+     * Retrieves and parses the settings for the current context, applying default values
+     * and constraints where necessary.
+     *
+     * @param {IndexedDBStorage} dbStorage - The database storage object used to retrieve the settings.
+     * @return {Promise<settings>} A promise that resolves to the maximum complexity value derived from the settings.
+     */
+    async function loadLanguageBasedSettings(dbStorage: IndexedDBStorage) {
+        const langSettingsPair = getSettingsKey(contextId);
+        let settings = null
+        let settingsStr: string | null = await dbStorage.getItem(langSettingsPair);
+        let maxComplexity_ = DEFAULT_MAX_COMPLEXITY; // default to max complexity
+        if (settingsStr && settingsStr !== 'undefined') {
+            settings = JSON.parse(settingsStr);
+            if (settings?.maxComplexity) {
+                maxComplexity_ = settings.maxComplexity;
+                const limitComplexity = limitRangeOfComplexity(maxComplexity_);
+                console.log(`loaded maxComplexity from local storage: ${maxComplexity_}`);
+                if (limitComplexity !== maxComplexity_) {
+                    console.log(`maxComplexity out of range, setting to ${limitComplexity}`);
+                    maxComplexity_ = limitComplexity;
+                }
+            }
+            if (settings.config) {
+                configRef.current = getDefaultConfig(settings.config);
+            }
+        }
+        return settings;
+    }
 
     /**
      * Loads settings and model data from IndexedDB storage
@@ -1336,24 +1391,8 @@ export const useAlignmentSuggestions = ({
             });
 
             // load language based settings
-            const langSettingsPair = getSettingsKey(contextId);
-            let settings_: string | null = await dbStorage.getItem(langSettingsPair);
-            let maxComplexity_ = DEFAULT_MAX_COMPLEXITY; // default to max complexity
-            if (settings_ && settings_ !== 'undefined') {
-                const settings = JSON.parse(settings_);
-                if (settings?.maxComplexity) {
-                    maxComplexity_ = settings.maxComplexity;
-                    const limitComplexity = limitRangeOfComplexity(maxComplexity_);
-                    console.log(`loaded maxComplexity from local storage: ${maxComplexity_}`);
-                    if (limitComplexity !== maxComplexity_) {
-                        console.log(`maxComplexity out of range, setting to ${limitComplexity}`);
-                        maxComplexity_ = limitComplexity;
-                    }
-                }
-                if (settings.config) {
-                    configRef.current = getDefaultConfig(settings.config);
-                }
-            }
+            const settings = await loadLanguageBasedSettings(dbStorage);
+            let maxComplexity_ = settings?.maxComplexity;
             setState( { ...stateRef.current, maxComplexity: maxComplexity_});
             if (maxComplexity_ === DEFAULT_MAX_COMPLEXITY) {
                 console.log(`maxComplexity not found in local storage, using default ${maxComplexity_}`);
@@ -1507,7 +1546,9 @@ export const useAlignmentSuggestions = ({
         (async () => {
             let cachedDataLoaded = false;
             const config = configRef.current;
-            const doAutoLoad = config?.doAutoTraining || config?.doAutoLoadCachedTraining
+            const _disableSuggestions = config?.disableSuggestions
+            const doAutoLoad = !_disableSuggestions &&
+                (config?.doAutoTraining || config?.doAutoLoadCachedTraining)
             const readyToShow = shown && modelKey && contextId;
             if (readyToShow && doAutoLoad) {
                 console.log(`useAlignmentSuggestions.startup - modelKey changed to ${modelKey}`);
@@ -1519,8 +1560,12 @@ export const useAlignmentSuggestions = ({
                 const bookId = contextId?.reference?.bookId;
                 if (bookId) {
                     const group_name = getGroupName(contextId)
+
+                    const disableSuggestions = configRef.current?.disableSuggestions
                     const translationMemoryFound = isTranslationMemoryAvailable(bookId);
-                    if (!translationMemoryFound) {
+                    if (disableSuggestions) {
+                        console.log(`useAlignmentSuggestions.startup - suggestions disabled`);
+                    } else if (!translationMemoryFound) {
                         console.log(`useAlignmentSuggestions.startup - translation Memory not found for book`);
                     } else { // make sure current data loaded into alignment memory
                         console.log(`useAlignmentSuggestions - translation Memory found for book, reload to make sure current`);
@@ -1557,7 +1602,9 @@ export const useAlignmentSuggestions = ({
      * and auto-training is enabled.
      */
     useEffect(() => {
-        if (failedToLoadCachedTraining && configRef.current?.doAutoTraining) {
+        const _disableSuggestions = configRef.current?.disableSuggestions
+        const _doAutoTraining = !_disableSuggestions && configRef.current?.doAutoTraining;
+        if (failedToLoadCachedTraining && _doAutoTraining) {
             console.log('useAlignmentSuggestions - failedToLoadCachedTraining', {failedToLoadCachedTraining, contextId, shown})
             const haveBook = contextId?.reference?.bookId;
             const autoTrainingCompleted = stateRef.current?.autoTrainingCompleted;
@@ -1646,6 +1693,10 @@ export const useAlignmentSuggestions = ({
      * @returns {TSuggester} Suggester function or null if not available
      */
     function getSuggester(): TSuggester {
+        if (configRef.current?.disableSuggestions) {
+            return null;
+        }
+
         const alignmentPredictor = alignmentPredictorRef.current?.model;
         if (alignmentPredictor) {
             if (!alignmentPredictor.predict) {
@@ -1755,6 +1806,7 @@ export const useAlignmentSuggestions = ({
             cleanupWorker,
             deleteBookFromGroup,
             getCurrentBookShaState,
+            getLatestSetting,
             getModelMetaData,
             getSuggester,
             getTrainingContextId,

@@ -461,6 +461,13 @@ export const ModelInfoDialog: React.FC<{
                 })}
 
                 {createToggleSwitch({
+                    id: "disableSuggestionsToggle",
+                    label: translate('suggestions.disable_suggestions_label'),
+                    variable: "disableSuggestions",
+                    description: translate('suggestions.disable_suggestions_hint')
+                })}
+
+                {createToggleSwitch({
                     id: "trainOnlyOnCurrentBookToggle",
                     label: translate('training.only_current_label'),
                     variable: "trainOnlyOnCurrentBook",

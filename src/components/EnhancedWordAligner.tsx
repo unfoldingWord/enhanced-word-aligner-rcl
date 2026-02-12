@@ -269,6 +269,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
         actions: {
             deleteBookFromGroup,
             getCurrentBookShaState,
+            getLatestSetting,
             getModelMetaData,
             getSuggester,
             isTraining,
@@ -318,14 +319,24 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
     useEffect(() => {
         if (showDialog) {
             console.log(`EnhancedWordAligner - checksumGenerated = ${checksumGenerated}, translationMemoryLoaded = ${translationMemoryLoaded}`);
-            if (checksumGenerated && translationMemoryLoaded && trainingComplete && config?.doAutoTraining) {
-                const shaState: TBookShaState = getCurrentBookShaState()
-                console.log(`EnhancedWordAligner - Training complete: ${shaState?.bookShaChanged} trained sha ${shaState?.trainedSha} and current book sha ${shaState?.currentBookSha}`);
-                if (shaState?.bookShaChanged) {
-                    console.log(`EnhancedWordAligner - Training complete: book changed, retraining`);
-                    startTraining();
+            getLatestSetting().then(settings => {
+                const _disableSuggestions = settings?.config?.disableSuggestions
+                const _doAutoTraining = !_disableSuggestions && settings?.config?.doAutoTraining
+                console.log('EnhancedWordAligner - current state', {
+                    checksumGenerated, translationMemoryLoaded, trainingComplete, _doAutoTraining, settingsKey: settings?.settingsKey
+                });
+                if (checksumGenerated && translationMemoryLoaded && trainingComplete && _doAutoTraining) {
+                    console.log('EnhancedWordAligner - current settings', settings);
+                    const shaState: TBookShaState = getCurrentBookShaState()
+                    console.log(`EnhancedWordAligner - Training complete: ${shaState?.bookShaChanged} trained sha ${shaState?.trainedSha} and current book sha ${shaState?.currentBookSha}`);
+                    if (shaState?.bookShaChanged) {
+                        console.log(`EnhancedWordAligner - Training complete: book changed, retraining`);
+                        startTraining();
+                    }
                 }
-            }
+            }).catch(error => {
+                console.error('EnhancedWordAligner - Error getting latest config:', error);
+            })
         }
     },[checksumGenerated, showDialog, translationMemoryLoaded, trainingComplete]);
 
