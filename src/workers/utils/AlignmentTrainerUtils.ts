@@ -1,6 +1,6 @@
 import { MorphJLBoostWordMap, updateTokenLocations } from 'uw-wordmapbooster';
 import { Token } from 'wordmap-lexer';
-import { Alignment, Ngram } from 'wordmap';
+import WordMap, { Alignment, Ngram } from 'wordmap';
 import {
     TAlignmentMemoryVerseCounts,
     TAlignmentSuggestionsConfig,
@@ -471,10 +471,10 @@ export async function createTrainedWordAlignerModel(worker: Worker, data: TTrain
     if (keepAllAlignmentMemory) {
       // TRICKY: EXPERIMENTAL - put removed verses back into translation memory
       // @ts-ignore
-      const map: WordMap = wordAlignerModel.wordMap
+      const wordMap: WordMap = wordAlignerModel.wordMap
       let translationMemoryVersesAdded = 0;
       Object.entries(deletedAlignments).forEach(([key, alignment]) => {
-          map.appendAlignmentMemory(alignment);
+          wordMap.appendAlignmentMemory(alignment);
           translationMemoryVersesAdded++;
       })
       alignmentMemoryVerseCounts.untrained = getBookChapterData(deletedAlignments, 'Other Translation Memory');

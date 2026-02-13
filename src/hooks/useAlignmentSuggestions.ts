@@ -103,7 +103,7 @@ import {
 } from '@/workers/WorkerComTypes';
 import {makeTranslationMemory, START_TRAINING} from '@/workers/utils/AlignmentTrainerUtils';
 import {Token} from "wordmap-lexer";
-import {Alignment, Ngram} from "wordmap";
+import WordMap, {Alignment, Ngram} from "wordmap";
 
 /**
  * Callback function type for handling training completion events
@@ -933,6 +933,7 @@ export const useAlignmentSuggestions = ({
         const sourceVersesTokenized: { [reference: string]: Token[] } = {};
         const targetVersesTokenized: { [reference: string]: Token[] } = {};
         const alignments: { [reference: string]: Alignment[] } = {};
+        let alignedCount = 0;
         let alignedVerseCount = 0;
         let unalignedVerseCount = 0;
 
@@ -952,7 +953,6 @@ export const useAlignmentSuggestions = ({
 
             alignedVerseCount++;
             alignedCount += training_data.alignments.length
-            alignedComplexityCount += getComplexityOfVerse(tokenizedSourceVerse.length, tokenizedTargetVerse.length);
 
             alignments[reference] = training_data.alignments.map(alignment =>
               new Alignment(
@@ -977,9 +977,14 @@ export const useAlignmentSuggestions = ({
          });
 
         // clear previous translation memory
-        const map: WordMap = wordAlignerModel.wordMap
+        // @ts-ignore
+        // const map: WordMap = wordAlignerModel.wordMap
+        // const engine = wordAlignerModel.engine
+        // engine.corpusIndex = new CorpusIndex();
+        // engine.alignmentMemoryIndex = new AlignmentMemoryIndex();
+
+        wordAlignerModel.emptyAlignmentMemory();
         
-        console.log('The corpus is not too complex to train the word map.The corpus complexity is:', alignedComplexityCount);
         wordAlignerModel.appendKeyedCorpusTokens(sourceCorpusTokenized, targetCorpusTokenized);
 
         // Do a test to see if adding the alignment stuff as corpus as well helps.
