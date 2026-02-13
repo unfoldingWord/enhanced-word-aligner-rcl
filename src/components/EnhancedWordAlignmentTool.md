@@ -348,7 +348,7 @@ const App = () => {
       // TRICKY: this createAlignmentTrainingWorker function works in styleguidist,
       // but another example is gateway-edit web app - see the example at:
       //    https://github.com/unfoldingWord/gateway-edit/blob/develop/src/workers/startAlignmentTrainer.js
-      // different platforms initialize workers differently
+      // NOTE that different platforms initialize workers differently
       let worker = await createAlignmentTrainingWorker()
       console.log('createAlignmentTrainingWorker_() - success creating training worker')
       return worker

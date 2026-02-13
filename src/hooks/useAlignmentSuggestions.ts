@@ -63,7 +63,7 @@ import {
     useRef,
     useState,
 } from 'react';
-import { AbstractWordMapWrapper } from 'uw-wordmapbooster';
+import { AbstractWordMapWrapper, updateTokenLocations } from 'uw-wordmapbooster';
 import { bibleHelpers } from 'word-aligner-rcl';
 import usfm from 'usfm-js';
 import cloneDeep from 'lodash.clonedeep';
@@ -102,6 +102,8 @@ import {
     TVerseCounts,
 } from '@/workers/WorkerComTypes';
 import {makeTranslationMemory, START_TRAINING} from '@/workers/utils/AlignmentTrainerUtils';
+import {Token} from "wordmap-lexer";
+import {Alignment, Ngram} from "wordmap";
 
 /**
  * Callback function type for handling training completion events
@@ -901,6 +903,91 @@ export const useAlignmentSuggestions = ({
     }
 
     /**
+     * Retrieves the alignment data and related information for the current group, based on the provided book ID.
+     *
+     * @param {string} bookId - The identifier of the book to evaluate whether it is part of the New Testament.
+     * @return {Object} An object containing the group name, alignment training data, and the group itself:
+     *                  - `groupName` (string): The name of the current group.
+     *                  - `alignmentTrainingData_` (TTrainingAndTestingData | null): The alignment data and corpus for training or testing.
+     *                  - `group` (Object): The group object returned from getting alignments for the current group.
+     */
+    function getAlignmentDataForCurrentGroup(bookId: string) {
+        const isNT = bibleHelpers.isNewTestament(bookId)
+        const groupName = getGroupName(contextId)
+
+        // Get the alignment data for training
+        let alignmentTrainingData_: TTrainingAndTestingData | null = null;
+        const group = getAlignmentsForCurrentGroup();
+        if (group) {
+            alignmentTrainingData_ = group.getAlignmentDataAndCorpusForTrainingOrTesting({
+                forTesting: false,
+                getCorpus: true,
+                isNT: isNT
+            });
+        }
+        return {groupName, alignmentTrainingData_, group};
+    }
+    
+    function applyCurrentTranslationMemory(wordAlignerModel: AbstractWordMapWrapper, bookId: string) {
+        // Convert the data into the structure which the training model expects.
+        const sourceVersesTokenized: { [reference: string]: Token[] } = {};
+        const targetVersesTokenized: { [reference: string]: Token[] } = {};
+        const alignments: { [reference: string]: Alignment[] } = {};
+        let alignedVerseCount = 0;
+        let unalignedVerseCount = 0;
+
+        const {
+            groupName,
+            alignmentTrainingData_: data,
+            group
+        } = getAlignmentDataForCurrentGroup(bookId);
+
+        Object.entries(data.alignments).forEach(([reference, training_data]) => {
+            const tokenizedSourceVerse = training_data.sourceVerse.map(n => new Token(n));
+            sourceVersesTokenized[reference] = tokenizedSourceVerse;
+            const tokenizedTargetVerse = training_data.targetVerse.map(n => new Token(n));
+            targetVersesTokenized[reference] = tokenizedTargetVerse;
+            updateTokenLocations(sourceVersesTokenized[reference]);
+            updateTokenLocations(targetVersesTokenized[reference]);
+
+            alignedVerseCount++;
+            alignedCount += training_data.alignments.length
+            alignedComplexityCount += getComplexityOfVerse(tokenizedSourceVerse.length, tokenizedTargetVerse.length);
+
+            alignments[reference] = training_data.alignments.map(alignment =>
+              new Alignment(
+                new Ngram(alignment.sourceNgram.map(n => new Token(n))),
+                new Ngram(alignment.targetNgram.map(n => new Token(n)))
+              )
+            );
+        });
+
+        const sourceCorpusTokenized: { [reference: string]: Token[] } = {};
+        const targetCorpusTokenized: { [reference: string]: Token[] } = {};
+
+        Object.entries(data.corpus).forEach(([reference, training_data]) => {
+            const tokenizedSourceVerse = training_data.sourceTokens.map(n => new Token(n));
+            sourceCorpusTokenized[reference] = tokenizedSourceVerse;
+            const tokenizedTargetVerse = training_data.targetTokens.map(n => new Token(n));
+            targetCorpusTokenized[reference] = tokenizedTargetVerse;
+            updateTokenLocations(sourceCorpusTokenized[reference]);
+            updateTokenLocations(targetCorpusTokenized[reference]);
+
+            unalignedVerseCount++;
+         });
+
+        // clear previous translation memory
+        const map: WordMap = wordAlignerModel.wordMap
+        
+        console.log('The corpus is not too complex to train the word map.The corpus complexity is:', alignedComplexityCount);
+        wordAlignerModel.appendKeyedCorpusTokens(sourceCorpusTokenized, targetCorpusTokenized);
+
+        // Do a test to see if adding the alignment stuff as corpus as well helps.
+        wordAlignerModel.appendKeyedCorpusTokens(sourceVersesTokenized, targetVersesTokenized);
+        
+    }
+
+    /**
      * Executes the alignment training process
      * 
      * This function is the core of the training system. It:
@@ -933,19 +1020,7 @@ export const useAlignmentSuggestions = ({
                     ...contextId,
                     bookName: currentBookName || contextId?.reference?.bookId
                 }
-                const isNT = bibleHelpers.isNewTestament(bookId)
-                const groupName = getGroupName(contextId)
-                
-                // Get the alignment data for training
-                let alignmentTrainingData_:TTrainingAndTestingData|null = null;
-                const group = getAlignmentsForCurrentGroup();
-                if (group) {
-                    alignmentTrainingData_ = group.getAlignmentDataAndCorpusForTrainingOrTesting({
-                        forTesting: false,
-                        getCorpus: true,
-                        isNT: isNT
-                    });
-                }
+                const {groupName, alignmentTrainingData_, group} = getAlignmentDataForCurrentGroup(bookId);
 
                 // Verify we have enough alignment data to train
                 const alignmentCount= group ? Object.values(alignmentTrainingData_.alignments).length : 0
