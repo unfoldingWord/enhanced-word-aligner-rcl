@@ -935,7 +935,12 @@ export const useAlignmentSuggestions = ({
         const alignments: { [reference: string]: Alignment[] } = {};
         let alignedCount = 0;
         let alignedVerseCount = 0;
-        let unalignedVerseCount = 0;
+
+        //@ts-ignore
+        const wordMap: WordMap = wordAlignerModel.wordMap
+        
+        // clear previous translation memory
+        wordAlignerModel.emptyAlignmentMemory();
 
         const {
             groupName,
@@ -952,44 +957,44 @@ export const useAlignmentSuggestions = ({
             updateTokenLocations(targetVersesTokenized[reference]);
 
             alignedVerseCount++;
-            alignedCount += training_data.alignments.length
+            alignedCount += training_data.alignments.length;
 
-            alignments[reference] = training_data.alignments.map(alignment =>
-              new Alignment(
-                new Ngram(alignment.sourceNgram.map(n => new Token(n))),
-                new Ngram(alignment.targetNgram.map(n => new Token(n)))
-              )
-            );
+            alignments[reference] = training_data.alignments.map(alignment => {
+                const newAlignment = new Alignment(
+                    new Ngram(alignment.sourceNgram.map(n => new Token(n))),
+                    new Ngram(alignment.targetNgram.map(n => new Token(n)))
+                );
+
+                wordMap.appendAlignmentMemory(alignment);
+                return newAlignment;
+            });
         });
 
-        const sourceCorpusTokenized: { [reference: string]: Token[] } = {};
-        const targetCorpusTokenized: { [reference: string]: Token[] } = {};
+        // const sourceCorpusTokenized: { [reference: string]: Token[] } = {};
+        // const targetCorpusTokenized: { [reference: string]: Token[] } = {};
+        //
+        // Object.entries(data.corpus).forEach(([reference, training_data]) => {
+        //     const tokenizedSourceVerse = training_data.sourceTokens.map(n => new Token(n));
+        //     sourceCorpusTokenized[reference] = tokenizedSourceVerse;
+        //     const tokenizedTargetVerse = training_data.targetTokens.map(n => new Token(n));
+        //     targetCorpusTokenized[reference] = tokenizedTargetVerse;
+        //     updateTokenLocations(sourceCorpusTokenized[reference]);
+        //     updateTokenLocations(targetCorpusTokenized[reference]);
+        //
+        //     unalignedVerseCount++;
+        //  });
+       
 
-        Object.entries(data.corpus).forEach(([reference, training_data]) => {
-            const tokenizedSourceVerse = training_data.sourceTokens.map(n => new Token(n));
-            sourceCorpusTokenized[reference] = tokenizedSourceVerse;
-            const tokenizedTargetVerse = training_data.targetTokens.map(n => new Token(n));
-            targetCorpusTokenized[reference] = tokenizedTargetVerse;
-            updateTokenLocations(sourceCorpusTokenized[reference]);
-            updateTokenLocations(targetCorpusTokenized[reference]);
-
-            unalignedVerseCount++;
-         });
-
-        // clear previous translation memory
-        // @ts-ignore
-        // const map: WordMap = wordAlignerModel.wordMap
         // const engine = wordAlignerModel.engine
         // engine.corpusIndex = new CorpusIndex();
         // engine.alignmentMemoryIndex = new AlignmentMemoryIndex();
 
-        wordAlignerModel.emptyAlignmentMemory();
-        
-        wordAlignerModel.appendKeyedCorpusTokens(sourceCorpusTokenized, targetCorpusTokenized);
-
-        // Do a test to see if adding the alignment stuff as corpus as well helps.
-        wordAlignerModel.appendKeyedCorpusTokens(sourceVersesTokenized, targetVersesTokenized);
-        
+        // wordMap.appendAlignmentMemoryString(alignment.sourceText,
+        //     alignment.targetText);
+        //
+        // wordAlignerModel.appendKeyedCorpusTokens(sourceCorpusTokenized, targetCorpusTokenized);
+        //
+        // wordAlignerModel.appendKeyedCorpusTokens(sourceVersesTokenized, targetVersesTokenized);
     }
 
     /**
