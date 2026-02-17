@@ -927,7 +927,14 @@ export const useAlignmentSuggestions = ({
         }
         return {groupName, alignmentTrainingData_, group};
     }
-    
+
+    /**
+     * Applies the current translation memory to the given word aligner model for the current group.
+     *
+     * @param {AbstractWordMapWrapper} wordAlignerModel - The word alignment model wrapper instance used for aligning source and target text.
+     * @param {string} bookId - The identifier of the current book - only to determine which testament we are using.
+     * @return {void} No return value.
+     */
     function applyCurrentTranslationMemory(wordAlignerModel: AbstractWordMapWrapper, bookId: string) {
         // Convert the data into the structure which the training model expects.
         const sourceVersesTokenized: { [reference: string]: Token[] } = {};
@@ -965,36 +972,15 @@ export const useAlignmentSuggestions = ({
                     new Ngram(alignment.targetNgram.map(n => new Token(n)))
                 );
 
-                wordMap.appendAlignmentMemory(alignment);
                 return newAlignment;
             });
         });
 
-        // const sourceCorpusTokenized: { [reference: string]: Token[] } = {};
-        // const targetCorpusTokenized: { [reference: string]: Token[] } = {};
-        //
-        // Object.entries(data.corpus).forEach(([reference, training_data]) => {
-        //     const tokenizedSourceVerse = training_data.sourceTokens.map(n => new Token(n));
-        //     sourceCorpusTokenized[reference] = tokenizedSourceVerse;
-        //     const tokenizedTargetVerse = training_data.targetTokens.map(n => new Token(n));
-        //     targetCorpusTokenized[reference] = tokenizedTargetVerse;
-        //     updateTokenLocations(sourceCorpusTokenized[reference]);
-        //     updateTokenLocations(targetCorpusTokenized[reference]);
-        //
-        //     unalignedVerseCount++;
-        //  });
-       
-
-        // const engine = wordAlignerModel.engine
-        // engine.corpusIndex = new CorpusIndex();
-        // engine.alignmentMemoryIndex = new AlignmentMemoryIndex();
-
-        // wordMap.appendAlignmentMemoryString(alignment.sourceText,
-        //     alignment.targetText);
-        //
-        // wordAlignerModel.appendKeyedCorpusTokens(sourceCorpusTokenized, targetCorpusTokenized);
-        //
-        // wordAlignerModel.appendKeyedCorpusTokens(sourceVersesTokenized, targetVersesTokenized);
+        wordAlignerModel.appendKeyedCorpusTokens(sourceVersesTokenized, targetVersesTokenized);
+        Object.entries(alignments).forEach(([reference, refAlignments]) => {
+            // @ts-ignore
+            wordAlignerModel.appendAlignmentMemory(refAlignments);
+        });
     }
 
     /**
@@ -1308,9 +1294,12 @@ export const useAlignmentSuggestions = ({
         console.log(`useAlignmentSuggestions - startTraining() - Starting, already running is: ${trainingRunning}`);
         if (!trainingRunning) {
             delay(500).then(() => { // run async
-                executeTraining().then(() => {
-                    console.log(`useAlignmentSuggestions - startTraining() - Training started`);
-                });
+                const model = alignmentPredictorRef?.current?.model;
+                // TODO: fix
+                applyCurrentTranslationMemory(model, contextId?.reference?.bookId);
+                // executeTraining().then(() => {
+                //     console.log(`useAlignmentSuggestions - startTraining() - Training started`);
+                // });
             });
         }
     }
