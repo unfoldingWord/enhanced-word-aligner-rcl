@@ -259,15 +259,18 @@ export interface TUseAlignmentSuggestionsReturn {
         
         /** Saves updated configuration settings */
         saveChangedSettings: (config: TAlignmentSuggestionsConfig) => Promise<void>;
-        
+
+        /** Initiates the alignment training process */
+        startTraining: () => void;
+
+        /** Stops the currently running alignment training */
+        stopTraining: () => void;
+
         /** Current suggestion function for generating alignment suggestions */
         suggester: TSuggester;
         
-        /** Initiates the alignment training process */
-        startTraining: () => void;
-        
-        /** Stops the currently running alignment training */
-        stopTraining: () => void;
+        /** Updates the translation memory using the current model and context information */
+        updateTranslationMemory: () => void;
     };
 }
 
@@ -929,6 +932,20 @@ export const useAlignmentSuggestions = ({
     }
 
     /**
+     * Updates the translation memory using the current model and context information.
+     *
+     * This method retrieves the model from the alignment predictor reference and applies the current
+     * translation memory for the specified context. The functionality relies on the presence of a valid model
+     * and context information to effectively update the translation memory.
+     *
+     * @return {void} Does not return a value.
+     */
+    function updateTranslationMemory() {
+        const model = alignmentPredictorRef?.current?.model;
+        applyCurrentTranslationMemory(model, contextId?.reference?.bookId);
+    }
+
+    /**
      * Applies the current translation memory to the given word aligner model for the current group.
      *
      * @param {AbstractWordMapWrapper} wordAlignerModel - The word alignment model wrapper instance used for aligning source and target text.
@@ -1294,12 +1311,9 @@ export const useAlignmentSuggestions = ({
         console.log(`useAlignmentSuggestions - startTraining() - Starting, already running is: ${trainingRunning}`);
         if (!trainingRunning) {
             delay(500).then(() => { // run async
-                const model = alignmentPredictorRef?.current?.model;
-                // TODO: fix
-                applyCurrentTranslationMemory(model, contextId?.reference?.bookId);
-                // executeTraining().then(() => {
-                //     console.log(`useAlignmentSuggestions - startTraining() - Training started`);
-                // });
+                executeTraining().then(() => {
+                    console.log(`useAlignmentSuggestions - startTraining() - Training started`);
+                });
             });
         }
     }
@@ -1892,6 +1906,7 @@ export const useAlignmentSuggestions = ({
             startTraining,
             stopTraining: _stopTraining,
             suggester,
+            updateTranslationMemory,
         }
     };
 };

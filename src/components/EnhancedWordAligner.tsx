@@ -278,6 +278,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             suggester,
             startTraining,
             stopTraining: stopTraining_,
+            updateTranslationMemory,
         }
     } = alignmentSuggestionsManage;
 
@@ -322,16 +323,24 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             getLatestSetting().then(settings => {
                 const _disableSuggestions = settings?.config?.disableSuggestions
                 const _doAutoTraining = !_disableSuggestions && settings?.config?.doAutoTraining
+                const _doAutoLoadCachedTraining = !_disableSuggestions && settings?.config?.doAutoLoadCachedTraining;
                 console.log('EnhancedWordAligner - current state', {
                     checksumGenerated, translationMemoryLoaded, trainingComplete, _doAutoTraining, settingsKey: settings?.settingsKey
                 });
-                if (checksumGenerated && translationMemoryLoaded && trainingComplete && _doAutoTraining) {
+                if (checksumGenerated && translationMemoryLoaded && trainingComplete) {
                     console.log('EnhancedWordAligner - current settings', settings);
                     const shaState: TBookShaState = getCurrentBookShaState()
                     console.log(`EnhancedWordAligner - Training complete: ${shaState?.bookShaChanged} trained sha ${shaState?.trainedSha} and current book sha ${shaState?.currentBookSha}`);
                     if (shaState?.bookShaChanged) {
-                        console.log(`EnhancedWordAligner - Training complete: book changed, retraining`);
-                        startTraining();
+                        if (_doAutoTraining) {
+                            console.log(`EnhancedWordAligner - Training complete: book changed, retraining`);
+                            startTraining();
+                        } else if (_doAutoLoadCachedTraining) {
+                            console.log(`EnhancedWordAligner - Training complete: book changed, reloading translation memory`);
+                            updateTranslationMemory(); 
+                        } else {
+                            console.log(`EnhancedWordAligner - Training complete: book changed, no action enabled`);
+                        }
                     }
                 }
             }).catch(error => {
