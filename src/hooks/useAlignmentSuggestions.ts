@@ -63,7 +63,7 @@ import {
     useRef,
     useState,
 } from 'react';
-import { AbstractWordMapWrapper } from 'uw-wordmapbooster';
+import { AbstractWordMapWrapper, updateTokenLocations } from 'uw-wordmapbooster';
 import { bibleHelpers } from 'word-aligner-rcl';
 import usfm from 'usfm-js';
 import cloneDeep from 'lodash.clonedeep';
@@ -96,11 +96,14 @@ import {
     TAlignmentSuggestionsConfig,
     TAlignmentTrainingWorkerData,
     TBookVerseCounts,
+    TCurrentSettings,
     TTrainedWordAlignerModelWorkerResults,
     TTrainingAndTestingData,
     TVerseCounts,
 } from '@/workers/WorkerComTypes';
 import {makeTranslationMemory, START_TRAINING} from '@/workers/utils/AlignmentTrainerUtils';
+import {Token} from "wordmap-lexer";
+import WordMap, {Alignment, Ngram} from "wordmap";
 
 /**
  * Callback function type for handling training completion events
@@ -232,6 +235,9 @@ export interface TUseAlignmentSuggestionsReturn {
         
         /** Gets the SHA state of the current book */
         getCurrentBookShaState: () => TBookShaState;
+
+        /** Retrieves the latest configuration settings */
+        getLatestSetting: () => Promise<TCurrentSettings>;
         
         /** Retrieves metadata about the current alignment model */
         getModelMetaData: () => TAlignmentMetaData|null;
@@ -253,15 +259,18 @@ export interface TUseAlignmentSuggestionsReturn {
         
         /** Saves updated configuration settings */
         saveChangedSettings: (config: TAlignmentSuggestionsConfig) => Promise<void>;
-        
+
+        /** Initiates the alignment training process */
+        startTraining: () => void;
+
+        /** Stops the currently running alignment training */
+        stopTraining: () => void;
+
         /** Current suggestion function for generating alignment suggestions */
         suggester: TSuggester;
         
-        /** Initiates the alignment training process */
-        startTraining: () => void;
-        
-        /** Stops the currently running alignment training */
-        stopTraining: () => void;
+        /** Updates the translation memory using the current model and context information */
+        updateTranslationMemory: () => void;
     };
 }
 
@@ -470,8 +479,10 @@ function getAlignmentMemoryKey(group_name: string) {
 function getDefaultConfig(config_: TAlignmentSuggestionsConfig) {
     const defaultConfig = {
         ...config_,
+        disableSuggestions: config_.disableSuggestions ?? false,
         doAutoLoadCachedTraining: config_.doAutoLoadCachedTraining ?? true,
         doAutoTraining: config_.doAutoTraining ?? false,
+        doAutoUpdateTranslationMemory: config_.doAutoUpdateTranslationMemory ?? true,
         keepAllAlignmentMemory: config_.keepAllAlignmentMemory ?? true,
         keepAllAlignmentMinThreshold: config_.keepAllAlignmentMinThreshold ?? 90,
         minTrainingVerseRatio: config_.minTrainingVerseRatio ?? 1.1,
@@ -895,6 +906,101 @@ export const useAlignmentSuggestions = ({
     }
 
     /**
+     * Retrieves the alignment data and related information for the current group, based on the provided book ID.
+     *
+     * @param {string} bookId - The identifier of the book to evaluate whether it is part of the New Testament.
+     * @return {Object} An object containing the group name, alignment training data, and the group itself:
+     *                  - `groupName` (string): The name of the current group.
+     *                  - `alignmentTrainingData_` (TTrainingAndTestingData | null): The alignment data and corpus for training or testing.
+     *                  - `group` (Object): The group object returned from getting alignments for the current group.
+     */
+    function getAlignmentDataForCurrentGroup(bookId: string) {
+        const isNT = bibleHelpers.isNewTestament(bookId)
+        const groupName = getGroupName(contextId)
+
+        // Get the alignment data for training
+        let alignmentTrainingData_: TTrainingAndTestingData | null = null;
+        const group = getAlignmentsForCurrentGroup();
+        if (group) {
+            alignmentTrainingData_ = group.getAlignmentDataAndCorpusForTrainingOrTesting({
+                forTesting: false,
+                getCorpus: true,
+                isNT: isNT
+            });
+        }
+        return {groupName, alignmentTrainingData_, group};
+    }
+
+    /**
+     * Updates the translation memory using the current model and context information.
+     *
+     * This method retrieves the model from the alignment predictor reference and applies the current
+     * translation memory for the specified context. The functionality relies on the presence of a valid model
+     * and context information to effectively update the translation memory.
+     *
+     * @return {void} Does not return a value.
+     */
+    function updateTranslationMemory() {
+        const model = alignmentPredictorRef?.current?.model;
+        applyCurrentTranslationMemory(model, contextId?.reference?.bookId);
+    }
+
+    /**
+     * Applies the current translation memory to the given word aligner model for the current group.
+     *
+     * @param {AbstractWordMapWrapper} wordAlignerModel - The word alignment model wrapper instance used for aligning source and target text.
+     * @param {string} bookId - The identifier of the current book - only to determine which testament we are using.
+     * @return {void} No return value.
+     */
+    function applyCurrentTranslationMemory(wordAlignerModel: AbstractWordMapWrapper, bookId: string) {
+        // Convert the data into the structure which the training model expects.
+        const sourceVersesTokenized: { [reference: string]: Token[] } = {};
+        const targetVersesTokenized: { [reference: string]: Token[] } = {};
+        const alignments: { [reference: string]: Alignment[] } = {};
+        let alignedCount = 0;
+        let alignedVerseCount = 0;
+
+        //@ts-ignore
+        const wordMap: WordMap = wordAlignerModel.wordMap
+        
+        // clear previous translation memory
+        wordAlignerModel.emptyAlignmentMemory();
+
+        const {
+            groupName,
+            alignmentTrainingData_: data,
+            group
+        } = getAlignmentDataForCurrentGroup(bookId);
+
+        Object.entries(data.alignments).forEach(([reference, training_data]) => {
+            const tokenizedSourceVerse = training_data.sourceVerse.map(n => new Token(n));
+            sourceVersesTokenized[reference] = tokenizedSourceVerse;
+            const tokenizedTargetVerse = training_data.targetVerse.map(n => new Token(n));
+            targetVersesTokenized[reference] = tokenizedTargetVerse;
+            updateTokenLocations(sourceVersesTokenized[reference]);
+            updateTokenLocations(targetVersesTokenized[reference]);
+
+            alignedVerseCount++;
+            alignedCount += training_data.alignments.length;
+
+            alignments[reference] = training_data.alignments.map(alignment => {
+                const newAlignment = new Alignment(
+                    new Ngram(alignment.sourceNgram.map(n => new Token(n))),
+                    new Ngram(alignment.targetNgram.map(n => new Token(n)))
+                );
+
+                return newAlignment;
+            });
+        });
+
+        wordAlignerModel.appendKeyedCorpusTokens(sourceVersesTokenized, targetVersesTokenized);
+        Object.entries(alignments).forEach(([reference, refAlignments]) => {
+            // @ts-ignore
+            wordAlignerModel.appendAlignmentMemory(refAlignments);
+        });
+    }
+
+    /**
      * Executes the alignment training process
      * 
      * This function is the core of the training system. It:
@@ -927,19 +1033,7 @@ export const useAlignmentSuggestions = ({
                     ...contextId,
                     bookName: currentBookName || contextId?.reference?.bookId
                 }
-                const isNT = bibleHelpers.isNewTestament(bookId)
-                const groupName = getGroupName(contextId)
-                
-                // Get the alignment data for training
-                let alignmentTrainingData_:TTrainingAndTestingData|null = null;
-                const group = getAlignmentsForCurrentGroup();
-                if (group) {
-                    alignmentTrainingData_ = group.getAlignmentDataAndCorpusForTrainingOrTesting({
-                        forTesting: false,
-                        getCorpus: true,
-                        isNT: isNT
-                    });
-                }
+                const {groupName, alignmentTrainingData_, group} = getAlignmentDataForCurrentGroup(bookId);
 
                 // Verify we have enough alignment data to train
                 const alignmentCount= group ? Object.values(alignmentTrainingData_.alignments).length : 0
@@ -1261,11 +1355,61 @@ export const useAlignmentSuggestions = ({
                     }
                     
                     console.log(`useAlignmentSuggestions - kickOffTraining start training`);
-                    executeTraining();
+                    const _disableSuggestions = configRef.current?.disableSuggestions
+                    const _doAutoTraining = !_disableSuggestions && configRef.current?.doAutoTraining;
+                    if (_doAutoTraining) {
+                        executeTraining();
+                    }
                 })
             }
         }
     }, [kickOffTraining]);
+
+    /**
+     * Fetches the latest configuration for alignment suggestions.
+     *
+     * @return {Promise<TCurrentSettings>} A promise that resolves to the latest configuration object of type TAlignmentSuggestionsConfig.
+     */
+    async function getLatestSetting(): Promise<TCurrentSettings> {
+        const dbStorage = await getIndexedDbStorage();
+        const settings = await loadLanguageBasedSettings(dbStorage);
+        return {
+            config: settings.config,
+            contextId,
+            settingsKey: getSettingsKey(contextId),
+        };
+    }
+
+    /**
+     * Asynchronously loads language-based settings from a provided database storage.
+     * Retrieves and parses the settings for the current context, applying default values
+     * and constraints where necessary.
+     *
+     * @param {IndexedDBStorage} dbStorage - The database storage object used to retrieve the settings.
+     * @return {Promise<settings>} A promise that resolves to the maximum complexity value derived from the settings.
+     */
+    async function loadLanguageBasedSettings(dbStorage: IndexedDBStorage) {
+        const langSettingsPair = getSettingsKey(contextId);
+        let settings = null
+        let settingsStr: string | null = await dbStorage.getItem(langSettingsPair);
+        let maxComplexity_ = DEFAULT_MAX_COMPLEXITY; // default to max complexity
+        if (settingsStr && settingsStr !== 'undefined') {
+            settings = JSON.parse(settingsStr);
+            if (settings?.maxComplexity) {
+                maxComplexity_ = settings.maxComplexity;
+                const limitComplexity = limitRangeOfComplexity(maxComplexity_);
+                console.log(`loaded maxComplexity from local storage: ${maxComplexity_}`);
+                if (limitComplexity !== maxComplexity_) {
+                    console.log(`maxComplexity out of range, setting to ${limitComplexity}`);
+                    maxComplexity_ = limitComplexity;
+                }
+            }
+            if (settings.config) {
+                configRef.current = getDefaultConfig(settings.config);
+            }
+        }
+        return settings;
+    }
 
     /**
      * Loads settings and model data from IndexedDB storage
@@ -1336,24 +1480,8 @@ export const useAlignmentSuggestions = ({
             });
 
             // load language based settings
-            const langSettingsPair = getSettingsKey(contextId);
-            let settings_: string | null = await dbStorage.getItem(langSettingsPair);
-            let maxComplexity_ = DEFAULT_MAX_COMPLEXITY; // default to max complexity
-            if (settings_ && settings_ !== 'undefined') {
-                const settings = JSON.parse(settings_);
-                if (settings?.maxComplexity) {
-                    maxComplexity_ = settings.maxComplexity;
-                    const limitComplexity = limitRangeOfComplexity(maxComplexity_);
-                    console.log(`loaded maxComplexity from local storage: ${maxComplexity_}`);
-                    if (limitComplexity !== maxComplexity_) {
-                        console.log(`maxComplexity out of range, setting to ${limitComplexity}`);
-                        maxComplexity_ = limitComplexity;
-                    }
-                }
-                if (settings.config) {
-                    configRef.current = getDefaultConfig(settings.config);
-                }
-            }
+            const settings = await loadLanguageBasedSettings(dbStorage);
+            let maxComplexity_ = settings?.maxComplexity;
             setState( { ...stateRef.current, maxComplexity: maxComplexity_});
             if (maxComplexity_ === DEFAULT_MAX_COMPLEXITY) {
                 console.log(`maxComplexity not found in local storage, using default ${maxComplexity_}`);
@@ -1507,7 +1635,9 @@ export const useAlignmentSuggestions = ({
         (async () => {
             let cachedDataLoaded = false;
             const config = configRef.current;
-            const doAutoLoad = config?.doAutoTraining || config?.doAutoLoadCachedTraining
+            const _disableSuggestions = config?.disableSuggestions
+            const doAutoLoad = !_disableSuggestions &&
+                (config?.doAutoTraining || config?.doAutoLoadCachedTraining)
             const readyToShow = shown && modelKey && contextId;
             if (readyToShow && doAutoLoad) {
                 console.log(`useAlignmentSuggestions.startup - modelKey changed to ${modelKey}`);
@@ -1519,8 +1649,12 @@ export const useAlignmentSuggestions = ({
                 const bookId = contextId?.reference?.bookId;
                 if (bookId) {
                     const group_name = getGroupName(contextId)
+
+                    const disableSuggestions = configRef.current?.disableSuggestions
                     const translationMemoryFound = isTranslationMemoryAvailable(bookId);
-                    if (!translationMemoryFound) {
+                    if (disableSuggestions) {
+                        console.log(`useAlignmentSuggestions.startup - suggestions disabled`);
+                    } else if (!translationMemoryFound) {
                         console.log(`useAlignmentSuggestions.startup - translation Memory not found for book`);
                     } else { // make sure current data loaded into alignment memory
                         console.log(`useAlignmentSuggestions - translation Memory found for book, reload to make sure current`);
@@ -1557,7 +1691,9 @@ export const useAlignmentSuggestions = ({
      * and auto-training is enabled.
      */
     useEffect(() => {
-        if (failedToLoadCachedTraining && configRef.current?.doAutoTraining) {
+        const _disableSuggestions = configRef.current?.disableSuggestions
+        const _doAutoTraining = !_disableSuggestions && configRef.current?.doAutoTraining;
+        if (failedToLoadCachedTraining && _doAutoTraining) {
             console.log('useAlignmentSuggestions - failedToLoadCachedTraining', {failedToLoadCachedTraining, contextId, shown})
             const haveBook = contextId?.reference?.bookId;
             const autoTrainingCompleted = stateRef.current?.autoTrainingCompleted;
@@ -1646,6 +1782,10 @@ export const useAlignmentSuggestions = ({
      * @returns {TSuggester} Suggester function or null if not available
      */
     function getSuggester(): TSuggester {
+        if (configRef.current?.disableSuggestions) {
+            return null;
+        }
+
         const alignmentPredictor = alignmentPredictorRef.current?.model;
         if (alignmentPredictor) {
             if (!alignmentPredictor.predict) {
@@ -1755,6 +1895,7 @@ export const useAlignmentSuggestions = ({
             cleanupWorker,
             deleteBookFromGroup,
             getCurrentBookShaState,
+            getLatestSetting,
             getModelMetaData,
             getSuggester,
             getTrainingContextId,
@@ -1765,6 +1906,7 @@ export const useAlignmentSuggestions = ({
             startTraining,
             stopTraining: _stopTraining,
             suggester,
+            updateTranslationMemory,
         }
     };
 };

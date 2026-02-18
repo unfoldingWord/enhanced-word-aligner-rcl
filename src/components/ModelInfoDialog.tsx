@@ -294,7 +294,7 @@ export const ModelInfoDialog: React.FC<{
         const bookId_ = contextId?.reference?.bookId;
         if (bookId_) {
             content.push(
-                <div key="current-book" style={{marginBottom: '20px'}}>
+                <div key="current-book" id="current-book" style={{marginBottom: '20px'}}>
                     <h3 style={{color: '#2c3e50', marginBottom: '10px', fontSize: '16px'}}>
                         {translate('training.current_book_title', {bookId: bookId_})}
                     </h3>
@@ -306,11 +306,11 @@ export const ModelInfoDialog: React.FC<{
         if (sameBook && currentBookAlignmentInfo?.trainingInfo?.alignmentMemoryVerseCounts?.trained) {
             const trained = currentBookAlignmentInfo.trainingInfo.alignmentMemoryVerseCounts.trained;
             content.push(
-                <div key="trained" style={{marginBottom: '20px'}}>
+                <div key="trained" id="trained" style={{marginBottom: '20px'}}>
                     <h4 style={{color: '#34495e', marginBottom: '8px', fontSize: '16px'}}>{translate('training.trained_books_title')}</h4>
                     <div style={{paddingLeft: '16px'}}>
                         {Object.entries(trained.booksCount).map(([bookId, verseCount]) => (
-                            <div key={bookId} style={{marginBottom: '4px', fontFamily: 'monospace'}}>
+                            <div key={`trained-${bookId}`} id={`trained-${bookId}`} style={{marginBottom: '4px', fontFamily: 'monospace'}}>
                                 {translate('training.aligned_verse_count', {bookId, verseCount})}
                             </div>
                         ))}
@@ -322,11 +322,11 @@ export const ModelInfoDialog: React.FC<{
         if (sameBook && currentBookAlignmentInfo?.trainingInfo?.alignmentMemoryVerseCounts?.untrained) {
             const untrained = currentBookAlignmentInfo.trainingInfo.alignmentMemoryVerseCounts.untrained;
             content.push(
-                <div key="untrained" style={{marginBottom: '20px'}}>
+                <div key="untrained" id="untrained" style={{marginBottom: '20px'}}>
                     <h4 style={{color: '#34495e', marginBottom: '8px', fontSize: '16px'}}>{translate('training.untrained_books_title')}</h4>
                     <div style={{paddingLeft: '16px'}}>
                         {Object.entries(untrained.booksCount).map(([bookId, verseCount]) => (
-                            <div key={bookId} style={{marginBottom: '4px', fontFamily: 'monospace'}}>
+                            <div key={`untrained-${bookId}`} id={`untrained-${bookId}`} style={{marginBottom: '4px', fontFamily: 'monospace'}}>
                                 {translate('training.aligned_verse_count', {bookId, verseCount})}
                             </div>
                         ))}
@@ -337,7 +337,7 @@ export const ModelInfoDialog: React.FC<{
 
         if (!sameBook || (content.length === 0 && !currentBookAlignmentInfo)) {
             content.push(
-                <div key="no-data" style={{color: '#e74c3c', fontStyle: 'italic'}}>
+                <div key="no-data" id="no-data" style={{color: '#e74c3c', fontStyle: 'italic'}}>
                     {translate('training.alignment_not_loaded')}
                 </div>
             );
@@ -345,14 +345,14 @@ export const ModelInfoDialog: React.FC<{
 
         if (globalAlignmentBookVerseCounts) {
             content.push(
-                <div key="global" style={{marginBottom: '20px'}}>
+                <div key="global" id="global" style={{marginBottom: '20px'}}>
                     <h4 style={{color: '#34495e', marginBottom: '8px', fontSize: '16px'}}>{translate('training.alignments_title')}</h4>
                     <div style={{paddingLeft: '16px'}}>
                         {Object.entries(globalAlignmentBookVerseCounts).map(([bookId, verseCount]) => {
                             const totalVerseCounts = Math.max(verseCount.sourceVerseCount, verseCount.targetVerseCount);
                             const percentAligned = verseCount.percentAligned;
                             return (
-                                <div key={bookId} style={{
+                                <div key={`global-${bookId}`} id={`global-${bookId}`} style={{
                                     marginBottom: '4px',
                                     fontFamily: 'monospace',
                                     display: 'flex',
@@ -392,7 +392,7 @@ export const ModelInfoDialog: React.FC<{
 
         if (content.length === 0 && !globalAlignmentBookVerseCounts) {
             content.push(
-                <div key="no-global" style={{color: '#e74c3c', fontStyle: 'italic'}}>
+                <div key="no-global" id="no-global" style={{color: '#e74c3c', fontStyle: 'italic'}}>
                     {translate('training.alignment_memory_not_loaded')}
                 </div>
             );
@@ -454,13 +454,27 @@ export const ModelInfoDialog: React.FC<{
                 <h3 style={{color: '#2c3e50', marginTop: 0, marginBottom: '12px'}}>{title}</h3>
 
                 {createToggleSwitch({
-                    id: "autoTrainingToggle",
-                    label: translate('training.auto_training_label'),
-                    variable: "doAutoTraining",
-                    description: translate('training.auto_training_hint')
+                    id: "autoUpdateTranslationMemory",
+                    label: translate('suggestions.auto_update_memory_label'),
+                    variable: "doAutoUpdateTranslationMemory",
+                    description: translate('suggestions.auto_update_memory_hint')
                 })}
 
                 {createToggleSwitch({
+                    id: "disableSuggestionsToggle",
+                    label: translate('suggestions.disable_suggestions_label'),
+                    variable: "disableSuggestions",
+                    description: translate('suggestions.disable_suggestions_hint')
+                })}
+
+              {createToggleSwitch({
+                id: "autoTrainingToggle",
+                label: translate('training.auto_training_label'),
+                variable: "doAutoTraining",
+                description: translate('training.auto_training_hint')
+              })}
+
+              {createToggleSwitch({
                     id: "trainOnlyOnCurrentBookToggle",
                     label: translate('training.only_current_label'),
                     variable: "trainOnlyOnCurrentBook",

@@ -114,6 +114,15 @@ yarn
 yarn start
 ```
 
+## 💻 Publish
+```shell script
+# Install dependencies
+yarn
+
+# build and publish
+yarn prepublishOnly
+yarn publish
+```
 
 Then open your browser to `http://localhost:6003/`
 

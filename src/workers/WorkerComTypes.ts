@@ -64,6 +64,12 @@ export interface TTrainedWordAlignerModelResults {
     }
 }
 
+export interface TCurrentSettings {
+    config: TAlignmentSuggestionsConfig;
+    contextId: ContextId;
+    settingsKey: string;
+}
+
 export interface TAlignmentTrainingWorkerData {
     contextId: ContextId;
     minuteCounter?: number;
@@ -119,8 +125,10 @@ export interface TWordAlignmentTestResults{
 }
 
 export interface TAlignmentSuggestionsConfig {
+    disableSuggestions?: boolean; // set true to disable alignment suggestions
     doAutoLoadCachedTraining?: boolean; // set true to auto load previous cached training for book
     doAutoTraining?: boolean; // set true to enable auto training of alignment suggestions
+    doAutoUpdateTranslationMemory?: boolean; // set true to automatically update the translation memory when content changes
     keepAllAlignmentMemory?: boolean; // EXPERIMENTAL FEATURE - if true, then alignment data not used for training will be added back into wordMap after training.  This should improve alignment vocabulary, but may negatively impact accuracy in the case of fully aligned books.
     keepAllAlignmentMinThreshold?: number; // EXPERIMENTAL FEATURE - if threshold percentage is set (such as value 60), then alignment data not used for training will be added back into wordMap after training, but only if the percentage of book alignment is less than this threshold.  This should improve alignment vocabulary for books not completely aligned
     maxComplexity?: number; // to tweak the complexity limit for training
