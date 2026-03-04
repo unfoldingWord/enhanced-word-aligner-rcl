@@ -103,7 +103,7 @@ import {
 } from '@/workers/WorkerComTypes';
 import {makeTranslationMemory, START_TRAINING} from '@/workers/utils/AlignmentTrainerUtils';
 import {Token} from "wordmap-lexer";
-import WordMap, {Alignment, Ngram} from "wordmap";
+import {Alignment, Ngram} from "wordmap";
 import { getComplexityOfVerse } from "@/workers/utils/AlignmentHelpters";
 
 /**
@@ -344,6 +344,16 @@ function getElapsedMinutes(trainingStartTime: number) {
 }
 
 /**
+ * Calculates elapsed seconds since a given timestamp
+ *
+ * @param {number} startTime - The timestamp when the operation started
+ * @returns {number} Elapsed time in seconds
+ */
+function getElapsedSeconds(startTime: number) {
+    return (Date.now() - startTime) / 1000;
+}
+
+/**
  * Generates a settings storage key for the given context
  * 
  * Creates a unique key for storing settings specific to the current
@@ -486,6 +496,7 @@ function getDefaultConfig(config_: TAlignmentSuggestionsConfig) {
         doAutoUpdateTranslationMemory: config_.doAutoUpdateTranslationMemory ?? true,
         keepAllAlignmentMemory: config_.keepAllAlignmentMemory ?? true,
         keepAllAlignmentMinThreshold: config_.keepAllAlignmentMinThreshold ?? 90,
+        maxComplexityTranslationMemory: config_.maxComplexityTranslationMemory ?? 400000,
         minTrainingVerseRatio: config_.minTrainingVerseRatio ?? 1.1,
         sourceNgramLength: config_.sourceNgramLength ?? 3,
         sourceNgramMaxLength: config_.sourceNgramMaxLength ?? 10,
@@ -497,6 +508,30 @@ function getDefaultConfig(config_: TAlignmentSuggestionsConfig) {
         trainOnlyOnCurrentBook: config_.trainOnlyOnCurrentBook ?? false,
     }
     return defaultConfig;
+}
+
+/**
+ * Calculates the complexity of a verse based on the number of source and target tokens
+ * within the provided alignments.
+ *
+ * @param {Alignment[]} verseAlignments - An array of alignments, each containing source and target n-grams
+ * with token counts to calculate the complexity.
+ * @return {number} The calculated complexity of the verse based on token metrics.
+ */
+function getComplexityOfVerse_(verseAlignments: Alignment[]) {
+    let sourceTokens = 0;
+    let targetTokens = 0;
+    for (const alignment of verseAlignments) {
+        if (alignment) {
+            // @ts-ignore
+            sourceTokens += alignment.sourceNgram.tokens.length;
+            // @ts-ignore
+            targetTokens += alignment.targetNgram.tokens.length;
+        }
+    }
+
+    const complexityCount = getComplexityOfVerse(sourceTokens, targetTokens);
+    return complexityCount;
 }
 
 /**
@@ -943,17 +978,22 @@ export const useAlignmentSuggestions = ({
      */
     function updateTranslationMemory() {
         const model = alignmentPredictorRef?.current?.model;
-        applyCurrentTranslationMemory(model, contextId?.reference?.bookId);
+        applyCurrentTranslationMemory(model, contextId).then((newModel) => {
+            alignmentPredictorRef.current.model = newModel; // replace the current model with new model with updated translation memory
+        })
     }
 
     /**
-     * Applies the current translation memory to the given word aligner model for the current group.
+     * Async applies the current translation memory to the given word aligner model for the current group.
+     *   Broken up with delays to prevent hanging the UI
      *
      * @param {AbstractWordMapWrapper} wordAlignerModel - The word alignment model wrapper instance used for aligning source and target text.
      * @param {string} bookId - The identifier of the current book - only to determine which testament we are using.
      * @return {void} No return value.
      */
-    function applyCurrentTranslationMemory(wordAlignerModel: AbstractWordMapWrapper, bookId: string) {
+    async function applyCurrentTranslationMemory(wordAlignerModel: AbstractWordMapWrapper, contextId: ContextId) {
+        const copyStartTime = Date.now();
+
         // Convert the data into the structure which the training model expects.
         const sourceVersesTokenized: { [reference: string]: Token[] } = {};
         const targetVersesTokenized: { [reference: string]: Token[] } = {};
@@ -961,14 +1001,25 @@ export const useAlignmentSuggestions = ({
         let alignedCount = 0;
         let alignedVerseCount = 0;
         let alignedComplexityCount = 0;
-        const isNT = bibleHelpers.isNewTestament(bookId)
-        const maxComplexity = isNT ? DEFAULT_MAX_COMPLEXITY : DEFAULT_MAX_COMPLEXITY_OT;
-
-        //@ts-ignore
-        const wordMap: WordMap = wordAlignerModel.wordMap
+        const chapter = contextId?.reference?.chapter || '';
+        const verse = contextId?.reference?.verse || '';
+        const bookId = contextId?.reference?.bookId || '';
+        const isNT = bibleHelpers.isNewTestament(bookId);
+        const currentKey = `${bookId} ${chapter}:${verse}`;
+        const maxComplexity = configRef.current?.maxComplexityTranslationMemory || 400000;
         
+        
+        // console.log(`Copying model - ${getElapsedSeconds(copyStartTime)}s elapsed`);
+
+        let modelImage = wordAlignerModel.save();
+        await delay(100);
+        let newModel = AbstractWordMapWrapper.load(modelImage);
         // clear previous translation memory
-        wordAlignerModel.emptyAlignmentMemory();
+        newModel.emptyAlignmentMemory();
+        modelImage = null; // free up memory
+        await delay(100);
+
+        // console.log(`Model copy completed in  - ${getElapsedSeconds(copyStartTime)}s elapsed`);
 
         const {
             groupName,
@@ -1001,20 +1052,98 @@ export const useAlignmentSuggestions = ({
             });
         });
 
+        // console.log(`Alignments generated - ${getElapsedSeconds(copyStartTime)}s elapsed`);
+
         if (alignedComplexityCount > maxComplexity) {
-            console.warn(`applyCurrentTranslationMemory - complexity of alignments to large: ${alignedComplexityCount}`);
-            return;
+            const keys = Object.keys(alignments);
+            console.log(`applyCurrentTranslationMemory - complexity of alignments to large: ${alignedComplexityCount}`);
+         
+            const keysNotForCurrentBook = keys.filter(key => !key.startsWith(bookId));
+            // console.log(`applyCurrentTranslationMemory - keys not starting with ${bookId}:`, keysNotForCurrentBook);
+            for (const key of keysNotForCurrentBook) {
+                const verseAlignments = alignments[key];
+                if (verseAlignments?.length > 0) {
+                    const complexityCount = getComplexityOfVerse_(verseAlignments);
+                    alignedComplexityCount -= complexityCount;
+                    
+                    delete alignments[key];
+                    if (alignedComplexityCount <= maxComplexity) { // we removed enough to get complexity down
+                        break;
+                    }
+                }
+            }
+
+            if (alignedComplexityCount > maxComplexity) {
+                // if we still have too many alignments, remove verses at random
+                const keysForCurrentBook = keys.filter(key => key.startsWith(bookId));
+                // console.log(`applyCurrentTranslationMemory - keys starting with ${bookId}:`, keysForCurrentBook);
+
+                while (alignedComplexityCount > maxComplexity && keysForCurrentBook.length > 0) {
+                    const randomIndex = Math.floor(Math.random() * keysForCurrentBook.length);
+                    const key = keysForCurrentBook[randomIndex];
+                    if (key === currentKey) {
+                        continue;
+                    }
+                    const verseAlignments = alignments[key];
+                    if (verseAlignments?.length > 0) {
+                        const complexityCount = getComplexityOfVerse_(verseAlignments);
+                        alignedComplexityCount -= complexityCount;
+                        
+                        delete alignments[key];
+                        keysForCurrentBook.splice(randomIndex, 1);
+                    }
+                }
+            }
         }
+
+        // console.log(`Alignments trimmed ${alignedComplexityCount}  - ${getElapsedSeconds(copyStartTime)}s elapsed`);
         
+        await delay(100);
+        const BATCH_SIZE = 50;
+
         try {
-            wordAlignerModel.appendKeyedCorpusTokens(sourceVersesTokenized, targetVersesTokenized);
-            Object.entries(alignments).forEach(([reference, refAlignments]) => {
+            // Process verses in batches of 50
+            const references = Object.keys(sourceVersesTokenized);
+
+            for (let i = 0; i < references.length; i += BATCH_SIZE) {
+                const batchRefs = references.slice(i, i + BATCH_SIZE);
+                const batchSource: { [reference: string]: Token[] } = {};
+                const batchTarget: { [reference: string]: Token[] } = {};
+
+                batchRefs.forEach(ref => {
+                    batchSource[ref] = sourceVersesTokenized[ref];
+                    batchTarget[ref] = targetVersesTokenized[ref];
+                });
+
+                newModel.appendKeyedCorpusTokens(batchSource, batchTarget);
+                await delay(100); // Small delay between batches
+
+                // console.log(`Appended batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(references.length / BATCH_SIZE)} (${batchRefs.length} verses) - ${getElapsedSeconds(copyStartTime)}s elapsed`);
+            }
+            // console.log(`Appended corpus  - ${getElapsedSeconds(copyStartTime)}s elapsed`);
+            
+            await delay(100);
+
+            let count = 0;
+            const keys = Object.keys(alignments);
+            for (const reference of keys) {
+                const refAlignments = alignments[reference];
+
                 // @ts-ignore
-                wordAlignerModel.appendAlignmentMemory(refAlignments);
-            });
+                newModel.appendAlignmentMemory(refAlignments);
+                if (++count >= BATCH_SIZE) {
+                    await delay(100);
+                    count = 0;
+                }
+            };
+
+            console.log(`Alignment memory appended in  - ${getElapsedSeconds(copyStartTime)}s elapsed`);
         } catch (error) {
             console.error('applyCurrentTranslationMemory - error loading alignments', error);
         }
+
+        await delay(100);
+        return newModel;
     }
 
     /**
