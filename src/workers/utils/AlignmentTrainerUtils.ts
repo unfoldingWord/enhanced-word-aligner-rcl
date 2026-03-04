@@ -12,7 +12,7 @@ import {
 } from '../WorkerComTypes';
 import {ContextId, TTranslationMemoryType} from '@/common/classes';
 import {DEFAULT_MAX_COMPLEXITY} from '@/common/constants';
-import {getComplexityOfVerse} from "@/workers/utils/AlignmentHelpters";
+import { getComplexityOfVerse } from "@/workers/utils/AlignmentHelpters";
 
 enum ReduceType {
     anything,
@@ -124,7 +124,6 @@ export function removeComplexity(props: RemoveComplexityParams) {
         
         keyCount--;
         const complexityCount = getComplexityOfVerse(sourceVersesTokenized[key].length, targetVersesTokenized[key].length);
-
         alignedComplexityCount -= complexityCount;
 
         keys.splice(currentIndex, 1);

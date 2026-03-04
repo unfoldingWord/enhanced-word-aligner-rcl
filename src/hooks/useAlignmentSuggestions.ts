@@ -104,6 +104,7 @@ import {
 import {makeTranslationMemory, START_TRAINING} from '@/workers/utils/AlignmentTrainerUtils';
 import {Token} from "wordmap-lexer";
 import WordMap, {Alignment, Ngram} from "wordmap";
+import { getComplexityOfVerse } from "@/workers/utils/AlignmentHelpters";
 
 /**
  * Callback function type for handling training completion events
@@ -959,6 +960,9 @@ export const useAlignmentSuggestions = ({
         const alignments: { [reference: string]: Alignment[] } = {};
         let alignedCount = 0;
         let alignedVerseCount = 0;
+        let alignedComplexityCount = 0;
+        const isNT = bibleHelpers.isNewTestament(bookId)
+        const maxComplexity = isNT ? DEFAULT_MAX_COMPLEXITY : DEFAULT_MAX_COMPLEXITY_OT;
 
         //@ts-ignore
         const wordMap: WordMap = wordAlignerModel.wordMap
@@ -977,11 +981,20 @@ export const useAlignmentSuggestions = ({
             sourceVersesTokenized[reference] = tokenizedSourceVerse;
             const tokenizedTargetVerse = training_data.targetVerse.map(n => new Token(n));
             targetVersesTokenized[reference] = tokenizedTargetVerse;
-            updateTokenLocations(sourceVersesTokenized[reference]);
-            updateTokenLocations(targetVersesTokenized[reference]);
+            updateTokenLocations(tokenizedSourceVerse);
+            updateTokenLocations(tokenizedTargetVerse);
 
             alignedVerseCount++;
             alignedCount += training_data.alignments.length;
+
+            // measure complexity of alignments in each verse
+            const complexityCount = getComplexityOfVerse(tokenizedSourceVerse.length, tokenizedTargetVerse.length);
+            alignedComplexityCount += complexityCount;
+            
+            if (alignedComplexityCount > maxComplexity) {
+                console.warn(`applyCurrentTranslationMemory - complexity of alignments to large: ${alignedComplexityCount}`);
+                return;
+            }
 
             alignments[reference] = training_data.alignments.map(alignment => {
                 const newAlignment = new Alignment(
