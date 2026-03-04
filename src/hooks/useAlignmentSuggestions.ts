@@ -993,11 +993,15 @@ export const useAlignmentSuggestions = ({
             });
         });
 
-        wordAlignerModel.appendKeyedCorpusTokens(sourceVersesTokenized, targetVersesTokenized);
-        Object.entries(alignments).forEach(([reference, refAlignments]) => {
-            // @ts-ignore
-            wordAlignerModel.appendAlignmentMemory(refAlignments);
-        });
+        try {
+            wordAlignerModel.appendKeyedCorpusTokens(sourceVersesTokenized, targetVersesTokenized);
+            Object.entries(alignments).forEach(([reference, refAlignments]) => {
+                // @ts-ignore
+                wordAlignerModel.appendAlignmentMemory(refAlignments);
+            });
+        } catch (error) {
+            console.error('applyCurrentTranslationMemory - error loading alignments', error);
+        }
     }
 
     /**
