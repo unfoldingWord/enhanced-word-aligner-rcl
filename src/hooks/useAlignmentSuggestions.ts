@@ -991,11 +991,6 @@ export const useAlignmentSuggestions = ({
             const complexityCount = getComplexityOfVerse(tokenizedSourceVerse.length, tokenizedTargetVerse.length);
             alignedComplexityCount += complexityCount;
             
-            if (alignedComplexityCount > maxComplexity) {
-                console.warn(`applyCurrentTranslationMemory - complexity of alignments to large: ${alignedComplexityCount}`);
-                return;
-            }
-
             alignments[reference] = training_data.alignments.map(alignment => {
                 const newAlignment = new Alignment(
                     new Ngram(alignment.sourceNgram.map(n => new Token(n))),
@@ -1006,6 +1001,11 @@ export const useAlignmentSuggestions = ({
             });
         });
 
+        if (alignedComplexityCount > maxComplexity) {
+            console.warn(`applyCurrentTranslationMemory - complexity of alignments to large: ${alignedComplexityCount}`);
+            return;
+        }
+        
         try {
             wordAlignerModel.appendKeyedCorpusTokens(sourceVersesTokenized, targetVersesTokenized);
             Object.entries(alignments).forEach(([reference, refAlignments]) => {
