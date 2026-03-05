@@ -1023,6 +1023,32 @@ export const useAlignmentSuggestions = ({
             
             await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
             
+            const maxComplexity = configRef.current?.maxComplexityTranslationMemory || 400000;
+            
+            console.log(`Loading model - ${getElapsedSeconds(copyStartTime)}s elapsed`);
+            
+            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+            console.log(`Copying model - ${getElapsedSeconds(copyStartTime)}s elapsed`);
+
+            const newModel = cloneDeep(wordAlignerModel);
+            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+
+            console.log(`clearing new model - ${getElapsedSeconds(copyStartTime)}s elapsed`);
+            
+            // clear previous translation memory
+            newModel.emptyAlignmentMemory();
+            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+
+            console.log(`Model copy completed in  - ${getElapsedSeconds(copyStartTime)}s elapsed`);
+            const {
+                groupName,
+                alignmentTrainingData_: data,
+                group
+            } = getAlignmentDataForCurrentGroup(contextId?.reference?.bookId || '');
+            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+
+            const alignmentData = data.alignments;
+            
             // Convert the data into the structure which the training model expects.
             const sourceVersesTokenized: { [reference: string]: Token[] } = {};
             const targetVersesTokenized: { [reference: string]: Token[] } = {};
@@ -1033,30 +1059,9 @@ export const useAlignmentSuggestions = ({
             const chapter = contextId?.reference?.chapter || '';
             const verse = contextId?.reference?.verse || '';
             const bookId = contextId?.reference?.bookId || '';
-            const isNT = bibleHelpers.isNewTestament(bookId);
             const currentKey = `${bookId} ${chapter}:${verse}`;
-            const maxComplexity = configRef.current?.maxComplexityTranslationMemory || 400000;
-
-
-            // console.log(`Copying model - ${getElapsedSeconds(copyStartTime)}s elapsed`);
-
-            let modelImage = wordAlignerModel.save();
-            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
-            let newModel = AbstractWordMapWrapper.load(modelImage);
-            // clear previous translation memory
-            newModel.emptyAlignmentMemory();
-            modelImage = null; // free up memory
-            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
-
-            // console.log(`Model copy completed in  - ${getElapsedSeconds(copyStartTime)}s elapsed`);
-
-            const {
-                groupName,
-                alignmentTrainingData_: data,
-                group
-            } = getAlignmentDataForCurrentGroup(bookId);
-
-            Object.entries(data.alignments).forEach(([reference, training_data]) => {
+            
+            Object.entries(alignmentData).forEach(([reference, training_data]) => {
                 const tokenizedSourceVerse = training_data.sourceVerse.map(n => new Token(n));
                 sourceVersesTokenized[reference] = tokenizedSourceVerse;
                 const tokenizedTargetVerse = training_data.targetVerse.map(n => new Token(n));
@@ -1081,7 +1086,7 @@ export const useAlignmentSuggestions = ({
                 });
             });
 
-            // console.log(`Alignments generated - ${getElapsedSeconds(copyStartTime)}s elapsed`);
+            console.log(`Alignments generated - ${getElapsedSeconds(copyStartTime)}s elapsed`);
 
             if (alignedComplexityCount > maxComplexity) {
                 const keys = Object.keys(alignments);
@@ -1125,7 +1130,7 @@ export const useAlignmentSuggestions = ({
                 }
             }
 
-            // console.log(`Alignments trimmed ${alignedComplexityCount}  - ${getElapsedSeconds(copyStartTime)}s elapsed`);
+            console.log(`Alignments trimmed ${alignedComplexityCount}  - ${getElapsedSeconds(copyStartTime)}s elapsed`);
 
             await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
             const VERSE_BATCH_SIZE = 50; // load alignments in batches of this number of verses
@@ -1147,9 +1152,9 @@ export const useAlignmentSuggestions = ({
                     newModel.appendKeyedCorpusTokens(batchSource, batchTarget);
                     await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
 
-                    // console.log(`Appended batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(references.length / BATCH_SIZE)} (${batchRefs.length} verses) - ${getElapsedSeconds(copyStartTime)}s elapsed`);
+                    console.log(`Appended batch ${Math.floor(i / VERSE_BATCH_SIZE) + 1}/${Math.ceil(references.length / VERSE_BATCH_SIZE)} (${batchRefs.length} verses) - ${getElapsedSeconds(copyStartTime)}s elapsed`);
                 }
-                // console.log(`Appended corpus  - ${getElapsedSeconds(copyStartTime)}s elapsed`);
+                console.log(`Appended corpus  - ${getElapsedSeconds(copyStartTime)}s elapsed`);
 
                 await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
 

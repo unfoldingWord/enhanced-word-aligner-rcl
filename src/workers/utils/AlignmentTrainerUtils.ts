@@ -12,7 +12,7 @@ import {
 } from '../WorkerComTypes';
 import {ContextId, TTranslationMemoryType} from '@/common/classes';
 import {DEFAULT_MAX_COMPLEXITY} from '@/common/constants';
-import { getComplexityOfVerse } from "@/workers/utils/AlignmentHelpters";
+import { getComplexityOfVerse } from "@/workers/utils/AlignmentHelpers";
 
 enum ReduceType {
     anything,
