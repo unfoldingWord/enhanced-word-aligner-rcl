@@ -558,6 +558,7 @@ export const useAlignmentSuggestions = ({
     // Storage and state references
     const dbStorageRef = useRef<IndexedDBStorage | null>(null);
     const configRef = useRef<TAlignmentSuggestionsConfig>(getDefaultConfig(config_));
+    const loadingTranslationMemory = useRef<boolean>(false);
     const [state, _setState] = useState<TAlignmentSuggestionsState>(defaultAppState(contextId));
     const stateRef = useRef<TAlignmentSuggestionsState>(state);
     
@@ -979,7 +980,9 @@ export const useAlignmentSuggestions = ({
     function updateTranslationMemory() {
         const model = alignmentPredictorRef?.current?.model;
         applyCurrentTranslationMemory(model, contextId).then((newModel) => {
-            alignmentPredictorRef.current.model = newModel; // replace the current model with new model with updated translation memory
+            if (newModel) {
+                alignmentPredictorRef.current.model = newModel; // replace the current model with new model with updated translation memory
+            }
         })
     }
 
@@ -992,158 +995,176 @@ export const useAlignmentSuggestions = ({
      * @return {void} No return value.
      */
     async function applyCurrentTranslationMemory(wordAlignerModel: AbstractWordMapWrapper, contextId: ContextId) {
-        const copyStartTime = Date.now();
-
-        // Convert the data into the structure which the training model expects.
-        const sourceVersesTokenized: { [reference: string]: Token[] } = {};
-        const targetVersesTokenized: { [reference: string]: Token[] } = {};
-        const alignments: { [reference: string]: Alignment[] } = {};
-        let alignedCount = 0;
-        let alignedVerseCount = 0;
-        let alignedComplexityCount = 0;
-        const chapter = contextId?.reference?.chapter || '';
-        const verse = contextId?.reference?.verse || '';
-        const bookId = contextId?.reference?.bookId || '';
-        const isNT = bibleHelpers.isNewTestament(bookId);
-        const currentKey = `${bookId} ${chapter}:${verse}`;
-        const maxComplexity = configRef.current?.maxComplexityTranslationMemory || 400000;
+        if (loadingTranslationMemory.current) {
+            console.log('applyCurrentTranslationMemory - already loading TranslationMemory');
+            return;            
+        }
         
-        
-        // console.log(`Copying model - ${getElapsedSeconds(copyStartTime)}s elapsed`);
-
-        let modelImage = wordAlignerModel.save();
-        await delay(100);
-        let newModel = AbstractWordMapWrapper.load(modelImage);
-        // clear previous translation memory
-        newModel.emptyAlignmentMemory();
-        modelImage = null; // free up memory
-        await delay(100);
-
-        // console.log(`Model copy completed in  - ${getElapsedSeconds(copyStartTime)}s elapsed`);
-
-        const {
-            groupName,
-            alignmentTrainingData_: data,
-            group
-        } = getAlignmentDataForCurrentGroup(bookId);
-
-        Object.entries(data.alignments).forEach(([reference, training_data]) => {
-            const tokenizedSourceVerse = training_data.sourceVerse.map(n => new Token(n));
-            sourceVersesTokenized[reference] = tokenizedSourceVerse;
-            const tokenizedTargetVerse = training_data.targetVerse.map(n => new Token(n));
-            targetVersesTokenized[reference] = tokenizedTargetVerse;
-            updateTokenLocations(tokenizedSourceVerse);
-            updateTokenLocations(tokenizedTargetVerse);
-
-            alignedVerseCount++;
-            alignedCount += training_data.alignments.length;
-
-            // measure complexity of alignments in each verse
-            const complexityCount = getComplexityOfVerse(tokenizedSourceVerse.length, tokenizedTargetVerse.length);
-            alignedComplexityCount += complexityCount;
+        try {
+            loadingTranslationMemory.current = true;
+            const copyStartTime = Date.now();
+            console.log('applyCurrentTranslationMemory - background loading TranslationMemory');
             
-            alignments[reference] = training_data.alignments.map(alignment => {
-                const newAlignment = new Alignment(
-                    new Ngram(alignment.sourceNgram.map(n => new Token(n))),
-                    new Ngram(alignment.targetNgram.map(n => new Token(n)))
-                );
+            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+            
+            // Convert the data into the structure which the training model expects.
+            const sourceVersesTokenized: { [reference: string]: Token[] } = {};
+            const targetVersesTokenized: { [reference: string]: Token[] } = {};
+            const alignments: { [reference: string]: Alignment[] } = {};
+            let alignedCount = 0;
+            let alignedVerseCount = 0;
+            let alignedComplexityCount = 0;
+            const chapter = contextId?.reference?.chapter || '';
+            const verse = contextId?.reference?.verse || '';
+            const bookId = contextId?.reference?.bookId || '';
+            const isNT = bibleHelpers.isNewTestament(bookId);
+            const currentKey = `${bookId} ${chapter}:${verse}`;
+            const maxComplexity = configRef.current?.maxComplexityTranslationMemory || 400000;
 
-                return newAlignment;
+
+            // console.log(`Copying model - ${getElapsedSeconds(copyStartTime)}s elapsed`);
+
+            let modelImage = wordAlignerModel.save();
+            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+            let newModel = AbstractWordMapWrapper.load(modelImage);
+            // clear previous translation memory
+            newModel.emptyAlignmentMemory();
+            modelImage = null; // free up memory
+            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+
+            // console.log(`Model copy completed in  - ${getElapsedSeconds(copyStartTime)}s elapsed`);
+
+            const {
+                groupName,
+                alignmentTrainingData_: data,
+                group
+            } = getAlignmentDataForCurrentGroup(bookId);
+
+            Object.entries(data.alignments).forEach(([reference, training_data]) => {
+                const tokenizedSourceVerse = training_data.sourceVerse.map(n => new Token(n));
+                sourceVersesTokenized[reference] = tokenizedSourceVerse;
+                const tokenizedTargetVerse = training_data.targetVerse.map(n => new Token(n));
+                targetVersesTokenized[reference] = tokenizedTargetVerse;
+                updateTokenLocations(tokenizedSourceVerse);
+                updateTokenLocations(tokenizedTargetVerse);
+
+                alignedVerseCount++;
+                alignedCount += training_data.alignments.length;
+
+                // measure complexity of alignments in each verse
+                const complexityCount = getComplexityOfVerse(tokenizedSourceVerse.length, tokenizedTargetVerse.length);
+                alignedComplexityCount += complexityCount;
+
+                alignments[reference] = training_data.alignments.map(alignment => {
+                    const newAlignment = new Alignment(
+                      new Ngram(alignment.sourceNgram.map(n => new Token(n))),
+                      new Ngram(alignment.targetNgram.map(n => new Token(n)))
+                    );
+
+                    return newAlignment;
+                });
             });
-        });
 
-        // console.log(`Alignments generated - ${getElapsedSeconds(copyStartTime)}s elapsed`);
-
-        if (alignedComplexityCount > maxComplexity) {
-            const keys = Object.keys(alignments);
-            console.log(`applyCurrentTranslationMemory - complexity of alignments to large: ${alignedComplexityCount}`);
-         
-            const keysNotForCurrentBook = keys.filter(key => !key.startsWith(bookId));
-            // console.log(`applyCurrentTranslationMemory - keys not starting with ${bookId}:`, keysNotForCurrentBook);
-            for (const key of keysNotForCurrentBook) {
-                const verseAlignments = alignments[key];
-                if (verseAlignments?.length > 0) {
-                    const complexityCount = getComplexityOfVerse_(verseAlignments);
-                    alignedComplexityCount -= complexityCount;
-                    
-                    delete alignments[key];
-                    if (alignedComplexityCount <= maxComplexity) { // we removed enough to get complexity down
-                        break;
-                    }
-                }
-            }
+            // console.log(`Alignments generated - ${getElapsedSeconds(copyStartTime)}s elapsed`);
 
             if (alignedComplexityCount > maxComplexity) {
-                // if we still have too many alignments, remove verses at random
-                const keysForCurrentBook = keys.filter(key => key.startsWith(bookId));
-                // console.log(`applyCurrentTranslationMemory - keys starting with ${bookId}:`, keysForCurrentBook);
+                const keys = Object.keys(alignments);
+                console.log(`applyCurrentTranslationMemory - complexity of alignments too large: ${alignedComplexityCount}`);
 
-                while (alignedComplexityCount > maxComplexity && keysForCurrentBook.length > 0) {
-                    const randomIndex = Math.floor(Math.random() * keysForCurrentBook.length);
-                    const key = keysForCurrentBook[randomIndex];
-                    if (key === currentKey) {
-                        continue;
-                    }
+                const keysNotForCurrentBook = keys.filter(key => !key.startsWith(bookId));
+                // console.log(`applyCurrentTranslationMemory - keys not starting with ${bookId}:`, keysNotForCurrentBook);
+                for (const key of keysNotForCurrentBook) {
                     const verseAlignments = alignments[key];
                     if (verseAlignments?.length > 0) {
                         const complexityCount = getComplexityOfVerse_(verseAlignments);
                         alignedComplexityCount -= complexityCount;
-                        
+
                         delete alignments[key];
-                        keysForCurrentBook.splice(randomIndex, 1);
+                        if (alignedComplexityCount <= maxComplexity) { // we removed enough to get complexity down
+                            break;
+                        }
+                    }
+                }
+
+                if (alignedComplexityCount > maxComplexity) {
+                    // if we still have too many alignments, remove verses at random
+                    const keysForCurrentBook = keys.filter(key => key.startsWith(bookId));
+                    // console.log(`applyCurrentTranslationMemory - keys starting with ${bookId}:`, keysForCurrentBook);
+
+                    while (alignedComplexityCount > maxComplexity && keysForCurrentBook.length > 0) {
+                        const randomIndex = Math.floor(Math.random() * keysForCurrentBook.length);
+                        const key = keysForCurrentBook[randomIndex];
+                        if (key === currentKey) {
+                            continue;
+                        }
+                        const verseAlignments = alignments[key];
+                        if (verseAlignments?.length > 0) {
+                            const complexityCount = getComplexityOfVerse_(verseAlignments);
+                            alignedComplexityCount -= complexityCount;
+
+                            delete alignments[key];
+                            keysForCurrentBook.splice(randomIndex, 1);
+                        }
                     }
                 }
             }
-        }
 
-        // console.log(`Alignments trimmed ${alignedComplexityCount}  - ${getElapsedSeconds(copyStartTime)}s elapsed`);
-        
-        await delay(100);
-        const BATCH_SIZE = 50;
+            // console.log(`Alignments trimmed ${alignedComplexityCount}  - ${getElapsedSeconds(copyStartTime)}s elapsed`);
 
-        try {
-            // Process verses in batches of 50
-            const references = Object.keys(sourceVersesTokenized);
+            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+            const VERSE_BATCH_SIZE = 50; // load alignments in batches of this number of verses
 
-            for (let i = 0; i < references.length; i += BATCH_SIZE) {
-                const batchRefs = references.slice(i, i + BATCH_SIZE);
-                const batchSource: { [reference: string]: Token[] } = {};
-                const batchTarget: { [reference: string]: Token[] } = {};
+            try {
+                // Process verses in batches of 50
+                const references = Object.keys(sourceVersesTokenized);
 
-                batchRefs.forEach(ref => {
-                    batchSource[ref] = sourceVersesTokenized[ref];
-                    batchTarget[ref] = targetVersesTokenized[ref];
-                });
+                for (let i = 0; i < references.length; i += VERSE_BATCH_SIZE) {
+                    const batchRefs = references.slice(i, i + VERSE_BATCH_SIZE);
+                    const batchSource: { [reference: string]: Token[] } = {};
+                    const batchTarget: { [reference: string]: Token[] } = {};
 
-                newModel.appendKeyedCorpusTokens(batchSource, batchTarget);
-                await delay(100); // Small delay between batches
+                    batchRefs.forEach(ref => {
+                        batchSource[ref] = sourceVersesTokenized[ref];
+                        batchTarget[ref] = targetVersesTokenized[ref];
+                    });
 
-                // console.log(`Appended batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(references.length / BATCH_SIZE)} (${batchRefs.length} verses) - ${getElapsedSeconds(copyStartTime)}s elapsed`);
-            }
-            // console.log(`Appended corpus  - ${getElapsedSeconds(copyStartTime)}s elapsed`);
-            
-            await delay(100);
+                    newModel.appendKeyedCorpusTokens(batchSource, batchTarget);
+                    await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
 
-            let count = 0;
-            const keys = Object.keys(alignments);
-            for (const reference of keys) {
-                const refAlignments = alignments[reference];
-
-                // @ts-ignore
-                newModel.appendAlignmentMemory(refAlignments);
-                if (++count >= BATCH_SIZE) {
-                    await delay(100);
-                    count = 0;
+                    // console.log(`Appended batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(references.length / BATCH_SIZE)} (${batchRefs.length} verses) - ${getElapsedSeconds(copyStartTime)}s elapsed`);
                 }
-            };
+                // console.log(`Appended corpus  - ${getElapsedSeconds(copyStartTime)}s elapsed`);
 
-            console.log(`Alignment memory appended in  - ${getElapsedSeconds(copyStartTime)}s elapsed`);
+                await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+
+                let count = 0;
+                const keys = Object.keys(alignments);
+                for (const reference of keys) {
+                    const refAlignments = alignments[reference];
+
+                    // @ts-ignore
+                    newModel.appendAlignmentMemory(refAlignments);
+                    if (++count >= VERSE_BATCH_SIZE) {
+                        await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+                        count = 0;
+                    }
+                }
+                ;
+
+                console.log(`Alignment memory appended in  - ${getElapsedSeconds(copyStartTime)}s elapsed`);
+            } catch (error) {
+                console.error('applyCurrentTranslationMemory - error loading alignments', error);
+            }
+
+            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+            loadingTranslationMemory.current = false;
+            return newModel;
         } catch (error) {
-            console.error('applyCurrentTranslationMemory - error loading alignments', error);
+            console.error('applyCurrentTranslationMemory - overall error loading translation memory', error);
         }
 
-        await delay(100);
-        return newModel;
+        loadingTranslationMemory.current = false;
+        return null;
     }
 
     /**
