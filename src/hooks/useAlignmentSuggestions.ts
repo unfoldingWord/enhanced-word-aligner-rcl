@@ -978,11 +978,33 @@ export const useAlignmentSuggestions = ({
      * @return {void} Does not return a value.
      */
     function updateTranslationMemory() {
+        if (loadingTranslationMemory.current) {
+            console.log('updateTranslationMemory - already loading TranslationMemory');
+            return;
+        }
+
+        loadingTranslationMemory.current = true;
         const model = alignmentPredictorRef?.current?.model;
-        applyCurrentTranslationMemory(model, contextId).then((newModel) => {
+        const currentContextId = cloneDeep(contextId);
+        applyCurrentTranslationMemory(model, currentContextId).then(async (newModel) => {
             if (newModel) {
                 alignmentPredictorRef.current.model = newModel; // replace the current model with new model with updated translation memory
+                const dbStorage = await getIndexedDbStorage();
+                if (dbStorage) {
+                    try {
+                        const currentModelKey = getModelKey(currentContextId);
+                        const saveData: TAlignmentCompletedInfo = {...modelMetaDataRef.current};
+                        // @ts-ignore
+                        saveData.model = newModel.save()
+                        await dbStorageRef.current.setItem(currentModelKey, JSON.stringify(saveData));
+                    } catch (err) {
+                        console.error(`updateTranslationMemory - error saving updated model`, err);
+                    }
+                }
+            } else {
+                console.log('updateTranslationMemory - applyCurrentTranslationMemory FAILED');
             }
+            loadingTranslationMemory.current = false;
         })
     }
 
@@ -995,13 +1017,7 @@ export const useAlignmentSuggestions = ({
      * @return {void} No return value.
      */
     async function applyCurrentTranslationMemory(wordAlignerModel: AbstractWordMapWrapper, contextId: ContextId) {
-        if (loadingTranslationMemory.current) {
-            console.log('applyCurrentTranslationMemory - already loading TranslationMemory');
-            return;            
-        }
-        
         try {
-            loadingTranslationMemory.current = true;
             const copyStartTime = Date.now();
             console.log('applyCurrentTranslationMemory - background loading TranslationMemory');
             
@@ -1149,7 +1165,6 @@ export const useAlignmentSuggestions = ({
                         count = 0;
                     }
                 }
-                ;
 
                 console.log(`Alignment memory appended in  - ${getElapsedSeconds(copyStartTime)}s elapsed`);
             } catch (error) {
@@ -1157,13 +1172,11 @@ export const useAlignmentSuggestions = ({
             }
 
             await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
-            loadingTranslationMemory.current = false;
             return newModel;
         } catch (error) {
             console.error('applyCurrentTranslationMemory - overall error loading translation memory', error);
         }
 
-        loadingTranslationMemory.current = false;
         return null;
     }
 
