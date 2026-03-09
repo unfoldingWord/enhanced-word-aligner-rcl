@@ -103,7 +103,8 @@ import {
 } from '@/workers/WorkerComTypes';
 import {makeTranslationMemory, START_TRAINING} from '@/workers/utils/AlignmentTrainerUtils';
 import {Token} from "wordmap-lexer";
-import WordMap, {Alignment, Ngram} from "wordmap";
+import {Alignment, Ngram} from "wordmap";
+import { getComplexityOfVerse } from "@/workers/utils/AlignmentHelpers";
 
 /**
  * Callback function type for handling training completion events
@@ -270,7 +271,7 @@ export interface TUseAlignmentSuggestionsReturn {
         suggester: TSuggester;
         
         /** Updates the translation memory using the current model and context information */
-        updateTranslationMemory: () => void;
+        updateTranslationMemory: (newBookSha: string) => void;
     };
 }
 
@@ -340,6 +341,16 @@ function defaultTrainingState(contextId: ContextId): TrainingState {
  */
 function getElapsedMinutes(trainingStartTime: number) {
     return (Date.now() - trainingStartTime) / (1000 * 60);
+}
+
+/**
+ * Calculates elapsed seconds since a given timestamp
+ *
+ * @param {number} startTime - The timestamp when the operation started
+ * @returns {number} Elapsed time in seconds
+ */
+function getElapsedSeconds(startTime: number) {
+    return (Date.now() - startTime) / 1000;
 }
 
 /**
@@ -485,6 +496,7 @@ function getDefaultConfig(config_: TAlignmentSuggestionsConfig) {
         doAutoUpdateTranslationMemory: config_.doAutoUpdateTranslationMemory ?? true,
         keepAllAlignmentMemory: config_.keepAllAlignmentMemory ?? true,
         keepAllAlignmentMinThreshold: config_.keepAllAlignmentMinThreshold ?? 90,
+        maxComplexityTranslationMemory: config_.maxComplexityTranslationMemory ?? 400000,
         minTrainingVerseRatio: config_.minTrainingVerseRatio ?? 1.1,
         sourceNgramLength: config_.sourceNgramLength ?? 3,
         sourceNgramMaxLength: config_.sourceNgramMaxLength ?? 10,
@@ -496,6 +508,30 @@ function getDefaultConfig(config_: TAlignmentSuggestionsConfig) {
         trainOnlyOnCurrentBook: config_.trainOnlyOnCurrentBook ?? false,
     }
     return defaultConfig;
+}
+
+/**
+ * Calculates the complexity of a verse based on the number of source and target tokens
+ * within the provided alignments.
+ *
+ * @param {Alignment[]} verseAlignments - An array of alignments, each containing source and target n-grams
+ * with token counts to calculate the complexity.
+ * @return {number} The calculated complexity of the verse based on token metrics.
+ */
+function getComplexityOfVerse_(verseAlignments: Alignment[]) {
+    let sourceTokens = 0;
+    let targetTokens = 0;
+    for (const alignment of verseAlignments) {
+        if (alignment) {
+            // @ts-ignore
+            sourceTokens += alignment.sourceNgram.tokens.length;
+            // @ts-ignore
+            targetTokens += alignment.targetNgram.tokens.length;
+        }
+    }
+
+    const complexityCount = getComplexityOfVerse(sourceTokens, targetTokens);
+    return complexityCount;
 }
 
 /**
@@ -522,6 +558,7 @@ export const useAlignmentSuggestions = ({
     // Storage and state references
     const dbStorageRef = useRef<IndexedDBStorage | null>(null);
     const configRef = useRef<TAlignmentSuggestionsConfig>(getDefaultConfig(config_));
+    const loadingTranslationMemory = useRef<boolean>(false);
     const [state, _setState] = useState<TAlignmentSuggestionsState>(defaultAppState(contextId));
     const stateRef = useRef<TAlignmentSuggestionsState>(state);
     
@@ -940,64 +977,237 @@ export const useAlignmentSuggestions = ({
      *
      * @return {void} Does not return a value.
      */
-    function updateTranslationMemory() {
+    function updateTranslationMemory(newBookSha: string) {
+        if (loadingTranslationMemory.current) {
+            console.log('updateTranslationMemory - already loading TranslationMemory');
+            return;
+        }
+
+        const _start = Date.now();
+        loadingTranslationMemory.current = true;
         const model = alignmentPredictorRef?.current?.model;
-        applyCurrentTranslationMemory(model, contextId?.reference?.bookId);
+        const currentContextId = cloneDeep(contextId);
+        applyCurrentTranslationMemory(model, currentContextId, _start).then(async (newModel) => {
+            if (newModel) {
+                alignmentPredictorRef.current.model = newModel; // replace the current model with new model with updated translation memory
+
+                console.log(`Preparing to save model - ${getElapsedSeconds(_start)}s elapsed`);
+
+                const dbStorage = await getIndexedDbStorage();
+                if (dbStorage) {
+                    try {
+                        const currentModelKey = getModelKey(currentContextId);
+                        modelMetaDataRef.current.currentSha = newBookSha; // update the sha
+                        const saveData: TAlignmentCompletedInfo = {
+                            ...modelMetaDataRef.current,
+                        };
+
+                        await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+
+                        console.log(`Converting model - ${getElapsedSeconds(_start)}s elapsed`);
+
+                        // @ts-ignore
+                        saveData.model = newModel.save()
+
+                        await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+
+                        console.log(`Saving model - ${getElapsedSeconds(_start)}s elapsed`);
+
+                        await dbStorageRef.current.setItem(currentModelKey, JSON.stringify(saveData));
+
+                        console.log(`model saved - ${getElapsedSeconds(_start)}s elapsed`);
+                        
+                    } catch (err) {
+                        console.error(`updateTranslationMemory - error saving updated model`, err);
+                    }
+                }
+            } else {
+                console.log('updateTranslationMemory - applyCurrentTranslationMemory FAILED');
+            }
+            loadingTranslationMemory.current = false;
+        })
     }
 
     /**
-     * Applies the current translation memory to the given word aligner model for the current group.
+     * Async applies the current translation memory to the given word aligner model for the current group.
+     *   Broken up with delays to prevent hanging the UI
      *
      * @param {AbstractWordMapWrapper} wordAlignerModel - The word alignment model wrapper instance used for aligning source and target text.
      * @param {string} bookId - The identifier of the current book - only to determine which testament we are using.
      * @return {void} No return value.
      */
-    function applyCurrentTranslationMemory(wordAlignerModel: AbstractWordMapWrapper, bookId: string) {
-        // Convert the data into the structure which the training model expects.
-        const sourceVersesTokenized: { [reference: string]: Token[] } = {};
-        const targetVersesTokenized: { [reference: string]: Token[] } = {};
-        const alignments: { [reference: string]: Alignment[] } = {};
-        let alignedCount = 0;
-        let alignedVerseCount = 0;
+    async function applyCurrentTranslationMemory(wordAlignerModel: AbstractWordMapWrapper, contextId: ContextId, _start: number) {
+        try {
+            console.log('applyCurrentTranslationMemory - background loading TranslationMemory');
+            
+            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+            
+            const maxComplexity = configRef.current?.maxComplexityTranslationMemory || 400000;
+            
+            console.log(`Loading model - ${getElapsedSeconds(_start)}s elapsed`);
+            
+            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+            console.log(`saving model - ${getElapsedSeconds(_start)}s elapsed`);
 
-        //@ts-ignore
-        const wordMap: WordMap = wordAlignerModel.wordMap
-        
-        // clear previous translation memory
-        wordAlignerModel.emptyAlignmentMemory();
+            let modelImage = wordAlignerModel.saveWithoutData(); // just get the model infor without the alignment data
+            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
 
-        const {
-            groupName,
-            alignmentTrainingData_: data,
-            group
-        } = getAlignmentDataForCurrentGroup(bookId);
+            console.log(`copying model - ${getElapsedSeconds(_start)}s elapsed`);
+            const newModel = AbstractWordMapWrapper.load(modelImage);
+            modelImage = null; // clear model memory
+            
+            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
 
-        Object.entries(data.alignments).forEach(([reference, training_data]) => {
-            const tokenizedSourceVerse = training_data.sourceVerse.map(n => new Token(n));
-            sourceVersesTokenized[reference] = tokenizedSourceVerse;
-            const tokenizedTargetVerse = training_data.targetVerse.map(n => new Token(n));
-            targetVersesTokenized[reference] = tokenizedTargetVerse;
-            updateTokenLocations(sourceVersesTokenized[reference]);
-            updateTokenLocations(targetVersesTokenized[reference]);
+            console.log(`clearing new model - ${getElapsedSeconds(_start)}s elapsed`);
+            
+            // clear previous translation memory
+            newModel.emptyAlignmentMemory();
+            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
 
-            alignedVerseCount++;
-            alignedCount += training_data.alignments.length;
+            console.log(`Model copy completed in  - ${getElapsedSeconds(_start)}s elapsed`);
+            const {
+                groupName,
+                alignmentTrainingData_: data,
+                group
+            } = getAlignmentDataForCurrentGroup(contextId?.reference?.bookId || '');
+            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
 
-            alignments[reference] = training_data.alignments.map(alignment => {
-                const newAlignment = new Alignment(
-                    new Ngram(alignment.sourceNgram.map(n => new Token(n))),
-                    new Ngram(alignment.targetNgram.map(n => new Token(n)))
-                );
+            const alignmentData = data.alignments;
+            
+            // Convert the data into the structure which the training model expects.
+            const sourceVersesTokenized: { [reference: string]: Token[] } = {};
+            const targetVersesTokenized: { [reference: string]: Token[] } = {};
+            const alignments: { [reference: string]: Alignment[] } = {};
+            let alignedCount = 0;
+            let alignedVerseCount = 0;
+            let alignedComplexityCount = 0;
+            const chapter = contextId?.reference?.chapter || '';
+            const verse = contextId?.reference?.verse || '';
+            const bookId = contextId?.reference?.bookId || '';
+            const currentKey = `${bookId} ${chapter}:${verse}`;
+            
+            Object.entries(alignmentData).forEach(([reference, training_data]) => {
+                const tokenizedSourceVerse = training_data.sourceVerse.map(n => new Token(n));
+                sourceVersesTokenized[reference] = tokenizedSourceVerse;
+                const tokenizedTargetVerse = training_data.targetVerse.map(n => new Token(n));
+                targetVersesTokenized[reference] = tokenizedTargetVerse;
+                updateTokenLocations(tokenizedSourceVerse);
+                updateTokenLocations(tokenizedTargetVerse);
 
-                return newAlignment;
+                alignedVerseCount++;
+                alignedCount += training_data.alignments.length;
+
+                // measure complexity of alignments in each verse
+                const complexityCount = getComplexityOfVerse(tokenizedSourceVerse.length, tokenizedTargetVerse.length);
+                alignedComplexityCount += complexityCount;
+
+                alignments[reference] = training_data.alignments.map(alignment => {
+                    const newAlignment = new Alignment(
+                      new Ngram(alignment.sourceNgram.map(n => new Token(n))),
+                      new Ngram(alignment.targetNgram.map(n => new Token(n)))
+                    );
+
+                    return newAlignment;
+                });
             });
-        });
 
-        wordAlignerModel.appendKeyedCorpusTokens(sourceVersesTokenized, targetVersesTokenized);
-        Object.entries(alignments).forEach(([reference, refAlignments]) => {
-            // @ts-ignore
-            wordAlignerModel.appendAlignmentMemory(refAlignments);
-        });
+            console.log(`Alignments generated - ${getElapsedSeconds(_start)}s elapsed`);
+
+            if (alignedComplexityCount > maxComplexity) {
+                const keys = Object.keys(alignments);
+                console.log(`applyCurrentTranslationMemory - complexity of alignments too large: ${alignedComplexityCount}`);
+
+                const keysNotForCurrentBook = keys.filter(key => !key.startsWith(bookId));
+                // console.log(`applyCurrentTranslationMemory - keys not starting with ${bookId}:`, keysNotForCurrentBook);
+                for (const key of keysNotForCurrentBook) {
+                    const verseAlignments = alignments[key];
+                    if (verseAlignments?.length > 0) {
+                        const complexityCount = getComplexityOfVerse_(verseAlignments);
+                        alignedComplexityCount -= complexityCount;
+
+                        delete alignments[key];
+                        if (alignedComplexityCount <= maxComplexity) { // we removed enough to get complexity down
+                            break;
+                        }
+                    }
+                }
+
+                if (alignedComplexityCount > maxComplexity) {
+                    // if we still have too many alignments, remove verses at random
+                    const keysForCurrentBook = keys.filter(key => key.startsWith(bookId));
+                    // console.log(`applyCurrentTranslationMemory - keys starting with ${bookId}:`, keysForCurrentBook);
+
+                    while (alignedComplexityCount > maxComplexity && keysForCurrentBook.length > 0) {
+                        const randomIndex = Math.floor(Math.random() * keysForCurrentBook.length);
+                        const key = keysForCurrentBook[randomIndex];
+                        if (key === currentKey) {
+                            continue;
+                        }
+                        const verseAlignments = alignments[key];
+                        if (verseAlignments?.length > 0) {
+                            const complexityCount = getComplexityOfVerse_(verseAlignments);
+                            alignedComplexityCount -= complexityCount;
+
+                            delete alignments[key];
+                            keysForCurrentBook.splice(randomIndex, 1);
+                        }
+                    }
+                }
+            }
+
+            console.log(`Alignments trimmed ${alignedComplexityCount}  - ${getElapsedSeconds(_start)}s elapsed`);
+
+            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+            const VERSE_BATCH_SIZE = 50; // load alignments in batches of this number of verses
+
+            try {
+                // Process verses in batches of 50
+                const references = Object.keys(sourceVersesTokenized);
+
+                for (let i = 0; i < references.length; i += VERSE_BATCH_SIZE) {
+                    const batchRefs = references.slice(i, i + VERSE_BATCH_SIZE);
+                    const batchSource: { [reference: string]: Token[] } = {};
+                    const batchTarget: { [reference: string]: Token[] } = {};
+
+                    batchRefs.forEach(ref => {
+                        batchSource[ref] = sourceVersesTokenized[ref];
+                        batchTarget[ref] = targetVersesTokenized[ref];
+                    });
+
+                    newModel.appendKeyedCorpusTokens(batchSource, batchTarget);
+                    await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+
+                    // console.log(`Appended batch ${Math.floor(i / VERSE_BATCH_SIZE) + 1}/${Math.ceil(references.length / VERSE_BATCH_SIZE)} (${batchRefs.length} verses) - ${getElapsedSeconds(copyStartTime)}s elapsed`);
+                }
+                console.log(`Appended corpus  - ${getElapsedSeconds(_start)}s elapsed`);
+
+                await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+
+                let count = 0;
+                const keys = Object.keys(alignments);
+                for (const reference of keys) {
+                    const refAlignments = alignments[reference];
+
+                    // @ts-ignore
+                    newModel.appendAlignmentMemory(refAlignments);
+                    if (++count >= VERSE_BATCH_SIZE) {
+                        await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+                        count = 0;
+                    }
+                }
+
+                console.log(`Alignment memory appended in  - ${getElapsedSeconds(_start)}s elapsed`);
+            } catch (error) {
+                console.error('applyCurrentTranslationMemory - error loading alignments', error);
+            }
+
+            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+            return newModel;
+        } catch (error) {
+            console.error('applyCurrentTranslationMemory - overall error loading translation memory', error);
+        }
+
+        return null;
     }
 
     /**
@@ -1373,11 +1583,17 @@ export const useAlignmentSuggestions = ({
     async function getLatestSetting(): Promise<TCurrentSettings> {
         const dbStorage = await getIndexedDbStorage();
         const settings = await loadLanguageBasedSettings(dbStorage);
-        return {
-            config: settings.config,
-            contextId,
-            settingsKey: getSettingsKey(contextId),
-        };
+        // @ts-ignore
+        const _config = settings?.config || getDefaultConfig({}); // fall back to default settings if setting not found
+        if (_config) {
+            return {
+                config: _config,
+                contextId,
+                settingsKey: getSettingsKey(contextId),
+            };
+        }
+        console.log(`useAlignmentSuggestions - getLatestSetting() - no setting found for ${getSettingsKey(contextId)}`);
+        return null
     }
 
     /**
@@ -1408,6 +1624,10 @@ export const useAlignmentSuggestions = ({
                 configRef.current = getDefaultConfig(settings.config);
             }
         }
+        if (!settings?.config) { // fall back to default settings
+            // @ts-ignore
+            configRef.current = getDefaultConfig({});
+        }
         return settings;
     }
 
@@ -1422,6 +1642,9 @@ export const useAlignmentSuggestions = ({
      * @returns {Promise<boolean>} True if model was loaded successfully
      */
     const loadSettingsFromStorage = async (dbStorage: IndexedDBStorage, modelKey: string) => {
+        const _start = Date.now();
+        console.log(`loadSettingsFromStorage Start - ${getElapsedSeconds(_start)}s elapsed`);
+
         setState( { ...stateRef.current, failedToLoadCachedTraining: false});
         let success = false;
         
@@ -1429,11 +1652,14 @@ export const useAlignmentSuggestions = ({
             //load the model.
             let predictorModel: AbstractWordMapWrapper | null = null; // default to null
             const modelMetaDataStr: string | null = await dbStorage.getItem(modelKey);
+            console.log(`loadSettingsFromStorage data loaded - ${getElapsedSeconds(_start)}s elapsed`);
             if (modelMetaDataStr && modelMetaDataStr !== 'undefined') {
                 const modelMetaData_:TAlignmentCompletedInfo = JSON.parse(modelMetaDataStr);
+                console.log(`loadSettingsFromStorage data parsed - ${getElapsedSeconds(_start)}s elapsed`);
                 if (modelMetaData_?.model) {
                     try {
-                        predictorModel = AbstractWordMapWrapper.load(modelMetaData_?.model);
+                        predictorModel = await AbstractWordMapWrapper.async_load_with_delay(modelMetaData_?.model, 10000);
+                        console.log(`loadSettingsFromStorage model loaded - ${getElapsedSeconds(_start)}s elapsed`);
                         if (predictorModel) {
                             if (predictorModel.predict) {
                                 console.log('loaded alignmentPredictorRef from local storage');
@@ -1466,6 +1692,8 @@ export const useAlignmentSuggestions = ({
                 }
             }
 
+            console.log(`loadSettingsFromStorage calling handler - ${getElapsedSeconds(_start)}s elapsed`);
+
             const trainingComplete = !!predictorModel?.predict;
             if (!trainingComplete) {
                 console.log('no alignmentPredictorRef found in local storage');
@@ -1479,6 +1707,8 @@ export const useAlignmentSuggestions = ({
                 trainingFailed: '',
             });
 
+            console.log(`loadSettingsFromStorage loading language settings - ${getElapsedSeconds(_start)}s elapsed`);
+
             // load language based settings
             const settings = await loadLanguageBasedSettings(dbStorage);
             let maxComplexity_ = settings?.maxComplexity;
@@ -1486,6 +1716,9 @@ export const useAlignmentSuggestions = ({
             if (maxComplexity_ === DEFAULT_MAX_COMPLEXITY) {
                 console.log(`maxComplexity not found in local storage, using default ${maxComplexity_}`);
             }
+
+            console.log(`loadSettingsFromStorage Done - ${getElapsedSeconds(_start)}s elapsed`);
+
         }
         return success;
     }
@@ -1640,11 +1873,16 @@ export const useAlignmentSuggestions = ({
                 (config?.doAutoTraining || config?.doAutoLoadCachedTraining)
             const readyToShow = shown && modelKey && contextId;
             if (readyToShow && doAutoLoad) {
-                console.log(`useAlignmentSuggestions.startup - modelKey changed to ${modelKey}`);
-                const dbStorage = await getIndexedDbStorage();
-                cachedDataLoaded = await loadSettingsFromStorage(dbStorage, modelKey);
-                console.log(`useAlignmentSuggestions.startup - cachedDataLoaded: ${cachedDataLoaded}`);
-                
+                const _loadedModel = getModelKey(modelMetaDataRef.current?.contextId);
+                if (_loadedModel !== modelKey) { // if changed, load last saved settings for new context
+                    console.log(`useAlignmentSuggestions.startup - modelKey changed to ${modelKey} from ${_loadedModel}`);
+                    const dbStorage = await getIndexedDbStorage();
+                    cachedDataLoaded = await loadSettingsFromStorage(dbStorage, modelKey);
+                    console.log(`useAlignmentSuggestions.startup - cachedDataLoaded: ${cachedDataLoaded}`);
+                } else {
+                    console.log(`useAlignmentSuggestions.startup - model already loaded ${_loadedModel}`);
+                }
+
                 // add the usfm for current book to training memory
                 const bookId = contextId?.reference?.bookId;
                 if (bookId) {

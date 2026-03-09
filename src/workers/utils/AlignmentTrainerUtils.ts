@@ -12,6 +12,7 @@ import {
 } from '../WorkerComTypes';
 import {ContextId, TTranslationMemoryType} from '@/common/classes';
 import {DEFAULT_MAX_COMPLEXITY} from '@/common/constants';
+import { getComplexityOfVerse } from "@/workers/utils/AlignmentHelpers";
 
 enum ReduceType {
     anything,
@@ -25,18 +26,6 @@ export const TRAINING_STATUS = 'trainingStatus';
 export const START_TRAINING = 'startTraining';
 
 let lastProgress = 0;
-
-/**
- * Calculates the complexity of a verse based on the lengths of the source and target text.
- *
- * @param {number} sourceLength - The length of the source text.
- * @param {number} targetLength - The length of the target text.
- * @return {number} The calculated complexity as a numeric value.
- */
-function getComplexityOfVerse(sourceLength: number, targetLength: number): number {
-    const totalLength = sourceLength + targetLength + sourceLength * targetLength;
-    return totalLength;
-}
 
 interface RemoveComplexityParams {
     alignedComplexityCount: number;
@@ -135,7 +124,6 @@ export function removeComplexity(props: RemoveComplexityParams) {
         
         keyCount--;
         const complexityCount = getComplexityOfVerse(sourceVersesTokenized[key].length, targetVersesTokenized[key].length);
-
         alignedComplexityCount -= complexityCount;
 
         keys.splice(currentIndex, 1);
