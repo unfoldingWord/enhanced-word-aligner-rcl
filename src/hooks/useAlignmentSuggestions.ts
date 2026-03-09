@@ -1583,7 +1583,8 @@ export const useAlignmentSuggestions = ({
     async function getLatestSetting(): Promise<TCurrentSettings> {
         const dbStorage = await getIndexedDbStorage();
         const settings = await loadLanguageBasedSettings(dbStorage);
-        const _config = settings?.config || configRef.current; // fall back to default settings if setting not found
+        // @ts-ignore
+        const _config = settings?.config || getDefaultConfig({}); // fall back to default settings if setting not found
         if (_config) {
             return {
                 config: _config,
