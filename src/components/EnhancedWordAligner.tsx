@@ -337,7 +337,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
                             startTraining();
                         } else if (_doAutoLoadCachedTraining) {
                             console.log(`EnhancedWordAligner - Training complete: book changed, reloading translation memory`);
-                            updateTranslationMemory(); 
+                            updateTranslationMemory(shaState.currentBookSha); 
                         } else {
                             console.log(`EnhancedWordAligner - Training complete: book changed, no action enabled`);
                         }
