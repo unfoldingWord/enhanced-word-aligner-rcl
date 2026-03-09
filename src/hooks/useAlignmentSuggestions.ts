@@ -1583,11 +1583,16 @@ export const useAlignmentSuggestions = ({
     async function getLatestSetting(): Promise<TCurrentSettings> {
         const dbStorage = await getIndexedDbStorage();
         const settings = await loadLanguageBasedSettings(dbStorage);
-        return {
-            config: settings.config,
-            contextId,
-            settingsKey: getSettingsKey(contextId),
-        };
+        const _config = settings?.config || configRef.current; // fall back to default settings if setting not found
+        if (_config) {
+            return {
+                config: _config,
+                contextId,
+                settingsKey: getSettingsKey(contextId),
+            };
+        }
+        console.log(`useAlignmentSuggestions - getLatestSetting() - no setting found for ${getSettingsKey(contextId)}`);
+        return null
     }
 
     /**
@@ -1617,6 +1622,10 @@ export const useAlignmentSuggestions = ({
             if (settings.config) {
                 configRef.current = getDefaultConfig(settings.config);
             }
+        }
+        if (!settings?.config) { // fall back to default settings
+            // @ts-ignore
+            configRef.current = getDefaultConfig({});
         }
         return settings;
     }
@@ -1863,11 +1872,16 @@ export const useAlignmentSuggestions = ({
                 (config?.doAutoTraining || config?.doAutoLoadCachedTraining)
             const readyToShow = shown && modelKey && contextId;
             if (readyToShow && doAutoLoad) {
-                console.log(`useAlignmentSuggestions.startup - modelKey changed to ${modelKey}`);
-                const dbStorage = await getIndexedDbStorage();
-                cachedDataLoaded = await loadSettingsFromStorage(dbStorage, modelKey);
-                console.log(`useAlignmentSuggestions.startup - cachedDataLoaded: ${cachedDataLoaded}`);
-                
+                const _loadedModel = getModelKey(modelMetaDataRef.current?.contextId);
+                if (_loadedModel !== modelKey) { // if changed, load last saved settings for new context
+                    console.log(`useAlignmentSuggestions.startup - modelKey changed to ${modelKey} from ${_loadedModel}`);
+                    const dbStorage = await getIndexedDbStorage();
+                    cachedDataLoaded = await loadSettingsFromStorage(dbStorage, modelKey);
+                    console.log(`useAlignmentSuggestions.startup - cachedDataLoaded: ${cachedDataLoaded}`);
+                } else {
+                    console.log(`useAlignmentSuggestions.startup - model already loaded ${_loadedModel}`);
+                }
+
                 // add the usfm for current book to training memory
                 const bookId = contextId?.reference?.bookId;
                 if (bookId) {
