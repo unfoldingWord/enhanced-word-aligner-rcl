@@ -496,7 +496,7 @@ function getDefaultConfig(config_: TAlignmentSuggestionsConfig) {
         doAutoUpdateTranslationMemory: config_.doAutoUpdateTranslationMemory ?? true,
         keepAllAlignmentMemory: config_.keepAllAlignmentMemory ?? true,
         keepAllAlignmentMinThreshold: config_.keepAllAlignmentMinThreshold ?? 90,
-        maxComplexityTranslationMemory: config_.maxComplexityTranslationMemory ?? 400000,
+        maxComplexityTranslationMemory: config_.maxComplexityTranslationMemory ?? DEFAULT_MAX_COMPLEXITY,
         minTrainingVerseRatio: config_.minTrainingVerseRatio ?? 1.1,
         sourceNgramLength: config_.sourceNgramLength ?? 3,
         sourceNgramMaxLength: config_.sourceNgramMaxLength ?? 10,
@@ -869,7 +869,11 @@ export const useAlignmentSuggestions = ({
             currentShasRef.current = { ...currentShasRef.current, [bookId]: sha}
             const trainingComplete_ = isCurrentContextTrained()
             console.log(`loadTranslationMemory - training complete state: ${trainingComplete_}`);
-            handleTrainingStateChange?.({checksumGenerated: true, translationMemoryLoaded: true})
+            handleTrainingStateChange?.({
+                checksumGenerated: true,
+                translationMemoryLoaded: true,
+                trainingComplete: trainingComplete_,
+            })
         } catch (error) {
             console.error(`loadTranslationMemory - error importing ${error}`);
             throw new Error('Failed to load source data');
@@ -1084,10 +1088,9 @@ export const useAlignmentSuggestions = ({
             const bookId = contextId?.reference?.bookId || '';
             const currentKey = `${bookId} ${chapter}:${verse}`;
             const isNT = bibleHelpers.isNewTestament(bookId)
-            const _DEFAULT_MAX_COMPLEXITY = isNT ? DEFAULT_MAX_COMPLEXITY : DEFAULT_MAX_COMPLEXITY_OT;
             let currentMaxComplexity = configRef.current?.maxComplexityTranslationMemory;
-            currentMaxComplexity = currentMaxComplexity > _DEFAULT_MAX_COMPLEXITY ? _DEFAULT_MAX_COMPLEXITY : currentMaxComplexity;
-            const maxComplexity = currentMaxComplexity || _DEFAULT_MAX_COMPLEXITY;
+            currentMaxComplexity = currentMaxComplexity > DEFAULT_MAX_COMPLEXITY ? DEFAULT_MAX_COMPLEXITY : currentMaxComplexity;
+            const maxComplexity = currentMaxComplexity || DEFAULT_MAX_COMPLEXITY;
 
             Object.entries(alignmentData).forEach(([reference, training_data]) => {
                 const tokenizedSourceVerse = training_data.sourceVerse.map(n => new Token(n));
