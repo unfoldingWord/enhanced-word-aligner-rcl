@@ -1002,14 +1002,14 @@ export const useAlignmentSuggestions = ({
                             ...modelMetaDataRef.current,
                         };
 
-                        await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+                        await delay(0); //TRICKY - the delays are here to prevent blocking UI during long operations
 
                         // console.log(`Converting model - ${getElapsedSeconds(_start)}s elapsed`);
 
                         // @ts-ignore
                         saveData.model = newModel.save()
 
-                        await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+                        await delay(0); //TRICKY - the delays are here to prevent blocking UI during long operations
 
                         // console.log(`Saving model - ${getElapsedSeconds(_start)}s elapsed`);
 
@@ -1040,37 +1040,35 @@ export const useAlignmentSuggestions = ({
         try {
             console.log('applyCurrentTranslationMemory - background loading TranslationMemory');
             
-            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+            await delay(0); //TRICKY - the delays are here to prevent blocking UI during long operations
             
-            const maxComplexity = configRef.current?.maxComplexityTranslationMemory || 400000;
+            // console.log(`applyCurrentTranslationMemory - Loading model - ${getElapsedSeconds(_start)}s elapsed`);
             
-            // console.log(`Loading model - ${getElapsedSeconds(_start)}s elapsed`);
-            
-            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
-            // console.log(`saving model - ${getElapsedSeconds(_start)}s elapsed`);
+            await delay(0); //TRICKY - the delays are here to prevent blocking UI during long operations
+            // console.log(`applyCurrentTranslationMemory - saving model - ${getElapsedSeconds(_start)}s elapsed`);
 
             let modelImage = wordAlignerModel.saveWithoutData(); // just get the model infor without the alignment data
-            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+            await delay(0); //TRICKY - the delays are here to prevent blocking UI during long operations
 
-            // console.log(`copying model - ${getElapsedSeconds(_start)}s elapsed`);
+            // console.log(`applyCurrentTranslationMemory - copying model - ${getElapsedSeconds(_start)}s elapsed`);
             const newModel = AbstractWordMapWrapper.load(modelImage);
             modelImage = null; // clear model memory
             
-            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+            await delay(0); //TRICKY - the delays are here to prevent blocking UI during long operations
 
-            // console.log(`clearing new model - ${getElapsedSeconds(_start)}s elapsed`);
+            // console.log(`applyCurrentTranslationMemory - clearing new model - ${getElapsedSeconds(_start)}s elapsed`);
             
             // clear previous translation memory
             newModel.emptyAlignmentMemory();
-            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+            await delay(0); //TRICKY - the delays are here to prevent blocking UI during long operations
 
-            // console.log(`Model copy completed in  - ${getElapsedSeconds(_start)}s elapsed`);
+            // console.log(`applyCurrentTranslationMemory - Model copy completed in  - ${getElapsedSeconds(_start)}s elapsed`);
             const {
                 groupName,
                 alignmentTrainingData_: data,
                 group
             } = getAlignmentDataForCurrentGroup(contextId?.reference?.bookId || '');
-            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+            await delay(0); //TRICKY - the delays are here to prevent blocking UI during long operations
 
             const alignmentData = data.alignments;
             
@@ -1085,7 +1083,12 @@ export const useAlignmentSuggestions = ({
             const verse = contextId?.reference?.verse || '';
             const bookId = contextId?.reference?.bookId || '';
             const currentKey = `${bookId} ${chapter}:${verse}`;
-            
+            const isNT = bibleHelpers.isNewTestament(bookId)
+            const _DEFAULT_MAX_COMPLEXITY = isNT ? DEFAULT_MAX_COMPLEXITY : DEFAULT_MAX_COMPLEXITY_OT;
+            let currentMaxComplexity = configRef.current?.maxComplexityTranslationMemory;
+            currentMaxComplexity = currentMaxComplexity > _DEFAULT_MAX_COMPLEXITY ? _DEFAULT_MAX_COMPLEXITY : currentMaxComplexity;
+            const maxComplexity = currentMaxComplexity || _DEFAULT_MAX_COMPLEXITY;
+
             Object.entries(alignmentData).forEach(([reference, training_data]) => {
                 const tokenizedSourceVerse = training_data.sourceVerse.map(n => new Token(n));
                 sourceVersesTokenized[reference] = tokenizedSourceVerse;
@@ -1111,11 +1114,11 @@ export const useAlignmentSuggestions = ({
                 });
             });
 
-            // console.log(`Alignments generated - ${getElapsedSeconds(_start)}s elapsed`);
+            // console.log(`applyCurrentTranslationMemory - Alignments generated - ${getElapsedSeconds(_start)}s elapsed`);
 
             if (alignedComplexityCount > maxComplexity) {
                 const keys = Object.keys(alignments);
-                // console.log(`applyCurrentTranslationMemory - complexity of alignments too large: ${alignedComplexityCount}`);
+                console.log(`applyCurrentTranslationMemory - complexity of alignments too large: ${alignedComplexityCount}, trimming to ${maxComplexity}`);
 
                 const keysNotForCurrentBook = keys.filter(key => !key.startsWith(bookId));
                 // console.log(`applyCurrentTranslationMemory - keys not starting with ${bookId}:`, keysNotForCurrentBook);
@@ -1155,9 +1158,9 @@ export const useAlignmentSuggestions = ({
                 }
             }
 
-            // console.log(`Alignments trimmed ${alignedComplexityCount}  - ${getElapsedSeconds(_start)}s elapsed`);
+            console.log(`applyCurrentTranslationMemory - Alignments trimmed ${alignedComplexityCount}  - ${getElapsedSeconds(_start)}s elapsed`);
 
-            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+            await delay(0); //TRICKY - the delays are here to prevent blocking UI during long operations
             const VERSE_BATCH_SIZE = 50; // load alignments in batches of this number of verses
 
             try {
@@ -1175,13 +1178,13 @@ export const useAlignmentSuggestions = ({
                     });
 
                     newModel.appendKeyedCorpusTokens(batchSource, batchTarget);
-                    await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+                    await delay(0); //TRICKY - the delays are here to prevent blocking UI during long operations
 
                     // console.log(`Appended batch ${Math.floor(i / VERSE_BATCH_SIZE) + 1}/${Math.ceil(references.length / VERSE_BATCH_SIZE)} (${batchRefs.length} verses) - ${getElapsedSeconds(copyStartTime)}s elapsed`);
                 }
                 // console.log(`Appended corpus  - ${getElapsedSeconds(_start)}s elapsed`);
 
-                await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+                await delay(0); //TRICKY - the delays are here to prevent blocking UI during long operations
 
                 let count = 0;
                 const keys = Object.keys(alignments);
@@ -1191,22 +1194,24 @@ export const useAlignmentSuggestions = ({
                     // @ts-ignore
                     newModel.appendAlignmentMemory(refAlignments);
                     if (++count >= VERSE_BATCH_SIZE) {
-                        await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+                        await delay(0); //TRICKY - the delays are here to prevent blocking UI during long operations
                         count = 0;
                     }
                 }
 
-                console.log(`Alignment memory appended in  - ${getElapsedSeconds(_start)}s elapsed`);
+                console.log(`applyCurrentTranslationMemory - Alignment memory appended in  - ${getElapsedSeconds(_start)}s elapsed`);
+
+                await delay(0); //TRICKY - the delays are here to prevent blocking UI during long operations
+                return newModel;
+            
             } catch (error) {
                 console.error('applyCurrentTranslationMemory - error loading alignments', error);
             }
-
-            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
-            return newModel;
         } catch (error) {
             console.error('applyCurrentTranslationMemory - overall error loading translation memory', error);
         }
 
+        console.error('applyCurrentTranslationMemory - did not complete successfully');
         return null;
     }
 
