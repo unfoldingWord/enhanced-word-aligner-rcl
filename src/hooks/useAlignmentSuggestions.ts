@@ -487,7 +487,11 @@ function getAlignmentMemoryKey(group_name: string) {
  * @param {TAlignmentSuggestionsConfig} config_ - Provided configuration
  * @returns {TAlignmentSuggestionsConfig} Complete configuration with defaults
  */
-function getDefaultConfig(config_: TAlignmentSuggestionsConfig) {
+function getDefaultConfig(config_: TAlignmentSuggestionsConfig, contextId: ContextId) {
+    const bookId = contextId?.reference?.bookId || '';
+    const isNT = bibleHelpers.isNewTestament(bookId)
+    const CURRENT_DEFAULT_MAX_COMPLEXITY = isNT ? DEFAULT_MAX_COMPLEXITY : DEFAULT_MAX_COMPLEXITY_OT;
+    
     const defaultConfig = {
         ...config_,
         disableSuggestions: config_.disableSuggestions ?? false,
@@ -496,7 +500,7 @@ function getDefaultConfig(config_: TAlignmentSuggestionsConfig) {
         doAutoUpdateTranslationMemory: config_.doAutoUpdateTranslationMemory ?? true,
         keepAllAlignmentMemory: config_.keepAllAlignmentMemory ?? true,
         keepAllAlignmentMinThreshold: config_.keepAllAlignmentMinThreshold ?? 90,
-        maxComplexityTranslationMemory: config_.maxComplexityTranslationMemory ?? DEFAULT_MAX_COMPLEXITY,
+        maxComplexityTranslationMemory: config_.maxComplexityTranslationMemory ?? CURRENT_DEFAULT_MAX_COMPLEXITY,
         minTrainingVerseRatio: config_.minTrainingVerseRatio ?? 1.1,
         sourceNgramLength: config_.sourceNgramLength ?? 3,
         sourceNgramMaxLength: config_.sourceNgramMaxLength ?? 10,
@@ -557,7 +561,7 @@ export const useAlignmentSuggestions = ({
 }: TUseAlignmentSuggestionsProps): TUseAlignmentSuggestionsReturn => {
     // Storage and state references
     const dbStorageRef = useRef<IndexedDBStorage | null>(null);
-    const configRef = useRef<TAlignmentSuggestionsConfig>(getDefaultConfig(config_));
+    const configRef = useRef<TAlignmentSuggestionsConfig>(getDefaultConfig(config_, contextId));
     const loadingTranslationMemory = useRef<boolean>(false);
     const [state, _setState] = useState<TAlignmentSuggestionsState>(defaultAppState(contextId));
     const stateRef = useRef<TAlignmentSuggestionsState>(state);
@@ -995,7 +999,7 @@ export const useAlignmentSuggestions = ({
             if (newModel) {
                 alignmentPredictorRef.current.model = newModel; // replace the current model with new model with updated translation memory
 
-                console.log(`Preparing to save model - ${getElapsedSeconds(_start)}s elapsed`);
+                console.log(`updateTranslationMemory - Preparing to save model - ${getElapsedSeconds(_start)}s elapsed`);
 
                 const dbStorage = await getIndexedDbStorage();
                 if (dbStorage) {
@@ -1019,11 +1023,13 @@ export const useAlignmentSuggestions = ({
 
                         await dbStorageRef.current.setItem(currentModelKey, JSON.stringify(saveData));
 
-                        // console.log(`model saved - ${getElapsedSeconds(_start)}s elapsed`);
+                        console.log(`updateTranslationMemory - model saved - ${getElapsedSeconds(_start)}s elapsed`);
                         
                     } catch (err) {
                         console.error(`updateTranslationMemory - error saving updated model`, err);
                     }
+                } else {
+                    console.error(`updateTranslationMemory - error accessing IndexDB`);
                 }
             } else {
                 console.log('updateTranslationMemory - applyCurrentTranslationMemory FAILED');
@@ -1088,10 +1094,11 @@ export const useAlignmentSuggestions = ({
             const bookId = contextId?.reference?.bookId || '';
             const currentKey = `${bookId} ${chapter}:${verse}`;
             const isNT = bibleHelpers.isNewTestament(bookId)
+            const CURRENT_DEFAULT_MAX_COMPLEXITY = isNT ? DEFAULT_MAX_COMPLEXITY : DEFAULT_MAX_COMPLEXITY_OT;
             let currentMaxComplexity = configRef.current?.maxComplexityTranslationMemory;
-            currentMaxComplexity = currentMaxComplexity > DEFAULT_MAX_COMPLEXITY ? DEFAULT_MAX_COMPLEXITY : currentMaxComplexity;
-            const maxComplexity = currentMaxComplexity || DEFAULT_MAX_COMPLEXITY;
-
+            currentMaxComplexity = currentMaxComplexity > CURRENT_DEFAULT_MAX_COMPLEXITY ? CURRENT_DEFAULT_MAX_COMPLEXITY : currentMaxComplexity;
+            const maxComplexity = currentMaxComplexity || CURRENT_DEFAULT_MAX_COMPLEXITY;
+            
             Object.entries(alignmentData).forEach(([reference, training_data]) => {
                 const tokenizedSourceVerse = training_data.sourceVerse.map(n => new Token(n));
                 sourceVersesTokenized[reference] = tokenizedSourceVerse;
@@ -1208,7 +1215,7 @@ export const useAlignmentSuggestions = ({
                 return newModel;
             
             } catch (error) {
-                console.error('applyCurrentTranslationMemory - error loading alignments', error);
+                console.error(`applyCurrentTranslationMemory - error loading alignments maxComplexity=${maxComplexity}, contextId=${contextId}:`, error);
             }
         } catch (error) {
             console.error('applyCurrentTranslationMemory - overall error loading translation memory', error);
@@ -1592,7 +1599,7 @@ export const useAlignmentSuggestions = ({
         const dbStorage = await getIndexedDbStorage();
         const settings = await loadLanguageBasedSettings(dbStorage);
         // @ts-ignore
-        const _config = settings?.config || getDefaultConfig({}); // fall back to default settings if setting not found
+        const _config = settings?.config || getDefaultConfig({}, contextId); // fall back to default settings if setting not found
         if (_config) {
             return {
                 config: _config,
@@ -1629,12 +1636,12 @@ export const useAlignmentSuggestions = ({
                 }
             }
             if (settings.config) {
-                configRef.current = getDefaultConfig(settings.config);
+                configRef.current = getDefaultConfig(settings.config, contextId);
             }
         }
         if (!settings?.config) { // fall back to default settings
             // @ts-ignore
-            configRef.current = getDefaultConfig({});
+            configRef.current = getDefaultConfig({}, contextId);
         }
         return settings;
     }
@@ -2039,7 +2046,7 @@ export const useAlignmentSuggestions = ({
             } else { // if predict is present, then make sure it is for current book
                 const predictorContextId = alignmentPredictorRef.current?.contextId;
                 if (!isSameBook(contextId, predictorContextId)) {
-                    console.log(`useAlignmentSuggestions.getSuggester() - predict is for different book`, predictorContextId);
+                    // console.log(`useAlignmentSuggestions.getSuggester() - predict is for different book`, predictorContextId);
                     return null;
                 }
             }
