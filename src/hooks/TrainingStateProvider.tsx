@@ -252,6 +252,7 @@ export const TrainingStateProvider: React.FC<TTrainingStateContextProps> = (prop
                 trainingButtonStr,
                 trainingButtonHintStr,
                 trainingError: currentTrainingError,
+                trainingLoading: _trainingLoading,
                 trainingStatusStr: _trainingStatusStr,
                 translationMemoryLoaded: _translationMemoryLoaded,
             };
