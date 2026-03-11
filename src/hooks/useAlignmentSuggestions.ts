@@ -86,6 +86,7 @@ import {
 import {
     DEFAULT_MAX_COMPLEXITY,
     DEFAULT_MAX_COMPLEXITY_OT,
+    MAX_COMPLEXITY,
     MIN_THRESHOLD_TRAINING_MINUTES,
     THRESHOLD_TRAINING_MINUTES,
     WORKER_TIMEOUT
@@ -496,7 +497,7 @@ function getDefaultConfig(config_: TAlignmentSuggestionsConfig) {
         doAutoUpdateTranslationMemory: config_.doAutoUpdateTranslationMemory ?? true,
         keepAllAlignmentMemory: config_.keepAllAlignmentMemory ?? true,
         keepAllAlignmentMinThreshold: config_.keepAllAlignmentMinThreshold ?? 90,
-        maxComplexityTranslationMemory: config_.maxComplexityTranslationMemory ?? 400000,
+        maxComplexityTranslationMemory: config_.maxComplexityTranslationMemory ?? MAX_COMPLEXITY,
         minTrainingVerseRatio: config_.minTrainingVerseRatio ?? 1.1,
         sourceNgramLength: config_.sourceNgramLength ?? 3,
         sourceNgramMaxLength: config_.sourceNgramMaxLength ?? 10,
@@ -869,7 +870,11 @@ export const useAlignmentSuggestions = ({
             currentShasRef.current = { ...currentShasRef.current, [bookId]: sha}
             const trainingComplete_ = isCurrentContextTrained()
             console.log(`loadTranslationMemory - training complete state: ${trainingComplete_}`);
-            handleTrainingStateChange?.({checksumGenerated: true, translationMemoryLoaded: true})
+            handleTrainingStateChange?.({
+                checksumGenerated: true,
+                translationMemoryLoaded: true,
+                trainingComplete: trainingComplete_,
+            })
         } catch (error) {
             console.error(`loadTranslationMemory - error importing ${error}`);
             throw new Error('Failed to load source data');
@@ -991,7 +996,7 @@ export const useAlignmentSuggestions = ({
             if (newModel) {
                 alignmentPredictorRef.current.model = newModel; // replace the current model with new model with updated translation memory
 
-                console.log(`Preparing to save model - ${getElapsedSeconds(_start)}s elapsed`);
+                console.log(`updateTranslationMemory - Preparing to save model - ${getElapsedSeconds(_start)}s elapsed`);
 
                 const dbStorage = await getIndexedDbStorage();
                 if (dbStorage) {
@@ -1002,24 +1007,26 @@ export const useAlignmentSuggestions = ({
                             ...modelMetaDataRef.current,
                         };
 
-                        await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+                        await delay(0); //TRICKY - the delays are here to prevent blocking UI during long operations
 
-                        console.log(`Converting model - ${getElapsedSeconds(_start)}s elapsed`);
+                        // console.log(`Converting model - ${getElapsedSeconds(_start)}s elapsed`);
 
                         // @ts-ignore
                         saveData.model = newModel.save()
 
-                        await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+                        await delay(0); //TRICKY - the delays are here to prevent blocking UI during long operations
 
-                        console.log(`Saving model - ${getElapsedSeconds(_start)}s elapsed`);
+                        // console.log(`Saving model - ${getElapsedSeconds(_start)}s elapsed`);
 
                         await dbStorageRef.current.setItem(currentModelKey, JSON.stringify(saveData));
 
-                        console.log(`model saved - ${getElapsedSeconds(_start)}s elapsed`);
+                        console.log(`updateTranslationMemory - model saved - ${getElapsedSeconds(_start)}s elapsed`);
                         
                     } catch (err) {
                         console.error(`updateTranslationMemory - error saving updated model`, err);
                     }
+                } else {
+                    console.error(`updateTranslationMemory - error accessing IndexDB`);
                 }
             } else {
                 console.log('updateTranslationMemory - applyCurrentTranslationMemory FAILED');
@@ -1040,37 +1047,35 @@ export const useAlignmentSuggestions = ({
         try {
             console.log('applyCurrentTranslationMemory - background loading TranslationMemory');
             
-            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+            await delay(0); //TRICKY - the delays are here to prevent blocking UI during long operations
             
-            const maxComplexity = configRef.current?.maxComplexityTranslationMemory || 400000;
+            // console.log(`applyCurrentTranslationMemory - Loading model - ${getElapsedSeconds(_start)}s elapsed`);
             
-            console.log(`Loading model - ${getElapsedSeconds(_start)}s elapsed`);
-            
-            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
-            console.log(`saving model - ${getElapsedSeconds(_start)}s elapsed`);
+            await delay(0); //TRICKY - the delays are here to prevent blocking UI during long operations
+            // console.log(`applyCurrentTranslationMemory - saving model - ${getElapsedSeconds(_start)}s elapsed`);
 
             let modelImage = wordAlignerModel.saveWithoutData(); // just get the model infor without the alignment data
-            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+            await delay(0); //TRICKY - the delays are here to prevent blocking UI during long operations
 
-            console.log(`copying model - ${getElapsedSeconds(_start)}s elapsed`);
+            // console.log(`applyCurrentTranslationMemory - copying model - ${getElapsedSeconds(_start)}s elapsed`);
             const newModel = AbstractWordMapWrapper.load(modelImage);
             modelImage = null; // clear model memory
             
-            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+            await delay(0); //TRICKY - the delays are here to prevent blocking UI during long operations
 
-            console.log(`clearing new model - ${getElapsedSeconds(_start)}s elapsed`);
+            // console.log(`applyCurrentTranslationMemory - clearing new model - ${getElapsedSeconds(_start)}s elapsed`);
             
             // clear previous translation memory
             newModel.emptyAlignmentMemory();
-            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+            await delay(0); //TRICKY - the delays are here to prevent blocking UI during long operations
 
-            console.log(`Model copy completed in  - ${getElapsedSeconds(_start)}s elapsed`);
+            // console.log(`applyCurrentTranslationMemory - Model copy completed in  - ${getElapsedSeconds(_start)}s elapsed`);
             const {
                 groupName,
                 alignmentTrainingData_: data,
                 group
             } = getAlignmentDataForCurrentGroup(contextId?.reference?.bookId || '');
-            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+            await delay(0); //TRICKY - the delays are here to prevent blocking UI during long operations
 
             const alignmentData = data.alignments;
             
@@ -1085,6 +1090,9 @@ export const useAlignmentSuggestions = ({
             const verse = contextId?.reference?.verse || '';
             const bookId = contextId?.reference?.bookId || '';
             const currentKey = `${bookId} ${chapter}:${verse}`;
+            let currentMaxComplexity = configRef.current?.maxComplexityTranslationMemory;
+            currentMaxComplexity = currentMaxComplexity > MAX_COMPLEXITY ? MAX_COMPLEXITY : currentMaxComplexity;
+            const maxComplexity = currentMaxComplexity || MAX_COMPLEXITY;
             
             Object.entries(alignmentData).forEach(([reference, training_data]) => {
                 const tokenizedSourceVerse = training_data.sourceVerse.map(n => new Token(n));
@@ -1111,11 +1119,11 @@ export const useAlignmentSuggestions = ({
                 });
             });
 
-            console.log(`Alignments generated - ${getElapsedSeconds(_start)}s elapsed`);
+            // console.log(`applyCurrentTranslationMemory - Alignments generated - ${getElapsedSeconds(_start)}s elapsed`);
 
             if (alignedComplexityCount > maxComplexity) {
                 const keys = Object.keys(alignments);
-                console.log(`applyCurrentTranslationMemory - complexity of alignments too large: ${alignedComplexityCount}`);
+                console.log(`applyCurrentTranslationMemory - complexity of alignments too large: ${alignedComplexityCount}, trimming to ${maxComplexity}`);
 
                 const keysNotForCurrentBook = keys.filter(key => !key.startsWith(bookId));
                 // console.log(`applyCurrentTranslationMemory - keys not starting with ${bookId}:`, keysNotForCurrentBook);
@@ -1155,14 +1163,14 @@ export const useAlignmentSuggestions = ({
                 }
             }
 
-            console.log(`Alignments trimmed ${alignedComplexityCount}  - ${getElapsedSeconds(_start)}s elapsed`);
+            console.log(`applyCurrentTranslationMemory - Alignments trimmed ${alignedComplexityCount}  - ${getElapsedSeconds(_start)}s elapsed`);
 
-            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+            await delay(0); //TRICKY - the delays are here to prevent blocking UI during long operations
             const VERSE_BATCH_SIZE = 50; // load alignments in batches of this number of verses
 
             try {
                 // Process verses in batches of 50
-                const references = Object.keys(sourceVersesTokenized);
+                const references = Object.keys(alignments);
 
                 for (let i = 0; i < references.length; i += VERSE_BATCH_SIZE) {
                     const batchRefs = references.slice(i, i + VERSE_BATCH_SIZE);
@@ -1175,13 +1183,13 @@ export const useAlignmentSuggestions = ({
                     });
 
                     newModel.appendKeyedCorpusTokens(batchSource, batchTarget);
-                    await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+                    await delay(0); //TRICKY - the delays are here to prevent blocking UI during long operations
 
                     // console.log(`Appended batch ${Math.floor(i / VERSE_BATCH_SIZE) + 1}/${Math.ceil(references.length / VERSE_BATCH_SIZE)} (${batchRefs.length} verses) - ${getElapsedSeconds(copyStartTime)}s elapsed`);
                 }
-                console.log(`Appended corpus  - ${getElapsedSeconds(_start)}s elapsed`);
+                // console.log(`Appended corpus  - ${getElapsedSeconds(_start)}s elapsed`);
 
-                await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+                await delay(0); //TRICKY - the delays are here to prevent blocking UI during long operations
 
                 let count = 0;
                 const keys = Object.keys(alignments);
@@ -1191,22 +1199,24 @@ export const useAlignmentSuggestions = ({
                     // @ts-ignore
                     newModel.appendAlignmentMemory(refAlignments);
                     if (++count >= VERSE_BATCH_SIZE) {
-                        await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
+                        await delay(0); //TRICKY - the delays are here to prevent blocking UI during long operations
                         count = 0;
                     }
                 }
 
-                console.log(`Alignment memory appended in  - ${getElapsedSeconds(_start)}s elapsed`);
-            } catch (error) {
-                console.error('applyCurrentTranslationMemory - error loading alignments', error);
-            }
+                console.log(`applyCurrentTranslationMemory - Alignment memory appended in  - ${getElapsedSeconds(_start)}s elapsed`);
 
-            await delay(100); //TRICKY - the delays are here to prevent blocking UI during long operations
-            return newModel;
+                await delay(0); //TRICKY - the delays are here to prevent blocking UI during long operations
+                return newModel;
+            
+            } catch (error) {
+                console.error(`applyCurrentTranslationMemory - error loading alignments maxComplexity=${maxComplexity}, contextId=${contextId}:`, error);
+            }
         } catch (error) {
             console.error('applyCurrentTranslationMemory - overall error loading translation memory', error);
         }
 
+        console.error('applyCurrentTranslationMemory - did not complete successfully');
         return null;
     }
 
@@ -1650,61 +1660,72 @@ export const useAlignmentSuggestions = ({
         
         if (modelKey && contextId) {
             //load the model.
-            let predictorModel: AbstractWordMapWrapper | null = null; // default to null
-            const modelMetaDataStr: string | null = await dbStorage.getItem(modelKey);
-            console.log(`loadSettingsFromStorage data loaded - ${getElapsedSeconds(_start)}s elapsed`);
-            if (modelMetaDataStr && modelMetaDataStr !== 'undefined') {
-                const modelMetaData_:TAlignmentCompletedInfo = JSON.parse(modelMetaDataStr);
-                console.log(`loadSettingsFromStorage data parsed - ${getElapsedSeconds(_start)}s elapsed`);
-                if (modelMetaData_?.model) {
-                    try {
-                        predictorModel = await AbstractWordMapWrapper.async_load_with_delay(modelMetaData_?.model, 10000);
-                        console.log(`loadSettingsFromStorage model loaded - ${getElapsedSeconds(_start)}s elapsed`);
-                        if (predictorModel) {
-                            if (predictorModel.predict) {
-                                console.log('loaded alignmentPredictorRef from local storage');
+            handleTrainingStateChange?.({
+                trainingLoading: true,
+            })
+
+            let trainingComplete = false;
+            
+            try {
+                let predictorModel: AbstractWordMapWrapper | null = null; // default to null
+                const modelMetaDataStr: string | null = await dbStorage.getItem(modelKey);
+                console.log(`loadSettingsFromStorage data loaded - ${getElapsedSeconds(_start)}s elapsed`);
+                if (modelMetaDataStr && modelMetaDataStr !== 'undefined') {
+                    const modelMetaData_: TAlignmentCompletedInfo = JSON.parse(modelMetaDataStr);
+                    console.log(`loadSettingsFromStorage data parsed - ${getElapsedSeconds(_start)}s elapsed`);
+                    if (modelMetaData_?.model) {
+                        try {
+                            predictorModel = await AbstractWordMapWrapper.async_load_with_delay(modelMetaData_?.model, 10000);
+                            console.log(`loadSettingsFromStorage model loaded - ${getElapsedSeconds(_start)}s elapsed`);
+                            if (predictorModel) {
+                                if (predictorModel.predict) {
+                                    console.log('loaded alignmentPredictorRef from local storage');
+                                } else {
+                                    console.warn('load failed, alignmentPredictorRef broken predictor', predictorModel);
+                                }
                             } else {
-                                console.warn('load failed, alignmentPredictorRef broken predictor', predictorModel);
+                                console.warn('load failed, alignmentPredictorRef training data empty');
                             }
-                        } else {
-                            console.warn('load failed, alignmentPredictorRef training data empty');
+                        } catch (e) {
+                            console.log(`error loading alignmentPredictor: ${(e as Error).message}`);
                         }
-                    } catch (e) {
-                        console.log(`error loading alignmentPredictor: ${(e as Error).message}`);
                     }
-                }
 
-                const trainingComplete = !!predictorModel?.predict;
-                const modelContextId = modelMetaData_?.contextId;
-                if (trainingComplete) {
-                    alignmentPredictorRef.current = {model: predictorModel, contextId: cloneDeep(modelContextId)};
-                    modelMetaData_.model = null
-                    modelMetaDataRef.current = modelMetaData_;
-                    const bookId = modelContextId?.reference?.bookId || '';
-                    const sha = modelMetaData_?.currentSha || '';
-                    console.log(`loaded model sha ${sha}`);
-                } else if (!trainingRunning) { // if training is not running, then reset the alignmentPredictorRef
-                    console.log('loaded alignmentPredictorRef predictor model not found, clearing previous model');
-                    alignmentPredictorRef.current = null
-                    modelMetaDataRef.current = null
+                    const trainingComplete = !!predictorModel?.predict;
+                    const modelContextId = modelMetaData_?.contextId;
+                    if (trainingComplete) {
+                        alignmentPredictorRef.current = {model: predictorModel, contextId: cloneDeep(modelContextId)};
+                        modelMetaData_.model = null
+                        modelMetaDataRef.current = modelMetaData_;
+                        const bookId = modelContextId?.reference?.bookId || '';
+                        const sha = modelMetaData_?.currentSha || '';
+                        console.log(`loaded model sha ${sha}`);
+                    } else if (!trainingRunning) { // if training is not running, then reset the alignmentPredictorRef
+                        console.log('loaded alignmentPredictorRef predictor model not found, clearing previous model');
+                        alignmentPredictorRef.current = null
+                        modelMetaDataRef.current = null
+                    } else {
+                        console.log(`loaded alignmentPredictorRef predictor model not found, previous model was set: ${!!alignmentPredictorRef.current}`);
+                    }
+                } 
+
+                console.log(`loadSettingsFromStorage calling handler - ${getElapsedSeconds(_start)}s elapsed`);
+
+                trainingComplete = !!predictorModel?.predict;
+                if (!trainingComplete) {
+                    console.log('no alignmentPredictorRef found in local storage');
+                    setState({...stateRef.current, failedToLoadCachedTraining: true});
                 } else {
-                    console.log(`loaded alignmentPredictorRef predictor model not found, previous model was set: ${!!alignmentPredictorRef.current}`);
+                    success = true;
                 }
-            }
-
-            console.log(`loadSettingsFromStorage calling handler - ${getElapsedSeconds(_start)}s elapsed`);
-
-            const trainingComplete = !!predictorModel?.predict;
-            if (!trainingComplete) {
-                console.log('no alignmentPredictorRef found in local storage');
-                setState( { ...stateRef.current, failedToLoadCachedTraining: true});
-            } else {
-                success = true;
+            } catch (e) {
+                console.error(`loadSettingsFromStorage ERROR oading language settings`, e);
             }
             handleTrainingStateChange?.({
                 training: false,
                 trainingComplete,
                 trainingFailed: '',
+                trainingLoading: false,
             });
 
             console.log(`loadSettingsFromStorage loading language settings - ${getElapsedSeconds(_start)}s elapsed`);
@@ -2031,7 +2052,7 @@ export const useAlignmentSuggestions = ({
             } else { // if predict is present, then make sure it is for current book
                 const predictorContextId = alignmentPredictorRef.current?.contextId;
                 if (!isSameBook(contextId, predictorContextId)) {
-                    console.log(`useAlignmentSuggestions.getSuggester() - predict is for different book`, predictorContextId);
+                    // console.log(`useAlignmentSuggestions.getSuggester() - predict is for different book`, predictorContextId);
                     return null;
                 }
             }

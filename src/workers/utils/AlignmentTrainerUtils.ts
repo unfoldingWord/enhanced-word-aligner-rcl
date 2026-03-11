@@ -185,12 +185,13 @@ export function removeComplexity(props: RemoveComplexityParams) {
 function getBookChapterData(alignmentData: { [p: string]: any }, subject: string):TAlignmentVerseCounts {
     const chaptersCount: { [key: string]: number } = {}
     const booksCount: { [key: string]: number } = {}
-    const keys = Object.keys(alignmentData)
+    const keys = Object.keys(alignmentData);
+    const books = [];
     keys.forEach(key => {
         const book_chapter = key.split(':')[0];
         if (!chaptersCount[book_chapter]) {
             chaptersCount[book_chapter] = 1;
-            console.log(`'${subject}' includes ${book_chapter}`)
+            books.push(book_chapter);
         } else {
             chaptersCount[book_chapter]++;
         }
@@ -201,6 +202,7 @@ function getBookChapterData(alignmentData: { [p: string]: any }, subject: string
             booksCount[bookId]++;
         }
     })
+    console.log(`getBookChapterData - '${subject}' includes`, books);
     return {
         booksCount,
         chaptersCount,

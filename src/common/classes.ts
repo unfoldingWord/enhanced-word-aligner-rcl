@@ -39,6 +39,8 @@ export interface TTrainingStateChange {
     trainingComplete?: boolean;
     /** Error message if training failed */
     trainingFailed?: string;
+    /** Flag indicating if training is currently loading */
+    trainingLoading?: boolean;
     /** Flag indicating if translation memory has been loaded */
     translationMemoryLoaded?: boolean;
     /** Flag for verbose logging output */
