@@ -1660,61 +1660,72 @@ export const useAlignmentSuggestions = ({
         
         if (modelKey && contextId) {
             //load the model.
-            let predictorModel: AbstractWordMapWrapper | null = null; // default to null
-            const modelMetaDataStr: string | null = await dbStorage.getItem(modelKey);
-            console.log(`loadSettingsFromStorage data loaded - ${getElapsedSeconds(_start)}s elapsed`);
-            if (modelMetaDataStr && modelMetaDataStr !== 'undefined') {
-                const modelMetaData_:TAlignmentCompletedInfo = JSON.parse(modelMetaDataStr);
-                console.log(`loadSettingsFromStorage data parsed - ${getElapsedSeconds(_start)}s elapsed`);
-                if (modelMetaData_?.model) {
-                    try {
-                        predictorModel = await AbstractWordMapWrapper.async_load_with_delay(modelMetaData_?.model, 10000);
-                        console.log(`loadSettingsFromStorage model loaded - ${getElapsedSeconds(_start)}s elapsed`);
-                        if (predictorModel) {
-                            if (predictorModel.predict) {
-                                console.log('loaded alignmentPredictorRef from local storage');
+            handleTrainingStateChange?.({
+                trainingLoading: true,
+            })
+
+            let trainingComplete = false;
+            
+            try {
+                let predictorModel: AbstractWordMapWrapper | null = null; // default to null
+                const modelMetaDataStr: string | null = await dbStorage.getItem(modelKey);
+                console.log(`loadSettingsFromStorage data loaded - ${getElapsedSeconds(_start)}s elapsed`);
+                if (modelMetaDataStr && modelMetaDataStr !== 'undefined') {
+                    const modelMetaData_: TAlignmentCompletedInfo = JSON.parse(modelMetaDataStr);
+                    console.log(`loadSettingsFromStorage data parsed - ${getElapsedSeconds(_start)}s elapsed`);
+                    if (modelMetaData_?.model) {
+                        try {
+                            predictorModel = await AbstractWordMapWrapper.async_load_with_delay(modelMetaData_?.model, 10000);
+                            console.log(`loadSettingsFromStorage model loaded - ${getElapsedSeconds(_start)}s elapsed`);
+                            if (predictorModel) {
+                                if (predictorModel.predict) {
+                                    console.log('loaded alignmentPredictorRef from local storage');
+                                } else {
+                                    console.warn('load failed, alignmentPredictorRef broken predictor', predictorModel);
+                                }
                             } else {
-                                console.warn('load failed, alignmentPredictorRef broken predictor', predictorModel);
+                                console.warn('load failed, alignmentPredictorRef training data empty');
                             }
-                        } else {
-                            console.warn('load failed, alignmentPredictorRef training data empty');
+                        } catch (e) {
+                            console.log(`error loading alignmentPredictor: ${(e as Error).message}`);
                         }
-                    } catch (e) {
-                        console.log(`error loading alignmentPredictor: ${(e as Error).message}`);
                     }
-                }
 
-                const trainingComplete = !!predictorModel?.predict;
-                const modelContextId = modelMetaData_?.contextId;
-                if (trainingComplete) {
-                    alignmentPredictorRef.current = {model: predictorModel, contextId: cloneDeep(modelContextId)};
-                    modelMetaData_.model = null
-                    modelMetaDataRef.current = modelMetaData_;
-                    const bookId = modelContextId?.reference?.bookId || '';
-                    const sha = modelMetaData_?.currentSha || '';
-                    console.log(`loaded model sha ${sha}`);
-                } else if (!trainingRunning) { // if training is not running, then reset the alignmentPredictorRef
-                    console.log('loaded alignmentPredictorRef predictor model not found, clearing previous model');
-                    alignmentPredictorRef.current = null
-                    modelMetaDataRef.current = null
+                    const trainingComplete = !!predictorModel?.predict;
+                    const modelContextId = modelMetaData_?.contextId;
+                    if (trainingComplete) {
+                        alignmentPredictorRef.current = {model: predictorModel, contextId: cloneDeep(modelContextId)};
+                        modelMetaData_.model = null
+                        modelMetaDataRef.current = modelMetaData_;
+                        const bookId = modelContextId?.reference?.bookId || '';
+                        const sha = modelMetaData_?.currentSha || '';
+                        console.log(`loaded model sha ${sha}`);
+                    } else if (!trainingRunning) { // if training is not running, then reset the alignmentPredictorRef
+                        console.log('loaded alignmentPredictorRef predictor model not found, clearing previous model');
+                        alignmentPredictorRef.current = null
+                        modelMetaDataRef.current = null
+                    } else {
+                        console.log(`loaded alignmentPredictorRef predictor model not found, previous model was set: ${!!alignmentPredictorRef.current}`);
+                    }
+                } 
+
+                console.log(`loadSettingsFromStorage calling handler - ${getElapsedSeconds(_start)}s elapsed`);
+
+                trainingComplete = !!predictorModel?.predict;
+                if (!trainingComplete) {
+                    console.log('no alignmentPredictorRef found in local storage');
+                    setState({...stateRef.current, failedToLoadCachedTraining: true});
                 } else {
-                    console.log(`loaded alignmentPredictorRef predictor model not found, previous model was set: ${!!alignmentPredictorRef.current}`);
+                    success = true;
                 }
-            }
-
-            console.log(`loadSettingsFromStorage calling handler - ${getElapsedSeconds(_start)}s elapsed`);
-
-            const trainingComplete = !!predictorModel?.predict;
-            if (!trainingComplete) {
-                console.log('no alignmentPredictorRef found in local storage');
-                setState( { ...stateRef.current, failedToLoadCachedTraining: true});
-            } else {
-                success = true;
+            } catch (e) {
+                console.error(`loadSettingsFromStorage ERROR oading language settings`, e);
             }
             handleTrainingStateChange?.({
                 training: false,
                 trainingComplete,
                 trainingFailed: '',
+                trainingLoading: false,
             });
 
             console.log(`loadSettingsFromStorage loading language settings - ${getElapsedSeconds(_start)}s elapsed`);

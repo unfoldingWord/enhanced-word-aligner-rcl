@@ -90,6 +90,8 @@ export interface TrainingState {
     trainingComplete: boolean;
     /** Error message if training encountered an error */
     trainingError: string;
+    /** Flag indicating if training is currently loading */
+    trainingLoading: boolean;
     /** Localized status message describing current training state */
     trainingStatusStr: string;
     /** Indicates if translation memory has been loaded for training */
@@ -141,6 +143,7 @@ export const TrainingStateProvider: React.FC<TTrainingStateContextProps> = (prop
         trainingButtonHintStr: translate('suggestions.train_button_hint'),
         trainingComplete: false,
         trainingError: '',
+        trainingLoading: false,
         trainingStatusStr: '',
         translationMemoryLoaded: false,
     });
@@ -180,12 +183,16 @@ export const TrainingStateProvider: React.FC<TTrainingStateContextProps> = (prop
                 training: _training,
                 trainingComplete: _trainingComplete,
                 trainingFailed,
+                trainingLoading: _trainingLoading,
                 translationMemoryLoaded: _translationMemoryLoaded,
             } = props;
 
             // Use current state if new value is undefined
             if (_training === undefined) {
                 _training = prev.training;
+            }
+            if (_trainingLoading === undefined) {
+                _trainingLoading = prev.trainingLoading;
             }
             if (_trainingComplete === undefined) {
                 _trainingComplete = prev.trainingComplete;
@@ -221,6 +228,8 @@ export const TrainingStateProvider: React.FC<TTrainingStateContextProps> = (prop
             } else {
                 if (_trainingComplete) {
                     _trainingStatusStr = translate('suggestions.status_trained');
+                } else if (_trainingLoading) {
+                    _trainingStatusStr = translate('suggestions.status_loading_training');
                 } else {
                     _trainingStatusStr = translate('suggestions.status_not_trained');
                 }

@@ -20,6 +20,7 @@
       "suggestions.stop_training_button" : "Stop Train",
       "suggestions.status_training"    : "Currently Training ...",
       "suggestions.status_retraining"  : "Currently Retraining ...",
+      "suggestions.status_loading_training" : "Loading Training ...",
       "suggestions.status_trained"     : "Trained",
       "suggestions.status_not_trained" : "Not Trained",
       "suggestions.percent_complete"   : "% complete",
