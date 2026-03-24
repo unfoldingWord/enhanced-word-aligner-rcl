@@ -106,7 +106,7 @@ import {Token} from "wordmap-lexer";
 import {Alignment, Ngram} from "wordmap";
 import { getComplexityOfVerse } from "@/workers/utils/AlignmentHelpers";
 
-const modelLoadingChunkSize = 3000;
+const modelLoadingChunkSize = 5000;
 
 /**
  * Callback function type for handling training completion events
