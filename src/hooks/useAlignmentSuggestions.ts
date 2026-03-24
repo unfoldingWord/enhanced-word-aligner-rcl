@@ -106,6 +106,8 @@ import {Token} from "wordmap-lexer";
 import {Alignment, Ngram} from "wordmap";
 import { getComplexityOfVerse } from "@/workers/utils/AlignmentHelpers";
 
+const modelLoadingChunkSize = 3000;
+
 /**
  * Callback function type for handling training completion events
  * @param {TAlignmentCompletedInfo} info - Information about the completed training process
@@ -1320,7 +1322,7 @@ export const useAlignmentSuggestions = ({
                         }, WORKER_TIMEOUT);
 
                         // Define the callback for worker messages
-                        trainingWorkerData.worker.addEventListener('message', (event) => {
+                        trainingWorkerData.worker.addEventListener('message', async (event) => {
                             const workerResults: TTrainedWordAlignerModelWorkerResults = event.data;
                             const trainingData_ = getTrainingData()
 
@@ -1386,7 +1388,8 @@ export const useAlignmentSuggestions = ({
 
                             // Load trained model
                             if ('trainedModel' in workerResults) {
-                                abstractWordMapWrapper = AbstractWordMapWrapper.load(workerResults.trainedModel);
+                                abstractWordMapWrapper = await AbstractWordMapWrapper.async_load_with_delay(workerResults.trainedModel, modelLoadingChunkSize);
+
                                 // @ts-ignore
                                 console.log(`executeTraining() - Number of alignments: ${abstractWordMapWrapper?.alignmentStash?.length}`)
                             }
@@ -1658,7 +1661,7 @@ export const useAlignmentSuggestions = ({
                 console.log(`loadSettingsFromStorage data parsed - ${getElapsedSeconds(_start)}s elapsed`);
                 if (modelMetaData_?.model) {
                     try {
-                        predictorModel = await AbstractWordMapWrapper.async_load_with_delay(modelMetaData_?.model, 10000);
+                        predictorModel = await AbstractWordMapWrapper.async_load_with_delay(modelMetaData_?.model, modelLoadingChunkSize);
                         console.log(`loadSettingsFromStorage model loaded - ${getElapsedSeconds(_start)}s elapsed`);
                         if (predictorModel) {
                             if (predictorModel.predict) {
