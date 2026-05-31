@@ -495,7 +495,7 @@ function getDefaultConfig(config_: TAlignmentSuggestionsConfig) {
         disableSuggestions: config_.disableSuggestions ?? false,
         doAutoLoadCachedTraining: config_.doAutoLoadCachedTraining ?? true,
         doAutoTraining: config_.doAutoTraining ?? false,
-        doAutoUpdateTranslationMemory: config_.doAutoUpdateTranslationMemory ?? true,
+        doAutoUpdateTranslationMemory: config_.doAutoUpdateTranslationMemory ?? false,
         keepAllAlignmentMemory: config_.keepAllAlignmentMemory ?? true,
         keepAllAlignmentMinThreshold: config_.keepAllAlignmentMinThreshold ?? 90,
         maxComplexityTranslationMemory: config_.maxComplexityTranslationMemory ?? 400000,
@@ -1628,8 +1628,10 @@ export const useAlignmentSuggestions = ({
             }
         }
         if (!settings?.config) { // fall back to default settings
-            // @ts-ignore
-            configRef.current = getDefaultConfig({});
+            if (!configRef.current?.sourceNgramMaxLength) { // if config not yet defined
+                // @ts-ignore
+                configRef.current = getDefaultConfig(config_);
+            }
         }
         return settings;
     }
