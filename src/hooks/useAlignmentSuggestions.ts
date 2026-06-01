@@ -74,7 +74,7 @@ import Group from '@/shared/Group';
 import Book from '@/shared/Book';
 import GroupCollection from '@/shared/GroupCollection';
 import IndexedDBStorage from '@/shared/IndexedDBStorage';
-import { limitRangeOfComplexity } from '@/utils/misc';
+import { getLowMemoryWarning, limitRangeOfComplexity } from '@/utils/misc';
 import {
     ContextId,
     TAlignmentSuggestionsState,
@@ -214,13 +214,16 @@ export interface TUseAlignmentSuggestionsReturn {
     state: {
         /** Flag indicating if loading cached training data failed */
         failedToLoadCachedTraining: boolean;
-        
+
+        // if true need to show warning to user that we may have low memory crashes or slow operations
+        lowMemoryWarning: boolean;
+
         /** Maximum complexity level for alignment processing */
         maxComplexity: number;
-        
+
         /** Current training state information */
         trainingState: TrainingState;
-        
+
         /** Flag indicating if training is currently running */
         trainingRunning: boolean;
     },
@@ -2124,11 +2127,15 @@ export const useAlignmentSuggestions = ({
 
     // Get the current suggester function
     const suggester: TSuggester = getSuggester()
+    
+    // 
+    const lowMemoryWarning = getLowMemoryWarning(configRef?.current, trainingRunning)
 
     // Return the hook's state and actions
     return {
         state: {
             failedToLoadCachedTraining,
+            lowMemoryWarning,
             maxComplexity,
             trainingState,
             trainingRunning,

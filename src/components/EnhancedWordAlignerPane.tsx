@@ -72,6 +72,9 @@ interface EnhancedWordAlignerPaneProps {
     /** Function to load lexicon entry for source word */
     loadLexiconEntry: (lexiconId: string, entryId: string) => void;
 
+    // if true need to show warning to user that we may have low memory crashes or slow operations
+    lowMemoryWarning: boolean;
+
     /** Callback for alignment changes */
     onChange?: (details: {
         type: 'MERGE_ALIGNMENT_CARDS' | 'CREATE_NEW_ALIGNMENT_CARD' | 'UNALIGN_TARGET_WORD' | 'ALIGN_TARGET_WORD' | 'ALIGN_SOURCE_WORD';
@@ -145,6 +148,7 @@ export const EnhancedWordAlignerPane: React.FC<EnhancedWordAlignerPaneProps> = (
     lexiconCache,
     loadLexiconEntry,
     getModelMetaData,
+    lowMemoryWarning,
     hasRenderedSuggestions,
     onChange,
     saveChangedSettings,
@@ -165,7 +169,7 @@ export const EnhancedWordAlignerPane: React.FC<EnhancedWordAlignerPaneProps> = (
 
     const [showModelDialog, setShowModelDialog] = useState(false);
     const [modelInfo, setModelInfo] = useState<TAlignmentMetaData | null>(null);
-    
+
     /**
      * Handles changes to the configuration for alignment suggestions.
      *
@@ -245,6 +249,11 @@ export const EnhancedWordAlignerPane: React.FC<EnhancedWordAlignerPaneProps> = (
                 targetLanguage={targetLanguage}
                 verseAlignments={verseAlignments}
             />
+            {lowMemoryWarning && 
+              <span style={{ color: 'red', fontStyle: 'italic' }}>
+                  translate('training.low_memory_warning')
+              </span>
+            }
             {showModelDialog && modelInfo && (
                 <ModelInfoDialog
                     onConfigChange={handleConfigChange}

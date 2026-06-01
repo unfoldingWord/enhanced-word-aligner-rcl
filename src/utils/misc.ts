@@ -2,6 +2,7 @@ import {MAX_COMPLEXITY, MIN_COMPLEXITY} from '@/common/constants';
 // @ts-ignore
 import {referenceHelpers} from 'bible-reference-range';
 import {getVerseList, isValidVerse} from '@/utils/usfm_misc';
+import {TAlignmentSuggestionsConfig} from "@/workers/WorkerComTypes";
 
 /**
    * Checks to see if a specific string array references a given resource.
@@ -330,4 +331,86 @@ import {getVerseList, isValidVerse} from '@/utils/usfm_misc';
       // Ensure newMaxComplexity stays within MIN_COMPLEXITY and MAX_COMPLEXITY bounds
       return Math.max(MIN_COMPLEXITY, Math.min(MAX_COMPLEXITY, newMaxComplexity));
   }
-  
+
+/**
+ * Detects and retrieves the Electron version from the user agent string.
+ * Checks if the application is running in a browser environment and searches
+ * for the Electron version in the user agent string.
+ *
+ * @return {string|null} The Electron version string if detected, null otherwise
+ */
+export function getElectronVersion(): string | null {
+  let electronVersion: string | null = null;
+  if (typeof window !== 'undefined') {
+    const userAgent: string | undefined = window?.navigator?.userAgent?.toLowerCase();
+
+    if (userAgent?.includes('electron')) {
+      electronVersion = userAgent.match(/electron\/(\S+)/)?.[1] ?? null;
+      // console.log(`isRunningInElectron() - detected Electron user agent: ${electronVersion}`)
+    }
+  }
+
+  return electronVersion;
+}
+
+/**
+ * Detects if the application is running within an Electron/Electronite environment.
+ * Checks multiple indicators including user agent, window process properties,
+ * and Node.js process versions to determine if Electron is present.
+ *
+ * @return {boolean} true if running in Electron, false otherwise
+ */
+export function isRunningInElectronOrElectronite(): boolean {
+  if (typeof window !== 'undefined') {
+    const electronVersion: string | null = getElectronVersion();
+    if (electronVersion) {
+      return true;
+    }
+
+    const win: (Window & typeof globalThis) = window;
+    if ((win as any)?.process?.type === 'renderer') {
+      console.log('isRunningInElectronOrElectronite() - detected win Electron renderer process type');
+      return true;
+    }
+
+    if ((win as any)?.process?.versions?.electron) {
+      console.log('isRunningInElectronOrElectronite() - detected win Electron process version:', (win as any).process.versions?.electron);
+      return true;
+    }
+  }
+
+  if (
+    typeof process !== 'undefined' &&
+    (process as any).versions?.electron
+  ) {
+    console.log('isRunningInElectronOrElectronite() - detected Electron process version:', (process as any).versions?.electron);
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Determines whether to display a low memory warning based on the runtime environment and training configuration.
+ *
+ * This function evaluates memory concerns for alignment model training operations:
+ * - Returns false when running in Electron/Electronite environments (desktop apps with more memory)
+ * - Returns true during active training operations (high memory usage period)
+ * - Returns true when auto-training features are enabled (potential memory-intensive operations)
+ *
+ * @param {TAlignmentSuggestionsConfig} currentConfig - The alignment suggestions configuration object containing training settings
+ * @param {boolean} [isTraining=false] - Flag indicating if training is currently in progress
+ * @returns {boolean} true if a low memory warning should be shown, false otherwise
+ */
+export function getLowMemoryWarning(currentConfig: TAlignmentSuggestionsConfig, isTraining: boolean = false): boolean {
+  if (isRunningInElectronOrElectronite()) {
+    return false;
+  }
+
+  if (isTraining) {
+    return true;
+  }
+
+  const autonTrainingEnabled = !!(currentConfig?.doAutoUpdateTranslationMemory || currentConfig?.doAutoTraining);
+  return autonTrainingEnabled;
+}

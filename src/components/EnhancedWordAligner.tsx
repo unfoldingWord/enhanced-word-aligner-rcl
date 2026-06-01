@@ -266,6 +266,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
 
     // Extract alignment suggestion management functions
     const {
+        state: { lowMemoryWarning },
         actions: {
             deleteBookFromGroup,
             getCurrentBookShaState,
@@ -443,6 +444,7 @@ export const EnhancedWordAligner: React.FC<EnhancedWordAlignerProps> = (
             hasRenderedSuggestions={hasRenderedSuggestions}
             lexiconCache={lexiconCache}
             loadLexiconEntry={loadLexiconEntry}
+            lowMemoryWarning={lowMemoryWarning}
             onChange={onChange}
             saveChangedSettings={saveChangedSettings}
             showPopover={showPopover}
