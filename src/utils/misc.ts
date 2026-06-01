@@ -411,6 +411,6 @@ export function getLowMemoryWarning(currentConfig: TAlignmentSuggestionsConfig, 
     return true;
   }
 
-  const autonTrainingEnabled = !!(currentConfig?.doAutoUpdateTranslationMemory || currentConfig?.doAutoTraining);
-  return autonTrainingEnabled;
+  const autoTrainingEnabled = !!(currentConfig?.doAutoUpdateTranslationMemory || currentConfig?.doAutoTraining);
+  return autoTrainingEnabled;
 }

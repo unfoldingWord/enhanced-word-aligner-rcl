@@ -227,7 +227,14 @@ export const EnhancedWordAlignerPane: React.FC<EnhancedWordAlignerPaneProps> = (
     // }, []);
     
     return (
-        <>
+        <div
+            style={{
+                display: 'flex',
+                justifyContent: 'center',
+                width: '100%',
+                flexDirection: 'column',
+            }}
+        >
             <SuggestingWordAligner
                 contextId={contextId}
                 handleInfoClick={handleInfoClick_}
@@ -249,11 +256,21 @@ export const EnhancedWordAlignerPane: React.FC<EnhancedWordAlignerPaneProps> = (
                 targetLanguage={targetLanguage}
                 verseAlignments={verseAlignments}
             />
-            {lowMemoryWarning && 
-              <span style={{ color: 'red', fontStyle: 'italic' }}>
-                  translate('training.low_memory_warning')
+
+            {lowMemoryWarning &&
+              <span
+                style={{
+                    color: 'red',
+                    fontStyle: 'italic',
+                    display: 'block',
+                    width: '100%',
+                    textAlign: 'center',
+                }}
+              >
+                  {translate('training.low_memory_warning')}
               </span>
             }
+
             {showModelDialog && modelInfo && (
                 <ModelInfoDialog
                     onConfigChange={handleConfigChange}
@@ -263,6 +280,6 @@ export const EnhancedWordAlignerPane: React.FC<EnhancedWordAlignerPaneProps> = (
                     translate={translate}
                 />
             )}
-        </>
+        </div>
     )
 }
