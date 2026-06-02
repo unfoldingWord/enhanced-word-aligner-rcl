@@ -32,7 +32,7 @@
  * - Parent component should provide translation capabilities via the translate prop
  */
 
-import React, {useEffect, useState} from 'react'
+import React, {useState} from 'react'
 // @ts-ignore
 import {SuggestingWordAligner} from 'word-aligner-rcl'
 import {
@@ -49,6 +49,7 @@ import {
     TAlignmentMetaData,
 } from '@/workers/WorkerComTypes';
 import ModelInfoDialog from './ModelInfoDialog';
+import {getLowMemoryWarning} from "@/utils/misc";
 
 interface EnhancedWordAlignerPaneProps {
     /** Configuration settings for alignment suggestions */
@@ -86,7 +87,7 @@ interface EnhancedWordAlignerPaneProps {
     }) => void;
 
     /** Saves updated alignment training settings */
-    saveChangedSettings: (config: TAlignmentSuggestionsConfig) => Promise<void>;
+    saveChangedSettings: (config: TAlignmentSuggestionsConfig, updateMemoryWarning?: boolean) => Promise<void>;
 
     /** Flag to only show suggestion buttons (if true the clear-all button is removed) */
     suggestionsOnly?: boolean;
@@ -198,6 +199,9 @@ export const EnhancedWordAlignerPane: React.FC<EnhancedWordAlignerPaneProps> = (
     function handleInfoClick_() {
         console.log('EnhancedWordAlignerPane - handleInfoClick');
         const info = getModelMetaData()
+        // set the current low memory warning
+        const lowMemoryWarning_ = getLowMemoryWarning(info.config)
+        info.config.lowMemoryWarning = lowMemoryWarning_;
         setModelInfo(info);
         setShowModelDialog(true);
     }
@@ -225,7 +229,23 @@ export const EnhancedWordAlignerPane: React.FC<EnhancedWordAlignerPaneProps> = (
     //         console.log('EnhancedWordAlignerPane unmounted')
     //     };
     // }, []);
-    
+
+    /**
+     * Closes the model information dialog and persists any configuration changes.
+     *
+     * This function retrieves the current model metadata, hides the model dialog,
+     * and saves any configuration changes that were made. The second parameter to
+     * saveChangedSettings (true) indicates that the low memory warning should be updated
+     * based on the current configuration.
+     *
+     * @return {void} No return value.
+     */
+    function closeModelDialog() {
+        const info = getModelMetaData()
+        setShowModelDialog(false);
+        saveChangedSettings(info.config, true) // save final changes and force update of low memory warnings
+    }
+
     return (
         <div
             style={{
@@ -276,7 +296,7 @@ export const EnhancedWordAlignerPane: React.FC<EnhancedWordAlignerPaneProps> = (
                     onConfigChange={handleConfigChange}
                     handleDeleteBook={handleDeleteBook}
                     info={modelInfo}
-                    onClose={() => setShowModelDialog(false)}
+                    onClose={() => closeModelDialog()}
                     translate={translate}
                 />
             )}

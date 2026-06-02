@@ -2049,16 +2049,27 @@ export const useAlignmentSuggestions = ({
         }
         return alignmentPredictor?.predict.bind(alignmentPredictor) || null;
     }
-    
+
     /**
      * Saves changed configuration settings
-     * 
-     * Persists updated configuration to IndexedDB storage.
-     * 
-     * @param {TAlignmentSuggestionsConfig} config - New configuration
+     *
+     * Persists updated configuration to IndexedDB storage and updates component state.
+     * Handles maxComplexity extraction from config and optionally updates low memory warning.
+     *
+     * @param {TAlignmentSuggestionsConfig} config - New configuration settings to save
+     * @param {boolean} [updateMemoryWarning=false] - Whether to recalculate and update the low memory warning state
      * @returns {Promise<void>}
+     *
+     * @remarks
+     * This function:
+     * - Extracts maxComplexity from config (using current state value as fallback)
+     * - Removes maxComplexity from config object before storage
+     * - Updates configRef with new settings
+     * - Updates component state if maxComplexity changed
+     * - Optionally updates low memory warning based on new config
+     * - Persists settings to IndexedDB via storeLanguagePreferences
      */
-    async function saveChangedSettings(config: TAlignmentSuggestionsConfig) {
+    async function saveChangedSettings(config: TAlignmentSuggestionsConfig, updateMemoryWarning: boolean = false) {
         if (config) {
             // pull out maxComplexity
             const maxComplexity_ = config.maxComplexity || maxComplexity;
@@ -2068,7 +2079,9 @@ export const useAlignmentSuggestions = ({
             if (maxComplexity_ !== maxComplexityCurrent) {
                 setState({...stateRef.current, maxComplexity: maxComplexity_});
             }
-            updateLowMemoryWarning(configRef.current);
+            if (updateMemoryWarning) {
+                updateLowMemoryWarning(configRef.current);
+            }
             await storeLanguagePreferences(
                 contextId,
                 maxComplexity_,
