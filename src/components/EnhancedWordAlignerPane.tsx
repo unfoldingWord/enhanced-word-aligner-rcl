@@ -253,6 +253,8 @@ export const EnhancedWordAlignerPane: React.FC<EnhancedWordAlignerPaneProps> = (
                 justifyContent: 'center',
                 width: '100%',
                 flexDirection: 'column',
+                maxHeight: '100%',
+                overflowY: 'auto',
             }}
         >
             <SuggestingWordAligner
@@ -285,6 +287,12 @@ export const EnhancedWordAlignerPane: React.FC<EnhancedWordAlignerPaneProps> = (
                     display: 'block',
                     width: '100%',
                     textAlign: 'center',
+                    flexShrink: 0,
+                    position: 'sticky',
+                    bottom: 0,
+                    backgroundColor: 'inherit',
+                    padding: '4px 8px',
+                    zIndex: 1,
                 }}
               >
                   {translate('training.low_memory_warning')}
