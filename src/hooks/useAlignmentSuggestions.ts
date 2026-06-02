@@ -566,13 +566,14 @@ export const useAlignmentSuggestions = ({
     const loadingTranslationMemory = useRef<boolean>(false);
     const [state, _setState] = useState<TAlignmentSuggestionsState>(defaultAppState(contextId));
     const stateRef = useRef<TAlignmentSuggestionsState>(state);
-    
+    const [lowMemoryWarning, setLowMemoryWarning] = useState(getLowMemoryWarning(getDefaultConfig(config_)));
+
     // Update state in both the React state and reference
     function setState( newState: TAlignmentSuggestionsState ) {
         stateRef.current = newState;
         _setState( newState );
     }
-    
+
     // References for training state and context
     const trainingStateRef = useRef<TrainingState>(state.trainingState);
     const contextIdRef = useRef<ContextId>(null);
@@ -1628,12 +1629,14 @@ export const useAlignmentSuggestions = ({
             }
             if (settings.config) {
                 configRef.current = getDefaultConfig(settings.config);
+                updateLowMemoryWarning(configRef.current);
             }
         }
         if (!settings?.config) { // fall back to default settings
             if (!configRef.current?.sourceNgramMaxLength) { // if config not yet defined
                 // @ts-ignore
                 configRef.current = getDefaultConfig(config_);
+                updateLowMemoryWarning(configRef.current);
             }
         }
         return settings;
@@ -1797,7 +1800,7 @@ export const useAlignmentSuggestions = ({
             message += `\n\nGlobal Alignment Memory not loaded!`
         }
 
-        const config_ = {...configRef.current};
+        const config_ = { ...configRef.current, lowMemoryWarning };
         config_.maxComplexity = stateRef.current?.maxComplexity || maxComplexity; // inject maxComplexity
         return {
             contextId,
@@ -2046,16 +2049,27 @@ export const useAlignmentSuggestions = ({
         }
         return alignmentPredictor?.predict.bind(alignmentPredictor) || null;
     }
-    
+
     /**
      * Saves changed configuration settings
-     * 
-     * Persists updated configuration to IndexedDB storage.
-     * 
-     * @param {TAlignmentSuggestionsConfig} config - New configuration
+     *
+     * Persists updated configuration to IndexedDB storage and updates component state.
+     * Handles maxComplexity extraction from config and optionally updates low memory warning.
+     *
+     * @param {TAlignmentSuggestionsConfig} config - New configuration settings to save
+     * @param {boolean} [updateMemoryWarning=false] - Whether to recalculate and update the low memory warning state
      * @returns {Promise<void>}
+     *
+     * @remarks
+     * This function:
+     * - Extracts maxComplexity from config (using current state value as fallback)
+     * - Removes maxComplexity from config object before storage
+     * - Updates configRef with new settings
+     * - Updates component state if maxComplexity changed
+     * - Optionally updates low memory warning based on new config
+     * - Persists settings to IndexedDB via storeLanguagePreferences
      */
-    async function saveChangedSettings(config: TAlignmentSuggestionsConfig) {
+    async function saveChangedSettings(config: TAlignmentSuggestionsConfig, updateMemoryWarning: boolean = false) {
         if (config) {
             // pull out maxComplexity
             const maxComplexity_ = config.maxComplexity || maxComplexity;
@@ -2064,6 +2078,9 @@ export const useAlignmentSuggestions = ({
             const maxComplexityCurrent = stateRef.current?.maxComplexity
             if (maxComplexity_ !== maxComplexityCurrent) {
                 setState({...stateRef.current, maxComplexity: maxComplexity_});
+            }
+            if (updateMemoryWarning) {
+                updateLowMemoryWarning(configRef.current);
             }
             await storeLanguagePreferences(
                 contextId,
@@ -2127,9 +2144,36 @@ export const useAlignmentSuggestions = ({
 
     // Get the current suggester function
     const suggester: TSuggester = getSuggester()
-    
-    // 
-    const lowMemoryWarning = getLowMemoryWarning(configRef?.current, trainingRunning)
+
+    /**
+     * Updates the low memory warning state based on current configuration and training status
+     *
+     * Evaluates whether a low memory warning should be displayed by calling `getLowMemoryWarning`
+     * with the current configuration. The warning state is only updated if it differs from the
+     * current state to prevent unnecessary re-renders.
+     *
+     * This function is called when:
+     * - Configuration changes that affect memory usage (auto-training, auto-update settings)
+     * - Training state changes (starting/stopping training operations)
+     * - Settings are loaded from storage
+     *
+     * @param {TAlignmentSuggestionsConfig} config_ - The alignment configuration to evaluate
+     * @param {boolean} [isTraining=false] - Whether alignment training is currently active
+     * @returns {void}
+     *
+     * @see getLowMemoryWarning for the logic that determines when warnings should be shown
+     */
+    function updateLowMemoryWarning(config_: TAlignmentSuggestionsConfig, isTraining: boolean = false) {
+        const lowMemoryWarning_ = getLowMemoryWarning(getDefaultConfig(config_), isTraining)
+        if (lowMemoryWarning_ !== lowMemoryWarning) {
+            setLowMemoryWarning(lowMemoryWarning_);
+        }
+    }
+
+    useEffect(() => {
+        console.log(`useAlignmentSuggestions - trainingRunning changed to ${trainingRunning}`);
+        updateLowMemoryWarning(configRef.current, trainingRunning);
+    },[trainingRunning]);
 
     // Return the hook's state and actions
     return {

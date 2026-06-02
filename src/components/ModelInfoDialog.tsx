@@ -291,6 +291,22 @@ export const ModelInfoDialog: React.FC<{
  
         let content: React.ReactNode[] = [];
 
+        if (config?.lowMemoryWarning) {
+            const warning = translate('suggestions.settings_low_memory_warning', {
+              button1: translate("suggestions.auto_update_memory_label"),
+              button2: translate("training.auto_training_label"),
+            })
+            content.push(
+                <div key="low-memory-warning" id="low-memory-warning" style={{
+                  color: '#e74c3c',
+                  fontSize: '18px',
+                  fontStyle: 'italic',
+                  fontWeight: 'bold'}}>
+                    {warning}
+                </div>
+            );
+        }
+
         const bookId_ = contextId?.reference?.bookId;
         if (bookId_) {
             content.push(
