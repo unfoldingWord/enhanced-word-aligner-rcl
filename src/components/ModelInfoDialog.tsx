@@ -301,7 +301,8 @@ export const ModelInfoDialog: React.FC<{
                   color: '#e74c3c',
                   fontSize: '18px',
                   fontStyle: 'italic',
-                  fontWeight: 'bold'}}>
+                  fontWeight: 'bold'
+                }}>
                     {warning}
                 </div>
             );

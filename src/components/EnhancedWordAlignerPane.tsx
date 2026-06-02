@@ -282,9 +282,10 @@ export const EnhancedWordAlignerPane: React.FC<EnhancedWordAlignerPaneProps> = (
                 style={{
                     color: 'red',
                     fontStyle: 'italic',
+                    fontWeight: 'bold',
                     display: 'block',
                     width: '100%',
-                    textAlign: 'center',
+                    textAlign: 'center'
                 }}
               >
                   {translate('training.low_memory_warning')}
